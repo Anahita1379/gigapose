@@ -2,9 +2,14 @@ _target_: src.models.network.ae_net.AENet
 model_name: dinov2_vitl14
 
 dinov2_model:
-  _target_: torch.hub.load
+  # Use a small repo-local wrapper instead of raw torch.hub.load. It patches
+  # newer DINOv2 cache files so they still import under this Python 3.9 env.
+  _target_: src.models.network.dinov2_hub.load_dinov2_model
   repo_or_dir: facebookresearch/dinov2
   model: ${model.ae_net.model_name}
+  # GigaPose loads its trained checkpoint afterward; this avoids DINOv2 trying
+  # to download separate backbone weights during test.py startup.
+  pretrained: false
 
 max_batch_size: 64
 descriptor_size: 1024
