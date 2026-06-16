@@ -16,7 +16,9 @@ the prediction is in the right part of the image with a plausible orientation.
 
 import argparse
 import csv
+import json
 import re
+import tarfile
 from pathlib import Path
 
 import cv2
@@ -29,7 +31,9 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--predictions",
+        "--prediction-file",
         type=Path,
+        dest="predictions",
         default=Path(
             "gigaPose_datasets/results/large_racecar_test/predictions/"
             "large-pbrreal-rgb-mmodel_racecar-test_racecar_test.csv"
@@ -105,16 +109,23 @@ def load_im_id_to_frame_id(args):
             for part in args.frame_ids.split(",")
             if part.strip()
         ]
-        return {im_id: stem for im_id, stem in enumerate(stems)}
+        return {im_id: {"source_frame_id": stem} for im_id, stem in enumerate(stems)}
 
     if args.frame_map.exists():
-        import json
-
         rows = json.loads(args.frame_map.read_text())
-        return {int(row["im_id"]): row["source_frame_id"] for row in rows}
+        frame_infos = {}
+        for row in rows:
+            im_id = int(row["im_id"])
+            if "source_frame_id" not in row and "image_path" not in row:
+                raise KeyError(
+                    "Frame map rows must contain either 'source_frame_id' "
+                    "or 'image_path'. Re-run dataset preparation if needed."
+                )
+            frame_infos[im_id] = row
+        return frame_infos
 
     stems = load_frame_stems(args.source_root, args.split_file)
-    return {im_id: stem for im_id, stem in enumerate(stems)}
+    return {im_id: {"source_frame_id": stem} for im_id, stem in enumerate(stems)}
 
 
 def crop_middle_rgb(image_path):
@@ -131,6 +142,40 @@ def maybe_adjust_intrinsics(K, full_rgb_width, crop_width):
     if K[0, 2] >= crop_width and full_rgb_width == crop_width * 3:
         K[0, 2] -= crop_width
     return K
+
+
+def load_camera_K_from_webdataset(frame_map_path, scene_id, im_id):
+    dataset_dir = frame_map_path.parent
+    test_dir = dataset_dir / "test"
+    key = f"{scene_id:06d}_{im_id:06d}"
+    key_to_shard = json.loads((test_dir / "key_to_shard.json").read_text())
+    shard_id = key_to_shard[key]
+    shard_path = test_dir / f"shard-{int(shard_id):06d}.tar"
+    with tarfile.open(shard_path, mode="r") as tar:
+        camera_file = tar.extractfile(f"{key}.camera.json")
+        if camera_file is None:
+            raise FileNotFoundError(f"{key}.camera.json not found in {shard_path}")
+        camera = json.loads(camera_file.read())
+    return np.asarray(camera["cam_K"], dtype=float).reshape(3, 3)
+
+
+def load_visualization_input(args, pred, frame_info):
+    if "image_path" in frame_info:
+        image_path = Path(frame_info["image_path"])
+        image = np.array(Image.open(image_path).convert("RGB"))
+        K = load_camera_K_from_webdataset(
+            args.frame_map, pred["scene_id"], pred["im_id"]
+        )
+        label_id = image_path.stem
+        return image, K, label_id
+
+    stem = frame_info["source_frame_id"]
+    rgb_path = args.source_root / "images" / f"{stem}.png"
+    K_path = args.source_root / "intrinsics" / f"{stem}.npy"
+    rgb_full = Image.open(rgb_path)
+    image = crop_middle_rgb(rgb_path)
+    K = maybe_adjust_intrinsics(np.load(K_path), rgb_full.size[0], image.shape[1])
+    return image, K, stem
 
 
 def load_prediction_rows(path):
@@ -228,7 +273,7 @@ def main():
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    im_id_to_frame_id = load_im_id_to_frame_id(args)
+    im_id_to_frame_info = load_im_id_to_frame_id(args)
     predictions = load_prediction_rows(args.predictions)
     corners = mesh_bbox_corners(args.mesh)
     axis_length = float(np.linalg.norm(corners.max(axis=0) - corners.min(axis=0)) * 0.2)
@@ -238,25 +283,21 @@ def main():
         selected = selected[: args.max_images]
 
     for pred in selected:
-        if pred["im_id"] not in im_id_to_frame_id:
+        if pred["im_id"] not in im_id_to_frame_info:
             raise ValueError(
                 f"No source frame id found for prediction im_id={pred['im_id']}. "
                 "Pass --frame-ids or --frame-map matching the prepared dataset."
             )
-        stem = im_id_to_frame_id[pred["im_id"]]
-        rgb_path = args.source_root / "images" / f"{stem}.png"
-        K_path = args.source_root / "intrinsics" / f"{stem}.npy"
-
-        rgb_full = Image.open(rgb_path)
-        image = crop_middle_rgb(rgb_path)
-        K = maybe_adjust_intrinsics(np.load(K_path), rgb_full.size[0], image.shape[1])
+        image, K, frame_label = load_visualization_input(
+            args, pred, im_id_to_frame_info[pred["im_id"]]
+        )
 
         overlay = image.copy()
         bbox_2d, valid = project_points(corners, pred["R"], pred["t"], K)
         draw_bbox(overlay, bbox_2d, valid)
         draw_axes(overlay, pred["R"], pred["t"], K, axis_length)
 
-        label = f"im_id={pred['im_id']} frame={stem} score={pred['score']:.3f}"
+        label = f"im_id={pred['im_id']} frame={frame_label} score={pred['score']:.3f}"
         cv2.putText(
             overlay,
             label,
@@ -270,7 +311,7 @@ def main():
 
         # Save side-by-side: original crop on the left, overlay on the right.
         side_by_side = np.concatenate([image, overlay], axis=1)
-        save_path = args.output_dir / f"{pred['im_id']:06d}_{stem}_overlay.png"
+        save_path = args.output_dir / f"{pred['im_id']:06d}_{frame_label}_overlay.png"
         Image.fromarray(side_by_side).save(save_path)
 
     print(f"Saved {len(selected)} overlays to {args.output_dir}")
