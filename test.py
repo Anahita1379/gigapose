@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from hydra.utils import instantiate
@@ -69,7 +70,11 @@ def run_test(cfg: DictConfig):
         model.run_id = wandb.run.id
     else:
         model.run_id = cfg.run_id
-    model.log_interval = len(test_dataloader) // 30
+    prediction_dir = Path(model.log_dir) / "predictions"
+    if prediction_dir.exists():
+        for prediction_file in prediction_dir.glob("*.npz"):
+            prediction_file.unlink()
+    model.log_interval = max(1, len(test_dataloader) // 30)
     logger.info("Dataloaders initialized!")
 
     trainer.test(

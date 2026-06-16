@@ -36,6 +36,12 @@ def group_by_keys(data, keys=base_plus_ext, lcase=True, suffixes=None, handler=N
     current_sample = None
     for filesample in data:
         assert isinstance(filesample, dict)
+        # webdataset.tar_file_expander can emit stream bookkeeping records
+        # without payload fields such as "fname"/"data" at shard boundaries or
+        # end-of-stream. They are not image samples, so skip them instead of
+        # crashing after the last valid frame.
+        if "fname" not in filesample or "data" not in filesample:
+            continue
         fname, value = filesample["fname"], filesample["data"]
         prefix, suffix = keys(fname)
         if trace:
