@@ -40,6 +40,24 @@ gigaPose_datasets/datasets/assettocorsa/
 Every shard sample contains RGB, rendered object depth, camera intrinsics, GT
 CAD pose, visible masks, and BOP GT information.
 
+### Which recording folders are used?
+
+`prepare_ac_training_data.py` does not scan your disk automatically. It uses
+only the recording roots passed with `--source-root`. If that option is omitted,
+it uses the single built-in default:
+
+```text
+/mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260619_clear_2opponent_withMask
+```
+
+Repeat the option once per recording to combine folders. Each root must contain
+`csv/bboxes_3d.csv`, `images/<camera>/`, and `masks/<camera>/`. The processed
+dataset is written to `--output-root/--dataset-name`, whose default is:
+
+```text
+gigaPose_datasets/datasets/assettocorsa
+```
+
 ## 1. Activate the existing GigaPose environment
 
 Run all commands from the repository root:
@@ -142,6 +160,40 @@ python -m fine_tuning.prepare_ac_training_data \
 
 This is preferable to randomly splitting adjacent 10 Hz frames.
 
+## Visualize GigaPose predictions as CAD silhouettes
+
+`coordinate_check` uses GT poses from `bboxes_3d.csv`: it converts each GT pose,
+renders the CAD with `pyrender`/EGL, and alpha-blends the rendered silhouette on
+the original RGB image. To perform the same check with GigaPose's predicted
+poses, run:
+
+```bash
+python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions /path/to/gigapose_predictions.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa \
+  --split test \
+  --output-dir fine_tuning/prediction_overlays
+```
+
+The script groups all CSV rows by `(scene_id, im_id)` and draws every predicted
+car in one image. This matters because the older
+`src/scripts/visualize_racecar_predictions.py` writes every prediction for an
+image to the same filename, causing later instances to overwrite earlier ones.
+
+The output report records the number of CSV predictions per image:
+
+```text
+fine_tuning/prediction_overlays/prediction_overlay_report.json
+```
+
+Use the exact mesh that was used to render the inference templates. The default
+is `<dataset-dir>/models/obj_000001.ply`. For a MultiHypothesis CSV, the script
+keeps the highest-score hypothesis for each explicit `instance_id`.
+
+If translations in the CSV are millimeters while the mesh is in meters, add
+`--translation-scale 0.001`. The current custom GigaPose inference CSV normally
+uses translations in the mesh's meter units, so the default scale is `1.0`.
+
 ## 5. Render templates from the centered training CAD
 
 The preparation script writes a centered CAD. Render a fresh template bank from
@@ -196,6 +248,24 @@ python -m fine_tuning.train \
   --run-name assettocorsa_all_finetune
 ```
 
+
+## CAD overlay on preditions: 
+```bash
+python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions /path/to/predictions.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa \
+  --split test \
+  --output-dir fine_tuning/prediction_overlays
+```
+It composites every predicted car onto one image and writes a count report:
+
+```text
+fine_tuning/prediction_overlays/prediction_overlay_report.json
+```
+
+Use the exact dataset mesh used for template rendering. Add --translation-scale 0.001 only if the prediction translations are millimeters while the CAD is in meters.
+
+
 ## Important limitations
 
 - The saved PGM masks are unions of projected rectangles, not silhouettes. This
@@ -210,4 +280,6 @@ python -m fine_tuning.train \
 - A single mostly stationary recording is not enough to demonstrate useful
   generalization. Add sessions with different ranges, orientations, lighting,
   tracks, and opponent placements, then hold out entire sessions.
+
+
 
