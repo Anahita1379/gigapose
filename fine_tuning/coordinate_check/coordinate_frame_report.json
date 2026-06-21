@@ -1,0 +1,84 @@
+{
+  "cad_path": "/mnt/ssd2tb/gigapose/gigaPose_datasets/datasets/racecar/models/obj_000001.ply",
+  "cad_centered_extents_m": [
+    4.858071327209473,
+    2.0401546955108643,
+    1.0096596335060894
+  ],
+  "ac_camera_to_opencv_determinant": -1.0,
+  "candidates": {
+    "recommended": {
+      "cad_to_ac_body": [
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "determinant": 1.0,
+      "mean_rendered_bbox_iou": 0.6595788416786592,
+      "median_ac_aabb_size_m": [
+        1.784864,
+        1.230657,
+        4.995492
+      ],
+      "mapped_cad_extent_m": [
+        2.0401546955108643,
+        1.0096596335060894,
+        4.858071327209473
+      ],
+      "extent_ratio_cad_over_ac": [
+        1.1430308950770838,
+        0.8204232645701357,
+        0.9724910633846422
+      ]
+    },
+    "yaw_180_alternative": {
+      "cad_to_ac_body": [
+        [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ],
+        [
+          -1.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "determinant": 1.0,
+      "mean_rendered_bbox_iou": 0.5966186566159645,
+      "median_ac_aabb_size_m": [
+        1.784864,
+        1.230657,
+        4.995492
+      ],
+      "mapped_cad_extent_m": [
+        2.0401546955108643,
+        1.0096596335060894,
+        4.858071327209473
+      ],
+      "extent_ratio_cad_over_ac": [
+        1.1430308950770838,
+        0.8204232645701357,
+        0.9724910633846422
+      ]
+    }
+  },
+  "interpretation": "Choose the candidate whose rendered green/blue silhouettes face the same direction as the cars. CSV rectangles alone cannot prove front versus rear."
+}

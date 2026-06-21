@@ -1,0 +1,29 @@
+# Shared configuration for the Assetto Corsa fine-tuning workflow.
+dataset_name: assettocorsa
+object_id: 1
+camera_ids: [front]
+
+# Row-major transform from centered CAD coordinates into the Assetto Corsa
+# body-AABB frame. This choice was visually checked against frame 000000.
+cad_to_ac_body:
+  - [0.0, 1.0, 0.0]
+  - [0.0, 0.0, 1.0]
+  - [1.0, 0.0, 0.0]
+
+mesh_units: meters
+stored_depth_units: millimeters
+stored_pose_translation_units: millimeters
+training_depth_scale: 1.0
+template_scale_factor: 1.0
+
+split:
+  validation_fraction: 0.2
+  gap_frames: 50
+  policy: contiguous_tail_or_held_out_session
+
+fine_tuning:
+  networks: ist
+  ist_learning_rate: 1.0e-5
+  batch_size: 4
+  max_steps: 5000
+  validation_interval_steps: 250
