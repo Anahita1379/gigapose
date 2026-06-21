@@ -451,6 +451,15 @@ python3 -m src.scripts.visualize_racecar_predictions \
   --max-images 20
 ```
 
+For the new dataset, run : 
+```bash
+python3 -m src.scripts.visualize_racecar_predictions \
+  --prediction-file gigaPose_datasets/results/large_arcl_racecar_test/refined_multiple_predictions/large-pbrreal-rgb-mmodel_racecar-test_testMultiHypothesis.csv \
+  --frame-map gigaPose_datasets/datasets/racecar/frame_map.json \
+  --output-dir gigaPose_datasets/results/large_arcl_racecar_test/overlays \
+  --max-images 23
+```
+
 Expected output:
 
 ```text

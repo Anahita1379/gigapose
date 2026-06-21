@@ -37,7 +37,7 @@ code changes.
 
 DEFAULT_METADATA_DIR = Path(
     "/media/hdd2/ARCL_multicar_bags/camera_dataset/"
-    "2026-05-05-12-28-13-v1/stereo_left/metadata"
+    "2026-05-18-v1-v4/stereo_left/metadata"
 )
 DEFAULT_CAD_PATH = Path("/home/anahita/CAD_car/racecar0_highres.ply")
 
