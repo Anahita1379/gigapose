@@ -1,0 +1,1002 @@
+[
+  {
+    "scene_id": 1,
+    "im_id": 0,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000000_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 1,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000001_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 2,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000002_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 3,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000003_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 4,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000004_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 5,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000005_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 6,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000006_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 7,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000007_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 8,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000008_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 9,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000009_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 10,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000010_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 11,
+    "prediction_count": 2,
+    "scores": [
+      0.01171875,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000011_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 12,
+    "prediction_count": 2,
+    "scores": [
+      0.015625,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000012_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 13,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000013_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 14,
+    "prediction_count": 2,
+    "scores": [
+      0.015625,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000014_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 15,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000015_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 16,
+    "prediction_count": 2,
+    "scores": [
+      0.01171875,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000016_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 17,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000017_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 18,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000018_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 19,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000019_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 20,
+    "prediction_count": 2,
+    "scores": [
+      0.03125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000020_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 21,
+    "prediction_count": 2,
+    "scores": [
+      0.01171875,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000021_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 22,
+    "prediction_count": 2,
+    "scores": [
+      0.01171875,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000022_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 23,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000023_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 24,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000024_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 25,
+    "prediction_count": 2,
+    "scores": [
+      0.01171875,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000025_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 26,
+    "prediction_count": 2,
+    "scores": [
+      0.015625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000026_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 27,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000027_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 28,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000028_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 29,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000029_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 30,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000030_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 31,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000031_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 32,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000032_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 33,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000033_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 34,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000034_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 35,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000035_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 36,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000036_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 37,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000037_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 38,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000038_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 39,
+    "prediction_count": 2,
+    "scores": [
+      0.0078125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000039_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 40,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000040_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 41,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000041_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 42,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000042_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 43,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000043_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 44,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000044_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 45,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000045_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 46,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000046_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 47,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000047_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 48,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000048_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 49,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000049_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 50,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000050_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 51,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000051_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 52,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000052_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 53,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000053_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 54,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000054_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 55,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000055_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 56,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000056_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 57,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000057_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 58,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000058_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 59,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000059_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 60,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000060_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 61,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000061_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 62,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000062_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 63,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000063_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 64,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000064_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 65,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000065_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 66,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000066_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 67,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000067_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 68,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000068_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 69,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000069_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 70,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000070_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 71,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000071_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 72,
+    "prediction_count": 2,
+    "scores": [
+      0.0,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000072_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 73,
+    "prediction_count": 2,
+    "scores": [
+      0.00390625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000073_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 74,
+    "prediction_count": 2,
+    "scores": [
+      0.015625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000074_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 75,
+    "prediction_count": 2,
+    "scores": [
+      0.05078125,
+      0.01171875
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000075_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 76,
+    "prediction_count": 2,
+    "scores": [
+      0.04296875,
+      0.01171875
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000076_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 77,
+    "prediction_count": 2,
+    "scores": [
+      0.01953125,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000077_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 78,
+    "prediction_count": 2,
+    "scores": [
+      0.0390625,
+      0.03125
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000078_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 79,
+    "prediction_count": 2,
+    "scores": [
+      0.02734375,
+      0.015625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000079_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 80,
+    "prediction_count": 2,
+    "scores": [
+      0.03515625,
+      0.03125
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000080_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 81,
+    "prediction_count": 2,
+    "scores": [
+      0.03125,
+      0.015625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000081_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 82,
+    "prediction_count": 2,
+    "scores": [
+      0.015625,
+      0.01171875
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000082_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 83,
+    "prediction_count": 2,
+    "scores": [
+      0.0234375,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000083_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 84,
+    "prediction_count": 2,
+    "scores": [
+      0.0234375,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000084_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 85,
+    "prediction_count": 2,
+    "scores": [
+      0.01171875,
+      0.0078125
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000085_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 86,
+    "prediction_count": 2,
+    "scores": [
+      0.03125,
+      0.03125
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000086_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 87,
+    "prediction_count": 2,
+    "scores": [
+      0.015625,
+      0.0
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000087_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 88,
+    "prediction_count": 2,
+    "scores": [
+      0.03125,
+      0.00390625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000088_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 89,
+    "prediction_count": 2,
+    "scores": [
+      0.04296875,
+      0.0078125
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000089_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 90,
+    "prediction_count": 2,
+    "scores": [
+      0.04296875,
+      0.0234375
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000090_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 91,
+    "prediction_count": 2,
+    "scores": [
+      0.04296875,
+      0.01953125
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000091_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 92,
+    "prediction_count": 2,
+    "scores": [
+      0.02734375,
+      0.015625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000092_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 93,
+    "prediction_count": 2,
+    "scores": [
+      0.03515625,
+      0.01171875
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000093_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 94,
+    "prediction_count": 2,
+    "scores": [
+      0.0703125,
+      0.05859375
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000094_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 95,
+    "prediction_count": 2,
+    "scores": [
+      0.0625,
+      0.015625
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000095_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 96,
+    "prediction_count": 2,
+    "scores": [
+      0.0390625,
+      0.0234375
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000096_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 97,
+    "prediction_count": 2,
+    "scores": [
+      0.04296875,
+      0.01953125
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000097_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 98,
+    "prediction_count": 2,
+    "scores": [
+      0.03125,
+      0.0078125
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000098_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 99,
+    "prediction_count": 2,
+    "scores": [
+      0.0390625,
+      0.0234375
+    ],
+    "output": "fine_tuning/prediction_overlays/000001_000099_overlay.jpg"
+  }
+]
