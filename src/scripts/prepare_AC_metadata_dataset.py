@@ -8,8 +8,8 @@ with no mask pixels are skipped.
 Example:
 
     python -m src.scripts.prepare_AC_metadata_dataset \
-      --source-root /path/to/20260620_haze_3opp_withInstanceMask \
-      --cad-path /path/to/opponent_car.ply \
+      --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260619_clear_2opponent_withMask \
+      --cad-path "/home/anahita/CAD_car/racecar0_highres.ply" \
       --cameras front --max-frames 100
 """
 
@@ -39,8 +39,7 @@ from fine_tuning.ac_geometry import (
 
 
 DEFAULT_SOURCE_ROOT = Path(
-    "/mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/"
-    "apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask"
+    "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260620_haze_3opp_withInstanceMask"
 )
 CAMERA_SCENE_IDS = {
     "front": 1,

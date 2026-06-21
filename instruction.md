@@ -392,6 +392,7 @@ After coarse prediction:
 
 ```bash
 python3 refine.py test_dataset_name=racecar run_id=racecar_test
+python3 refine.py test_dataset_name=assettocorsa run_id=ac_front
 ```
 
 Refined outputs are saved under the same experiment result directory, typically
@@ -459,6 +460,15 @@ python3 -m src.scripts.visualize_racecar_predictions \
   --output-dir gigaPose_datasets/results/large_arcl_racecar_test/overlays \
   --max-images 23
 ```
+```bash
+python3 -m src.scripts.visualize_racecar_predictions \
+  --prediction-file  /home/anahita/gigapose/gigaPose_datasets/results/large_ac_front/refined_multiple_predictions/large-pbrreal-rgb-mmodel_assettocorsa-test_frontMultiHypothesis.csv \
+  --frame-map /home/anahita/gigapose/gigaPose_datasets/datasets/assettocorsa/frame_map.json \
+  --output-dir gigaPose_datasets/results/large_AC_test/overlays \
+  --max-images 100
+```
+
+
 
 Expected output:
 
