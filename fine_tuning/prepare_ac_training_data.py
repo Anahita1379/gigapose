@@ -25,8 +25,11 @@ from fine_tuning.ac_geometry import (
     cad_to_camera_pose,
     csv_bbox_xywh,
     image_stem,
+    instance_mask_for_row,
+    instance_mask_path,
     intrinsics,
     load_centered_mesh,
+    load_instance_ids,
     parse_matrix,
     read_grouped_rows,
 )
@@ -34,7 +37,7 @@ from fine_tuning.ac_geometry import (
 
 DEFAULT_SOURCE = Path(
     "/mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/"
-    "apps/lua/multi_cam_obs/frames/20260619_clear_2opponent_withMask"
+    "apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask"
 )
 DEFAULT_CAD = Path("gigaPose_datasets/datasets/racecar/models/obj_000001.ply")
 
@@ -62,7 +65,7 @@ def parse_args() -> argparse.Namespace:
         "--source-root",
         type=Path,
         action="append",
-        help="Recording root; repeat for multiple sessions. Defaults to the 20260619 session.",
+        help="Recording root; repeat for sessions. Defaults to the corrected 20260620 session.",
     )
     parser.add_argument("--cad-path", type=Path, default=DEFAULT_CAD)
     parser.add_argument(
@@ -89,6 +92,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-shard-size", type=int, default=250)
     parser.add_argument("--cad-scale", type=float, default=1.0)
+    parser.add_argument(
+        "--min-mask-overlap",
+        type=float,
+        default=0.25,
+        help=(
+            "Skip an instance when the observed/CAD-rendered mask intersection "
+            "covers less than this fraction of the observed mask."
+        ),
+    )
     parser.add_argument(
         "--cad-to-ac-body",
         default=None,
@@ -244,6 +256,7 @@ def write_split(
     cad_to_ac_body: np.ndarray,
     object_id: int,
     max_shard_size: int,
+    min_mask_overlap: float,
 ) -> tuple[int, int, list[dict[str, object]]]:
     split_dir.mkdir(parents=True)
     writer = wds.ShardWriter(
@@ -266,13 +279,24 @@ def write_split(
             K = intrinsics(first)
             poses_m = [cad_to_camera_pose(row, cad_to_ac_body) for row in rows]
             segmentation, depth_m = mesh_renderer.render(poses_m, K, width, height)
+            observed_instance_ids = load_instance_ids(
+                instance_mask_path(frame.source_root, frame.camera_id, first),
+                image.size,
+            )
 
             gt, gt_info, visible_masks, kept_instances = [], [], {}, []
             for render_id, (row, pose_m) in enumerate(zip(rows, poses_m), start=1):
-                mask = segmentation == render_id
-                visible_bbox = bbox_from_mask(mask)
-                if not mask.any():
+                observed_mask = instance_mask_for_row(observed_instance_ids, row)
+                rendered_mask = segmentation == render_id
+                mask = np.logical_and(observed_mask, rendered_mask)
+                observed_pixels = int(observed_mask.sum())
+                rendered_pixels = int(rendered_mask.sum())
+                overlap_fraction = (
+                    float(mask.sum() / observed_pixels) if observed_pixels else 0.0
+                )
+                if overlap_fraction < min_mask_overlap:
                     continue
+                visible_bbox = bbox_from_mask(mask)
                 gt_index = len(gt)
                 gt.append(
                     {
@@ -285,10 +309,13 @@ def write_split(
                     {
                         "bbox_obj": csv_bbox_xywh(row),
                         "bbox_visib": visible_bbox,
-                        "px_count_all": int(mask.sum()),
+                        "px_count_all": rendered_pixels,
                         "px_count_valid": int(mask.sum()),
                         "px_count_visib": int(mask.sum()),
-                        "visib_fract": 1.0,
+                        "visib_fract": (
+                            float(mask.sum() / rendered_pixels)
+                            if rendered_pixels else 0.0
+                        ),
                     }
                 )
                 visible_masks[str(gt_index)] = pycoco_utils.binary_mask_to_rle(
@@ -297,8 +324,13 @@ def write_split(
                 kept_instances.append(
                     {
                         "opp_id": int(row["opp_id"]),
+                        "instance_id": int(row["instance_id"]),
                         "csv_bbox": csv_bbox_xywh(row),
                         "rendered_visible_bbox": visible_bbox,
+                        "observed_pixels": observed_pixels,
+                        "rendered_pixels": rendered_pixels,
+                        "supervision_pixels": int(mask.sum()),
+                        "observed_mask_coverage": overlap_fraction,
                     }
                 )
             if not gt:
@@ -340,6 +372,8 @@ def write_split(
 
 def main() -> None:
     args = parse_args()
+    if not 0.0 <= args.min_mask_overlap <= 1.0:
+        raise ValueError("--min-mask-overlap must be between zero and one.")
     sessions = collect_frames(args)
     train_frames, val_frames, split_policy = split_frames(
         sessions,
@@ -370,6 +404,7 @@ def main() -> None:
             cad_to_ac_body,
             args.object_id,
             args.max_shard_size,
+            args.min_mask_overlap,
         )
         val_count, val_instances, val_manifest = write_split(
             val_frames,
@@ -378,6 +413,7 @@ def main() -> None:
             cad_to_ac_body,
             args.object_id,
             args.max_shard_size,
+            args.min_mask_overlap,
         )
     finally:
         renderer.close()
@@ -393,6 +429,8 @@ def main() -> None:
         "pose_translation_units": "millimeters",
         "depth_storage_units": "millimeters",
         "training_depth_scale": 1.0,
+        "mask_supervision": "observed_instance_mask_intersected_with_rendered_cad",
+        "minimum_observed_mask_overlap": args.min_mask_overlap,
         "split_policy": split_policy,
         "train": {
             "samples": train_count,
@@ -415,4 +453,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

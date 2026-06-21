@@ -2,6 +2,10 @@
 dataset_name: assettocorsa
 object_id: 1
 camera_ids: [front]
+source_roots:
+  - /mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask
+mask_format: rgb_instance_id_png
+mask_supervision: observed_intersect_rendered_cad
 
 # Row-major transform from centered CAD coordinates into the Assetto Corsa
 # body-AABB frame. This choice was visually checked against frame 000000.

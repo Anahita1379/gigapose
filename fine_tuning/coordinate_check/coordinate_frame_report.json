@@ -26,7 +26,8 @@
         ]
       ],
       "determinant": 1.0,
-      "mean_rendered_bbox_iou": 0.6595788416786592,
+      "mean_rendered_bbox_iou": 0.6733717600816225,
+      "mean_rendered_vs_observed_mask_iou": 0.7033004571199604,
       "median_ac_aabb_size_m": [
         1.784864,
         1.230657,
@@ -62,7 +63,8 @@
         ]
       ],
       "determinant": 1.0,
-      "mean_rendered_bbox_iou": 0.5966186566159645,
+      "mean_rendered_bbox_iou": 0.6199747539064859,
+      "mean_rendered_vs_observed_mask_iou": 0.6162417122699819,
       "median_ac_aabb_size_m": [
         1.784864,
         1.230657,
@@ -80,5 +82,5 @@
       ]
     }
   },
-  "interpretation": "Choose the candidate whose rendered green/blue silhouettes face the same direction as the cars. CSV rectangles alone cannot prove front versus rear."
+  "interpretation": "Choose the candidate whose rendered green/blue silhouettes face the same direction as the cars. The observed-mask IoU now provides an additional check."
 }

@@ -5,7 +5,7 @@ This is a quick qualitative check for GigaPose outputs. It reads the BOP-style
 prediction CSV written by test.py, loads the matching source frame from the
 rosbag extraction, crops the middle RGB camera view, and draws:
 
-  - the projected 3D CAD bounding box in green
+  - every projected 3D CAD bounding box in a distinct color
   - the predicted object coordinate axes in red/green/blue
   - the predicted object origin as a yellow dot
 
@@ -19,6 +19,7 @@ import csv
 import json
 import re
 import tarfile
+from collections import defaultdict
 from pathlib import Path
 
 import cv2
@@ -77,7 +78,7 @@ def parse_args():
         "--every",
         type=int,
         default=1,
-        help="Visualize every Nth prediction after sorting by image id.",
+        help="Visualize every Nth image after sorting by scene/image id.",
     )
     return parser.parse_args()
 
@@ -109,7 +110,10 @@ def load_im_id_to_frame_id(args):
             for part in args.frame_ids.split(",")
             if part.strip()
         ]
-        return {im_id: {"source_frame_id": stem} for im_id, stem in enumerate(stems)}
+        return {
+            (1, im_id): {"source_frame_id": stem}
+            for im_id, stem in enumerate(stems)
+        }
 
     if args.frame_map.exists():
         rows = json.loads(args.frame_map.read_text())
@@ -121,11 +125,15 @@ def load_im_id_to_frame_id(args):
                     "Frame map rows must contain either 'source_frame_id' "
                     "or 'image_path'. Re-run dataset preparation if needed."
                 )
-            frame_infos[im_id] = row
+            scene_id = int(row.get("scene_id", 1))
+            frame_infos[(scene_id, im_id)] = row
         return frame_infos
 
     stems = load_frame_stems(args.source_root, args.split_file)
-    return {im_id: {"source_frame_id": stem} for im_id, stem in enumerate(stems)}
+    return {
+        (1, im_id): {"source_frame_id": stem}
+        for im_id, stem in enumerate(stems)
+    }
 
 
 def crop_middle_rgb(image_path):
@@ -231,7 +239,7 @@ def draw_line_if_valid(image, points, valid, i, j, color, thickness=2):
         cv2.line(image, p0, p1, color, thickness, cv2.LINE_AA)
 
 
-def draw_bbox(image, points, valid):
+def draw_bbox(image, points, valid, color):
     # Bottom face, top face, and vertical edges of the CAD axis-aligned bbox.
     edges = [
         (0, 1),
@@ -248,7 +256,7 @@ def draw_bbox(image, points, valid):
         (3, 7),
     ]
     for i, j in edges:
-        draw_line_if_valid(image, points, valid, i, j, (0, 255, 0), thickness=2)
+        draw_line_if_valid(image, points, valid, i, j, color, thickness=2)
 
 
 def draw_axes(image, R, t, K, axis_length):
@@ -278,43 +286,71 @@ def main():
     corners = mesh_bbox_corners(args.mesh)
     axis_length = float(np.linalg.norm(corners.max(axis=0) - corners.min(axis=0)) * 0.2)
 
-    selected = predictions[:: args.every]
+    predictions_by_image = defaultdict(list)
+    for prediction in predictions:
+        predictions_by_image[(prediction["scene_id"], prediction["im_id"])].append(
+            prediction
+        )
+
+    selected = sorted(predictions_by_image)[:: args.every]
     if args.max_images is not None:
         selected = selected[: args.max_images]
 
-    for pred in selected:
-        if pred["im_id"] not in im_id_to_frame_info:
+    box_colors = [
+        (0, 255, 0),
+        (255, 140, 0),
+        (255, 0, 255),
+        (0, 220, 255),
+    ]
+    num_predictions = 0
+    for scene_id, im_id in selected:
+        image_key = (scene_id, im_id)
+        if image_key not in im_id_to_frame_info:
             raise ValueError(
-                f"No source frame id found for prediction im_id={pred['im_id']}. "
+                f"No source frame id found for prediction {image_key}. "
                 "Pass --frame-ids or --frame-map matching the prepared dataset."
             )
+        image_predictions = sorted(
+            predictions_by_image[image_key], key=lambda prediction: -prediction["score"]
+        )
+        first_prediction = image_predictions[0]
         image, K, frame_label = load_visualization_input(
-            args, pred, im_id_to_frame_info[pred["im_id"]]
+            args, first_prediction, im_id_to_frame_info[image_key]
         )
 
         overlay = image.copy()
-        bbox_2d, valid = project_points(corners, pred["R"], pred["t"], K)
-        draw_bbox(overlay, bbox_2d, valid)
-        draw_axes(overlay, pred["R"], pred["t"], K, axis_length)
+        for prediction_index, prediction in enumerate(image_predictions):
+            color = box_colors[prediction_index % len(box_colors)]
+            bbox_2d, valid = project_points(
+                corners, prediction["R"], prediction["t"], K
+            )
+            draw_bbox(overlay, bbox_2d, valid, color)
+            draw_axes(overlay, prediction["R"], prediction["t"], K, axis_length)
 
-        label = f"im_id={pred['im_id']} frame={frame_label} score={pred['score']:.3f}"
-        cv2.putText(
-            overlay,
-            label,
-            (12, 24),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
+            label = (
+                f"pred={prediction_index + 1} score={prediction['score']:.4f}"
+            )
+            cv2.putText(
+                overlay,
+                label,
+                (12, 24 + 24 * prediction_index),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.65,
+                color,
+                2,
+                cv2.LINE_AA,
+            )
+        num_predictions += len(image_predictions)
 
         # Save side-by-side: original crop on the left, overlay on the right.
         side_by_side = np.concatenate([image, overlay], axis=1)
-        save_path = args.output_dir / f"{pred['im_id']:06d}_{frame_label}_overlay.png"
+        save_path = args.output_dir / f"{im_id:06d}_{frame_label}_overlay.png"
         Image.fromarray(side_by_side).save(save_path)
 
-    print(f"Saved {len(selected)} overlays to {args.output_dir}")
+    print(
+        f"Saved {len(selected)} image overlays containing "
+        f"{num_predictions} predictions to {args.output_dir}"
+    )
 
 
 if __name__ == "__main__":

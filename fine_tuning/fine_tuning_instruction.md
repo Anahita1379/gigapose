@@ -9,16 +9,19 @@ for fine-tuning are local to this folder.
 
 ## What the workflow produces
 
-The input recording supplies real RGB frames, camera intrinsics, oriented 3D
-boxes, and opponent identities. The opponent CAD is the same model already at:
+The corrected input recording supplies real RGB frames, camera intrinsics,
+oriented 3D boxes, and visible per-opponent instance silhouettes. The opponent
+CAD is the same model already at:
 
 ```text
 gigaPose_datasets/datasets/racecar/models/obj_000001.ply
 ```
 
 The preparation script centers that CAD, converts each CSV box frame to a
-right-handed OpenCV CAD-to-camera pose, and renders CAD depth plus visible
-instance silhouettes. It then creates:
+right-handed OpenCV CAD-to-camera pose, and renders CAD depth. Its training mask
+is the intersection of the observed visible silhouette and rendered CAD
+silhouette, ensuring that every supervised pixel has valid geometric depth.
+It then creates:
 
 ```text
 gigaPose_datasets/datasets/assettocorsa/
@@ -47,12 +50,14 @@ only the recording roots passed with `--source-root`. If that option is omitted,
 it uses the single built-in default:
 
 ```text
-/mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260619_clear_2opponent_withMask
+/mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask
 ```
 
 Repeat the option once per recording to combine folders. Each root must contain
-`csv/bboxes_3d.csv`, `images/<camera>/`, and `masks/<camera>/`. The processed
-dataset is written to `--output-root/--dataset-name`, whose default is:
+`csv/bboxes_3d.csv`, `images/<camera>/`, and lossless RGB/RGBA instance-ID PNGs
+under `masks/<camera>/`. The CSV must contain `instance_id` and `mask_r/g/b`.
+The processed dataset is written to `--output-root/--dataset-name`, whose
+default is:
 
 ```text
 gigaPose_datasets/datasets/assettocorsa
@@ -75,7 +80,7 @@ Run the numerical and visual audit before generating the full dataset:
 
 ```bash
 python -m fine_tuning.confirm_cad_coordinate_frame \
-  --source-root /mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260619_clear_2opponent_withMask \
+  --source-root /mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
   --camera front \
   --num-frames 6
@@ -131,7 +136,7 @@ frames before it are excluded as a leakage gap:
 
 ```bash
 python -m fine_tuning.prepare_ac_training_data \
-  --source-root /mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260619_clear_2opponent_withMask \
+  --source-root /mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
   --cameras front \
   --validation-fraction 0.20 \
@@ -141,6 +146,11 @@ python -m fine_tuning.prepare_ac_training_data \
 
 python -m fine_tuning.validate_training_data
 ```
+
+The default `--min-mask-overlap 0.25` rejects instances whose observed mask and
+GT-pose CAD render disagree severely. On the first 10 front frames of the new
+recording, the mean silhouette IoU is about `0.70`, and the intersection keeps
+about `81%` of observed car pixels.
 
 Use `--cameras front,stereo_left,stereo_right` to add those cameras. Rear frames
 are useful only where an opponent annotation actually exists.
@@ -160,6 +170,26 @@ python -m fine_tuning.prepare_ac_training_data \
 
 This is preferable to randomly splitting adjacent 10 Hz frames.
 
+## Build the inference dataset with true instance masks
+
+The inference converter now decodes the exact instance color from each PNG,
+uses the visible-mask bounding box, and stores one COCO-RLE detection per
+visible opponent:
+
+```bash
+python -m src.scripts.prepare_AC_metadata_dataset \
+  --source-root /mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name assettocorsa \
+  --cameras front \
+  --overwrite
+```
+
+`--overwrite` replaces only the inference `test/` split and inference metadata;
+it preserves `train_pbr_web/` and `val_pbr_web/`. Fully occluded CSV instances
+with no mask pixels are skipped. The CAD is centered by default so training,
+templates, inference, and visualization share one coordinate frame.
+
 ## Visualize GigaPose predictions as CAD silhouettes
 
 `coordinate_check` uses GT poses from `bboxes_3d.csv`: it converts each GT pose,
@@ -176,9 +206,8 @@ python -m fine_tuning.overlay_gigapose_predictions \
 ```
 
 The script groups all CSV rows by `(scene_id, im_id)` and draws every predicted
-car in one image. This matters because the older
-`src/scripts/visualize_racecar_predictions.py` writes every prediction for an
-image to the same filename, causing later instances to overwrite earlier ones.
+car in one image. `src/scripts/visualize_racecar_predictions.py` has also been
+updated to group instances, so later cars no longer overwrite earlier ones.
 
 The output report records the number of CSV predictions per image:
 
@@ -268,18 +297,18 @@ Use the exact dataset mesh used for template rendering. Add --translation-scale 
 
 ## Important limitations
 
-- The saved PGM masks are unions of projected rectangles, not silhouettes. This
-  workflow therefore renders silhouettes from the known CAD and GT pose.
+- The corrected PNGs are true visible per-instance silhouettes and are used
+  directly for inference. Fine-tuning intersects them with the CAD render so
+  all target-mask pixels also have valid rendered depth.
 - Rendered depth contains the opponent CADs only. That is intentional: GigaPose
   uses it to establish geometric correspondences.
-- The visible-mask renderer resolves occlusion between opponent CAD instances,
-  but it cannot infer occlusion by track geometry or the ego car from RGB alone.
+- AC's masks already include occlusion by nearer cars, the ego car, and opaque
+  scene geometry. The remaining depth is CAD-rendered because the recording
+  does not contain metric depth.
 - Pose correctness depends on the centered CAD representing the same car and on
   the visual coordinate audit. Always inspect several overlays from a new
   recording before training.
 - A single mostly stationary recording is not enough to demonstrate useful
   generalization. Add sessions with different ranges, orientations, lighting,
   tracks, and opponent placements, then hold out entire sessions.
-
-
 

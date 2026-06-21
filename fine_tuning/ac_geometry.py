@@ -15,6 +15,7 @@ from typing import Iterable
 import numpy as np
 import pyrender
 import trimesh
+from PIL import Image
 
 
 CAMERA_SCENE_IDS = {
@@ -81,6 +82,43 @@ def read_grouped_rows(
 
 def image_stem(row: dict[str, str]) -> str:
     return f"{int(row['sim_time_ms']):010d}_{int(row['frame']):06d}"
+
+
+def instance_mask_path(
+    source_root: Path, camera_id: str, row: dict[str, str]
+) -> Path:
+    return source_root / "masks" / camera_id / f"{image_stem(row)}.png"
+
+
+def load_instance_ids(mask_path: Path, expected_size: tuple[int, int]) -> np.ndarray:
+    """Decode a lossless AC RGB/RGBA instance PNG into integer instance IDs."""
+    if not mask_path.is_file():
+        raise FileNotFoundError(f"Missing instance mask: {mask_path}")
+    mask_rgb = np.asarray(Image.open(mask_path).convert("RGB"), dtype=np.uint32)
+    if (mask_rgb.shape[1], mask_rgb.shape[0]) != expected_size:
+        raise ValueError(
+            f"Mask size mismatch for {mask_path}: "
+            f"{(mask_rgb.shape[1], mask_rgb.shape[0])} != {expected_size}"
+        )
+    return mask_rgb[:, :, 0] + 256 * mask_rgb[:, :, 1] + 65536 * mask_rgb[:, :, 2]
+
+
+def instance_mask_for_row(
+    instance_ids: np.ndarray, row: dict[str, str]
+) -> np.ndarray:
+    if "instance_id" not in row or row["instance_id"] == "":
+        raise KeyError("CSV row has no instance_id; this recording uses legacy box masks.")
+    expected_id = (
+        int(row["mask_r"])
+        + 256 * int(row["mask_g"])
+        + 65536 * int(row["mask_b"])
+    )
+    instance_id = int(row["instance_id"])
+    if expected_id != instance_id:
+        raise ValueError(
+            f"CSV mask color encodes {expected_id}, but instance_id is {instance_id}."
+        )
+    return instance_ids == instance_id
 
 
 def intrinsics(row: dict[str, str]) -> np.ndarray:

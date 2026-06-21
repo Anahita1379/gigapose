@@ -39,6 +39,11 @@ def validate_split(split_dir: Path, max_samples: int | None) -> dict[str, object
             mask = observation.binary_masks[object_data.unique_id]
             if not mask.any():
                 raise ValueError(f"{split_dir}: object {object_data.unique_id} has empty mask")
+            if not np.all(observation.depth[mask] > 0):
+                raise ValueError(
+                    f"{split_dir}: object {object_data.unique_id} has mask pixels "
+                    "without rendered depth"
+                )
             determinants.append(float(np.linalg.det(object_data.TWO.matrix[:3, :3])))
         sample_count += 1
         instance_count += len(observation.object_datas)
@@ -70,4 +75,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

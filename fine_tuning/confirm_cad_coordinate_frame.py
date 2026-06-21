@@ -18,15 +18,18 @@ from fine_tuning.ac_geometry import (
     cad_to_camera_pose,
     csv_bbox_xywh,
     image_stem,
+    instance_mask_for_row,
+    instance_mask_path,
     intrinsics,
     load_centered_mesh,
+    load_instance_ids,
     read_grouped_rows,
 )
 
 
 DEFAULT_SOURCE = Path(
     "/mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/"
-    "apps/lua/multi_cam_obs/frames/20260619_clear_2opponent_withMask"
+    "apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask"
 )
 DEFAULT_CAD = Path("gigaPose_datasets/datasets/racecar/models/obj_000001.ply")
 
@@ -87,12 +90,13 @@ def main() -> None:
         "candidates": {},
         "interpretation": (
             "Choose the candidate whose rendered green/blue silhouettes face the same "
-            "direction as the cars. CSV rectangles alone cannot prove front versus rear."
+            "direction as the cars. The observed-mask IoU now provides an additional check."
         ),
     }
     try:
         for candidate_name, mapping in candidates.items():
             all_ious = []
+            all_mask_ious = []
             ac_sizes = []
             for (_, frame), rows in groups:
                 first = rows[0]
@@ -102,12 +106,23 @@ def main() -> None:
                     poses, intrinsics(first), width=width, height=height
                 )
                 masks = [segmentation == index for index in range(1, len(rows) + 1)]
+                instance_ids = load_instance_ids(
+                    instance_mask_path(args.source_root, args.camera, first),
+                    (width, height),
+                )
+                observed_masks = [
+                    instance_mask_for_row(instance_ids, row) for row in rows
+                ]
                 csv_boxes = [csv_bbox_xywh(row) for row in rows]
                 rendered_boxes = [bbox_from_mask(mask) for mask in masks]
                 all_ious.extend(
                     bbox_iou(rendered, expected)
                     for rendered, expected in zip(rendered_boxes, csv_boxes)
                 )
+                for rendered_mask, observed_mask in zip(masks, observed_masks):
+                    intersection = np.logical_and(rendered_mask, observed_mask).sum()
+                    union = np.logical_or(rendered_mask, observed_mask).sum()
+                    all_mask_ious.append(float(intersection / union) if union else 0.0)
                 ac_sizes.extend(
                     [float(row[f"size_{axis}"]) for axis in "xyz"] for row in rows
                 )
@@ -124,6 +139,7 @@ def main() -> None:
                 "cad_to_ac_body": mapping.tolist(),
                 "determinant": float(np.linalg.det(mapping)),
                 "mean_rendered_bbox_iou": float(np.mean(all_ious)),
+                "mean_rendered_vs_observed_mask_iou": float(np.mean(all_mask_ious)),
                 "median_ac_aabb_size_m": median_ac_size.tolist(),
                 "mapped_cad_extent_m": mapped_cad_size.tolist(),
                 "extent_ratio_cad_over_ac": (mapped_cad_size / median_ac_size).tolist(),

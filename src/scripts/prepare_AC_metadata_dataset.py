@@ -1,15 +1,14 @@
-"""Convert a multi_cam_obs Assetto Corsa recording for GigaPose inference.
+"""Convert an instance-mask multi_cam_obs recording for GigaPose inference.
 
-The recorder stores one JPEG and one combined binary box mask per camera/frame,
-plus one row per visible opponent in ``csv/bboxes_3d.csv``.  GigaPose expects a
-BOP-like WebDataset and one COCO-RLE detection mask per object instance.  This
-script uses the CSV boxes to recover those per-instance rectangular masks; the
-combined PGM cannot distinguish overlapping opponents.
+The corrected recorder stores one JPEG and one lossless instance-ID PNG per
+camera/frame, plus one row per opponent in ``csv/bboxes_3d.csv``. The exact
+``instance_id`` and RGB encoding are read from the CSV. Fully occluded instances
+with no mask pixels are skipped.
 
 Example:
 
     python -m src.scripts.prepare_AC_metadata_dataset \
-      --source-root /path/to/20260619_clear_2opponent_withMask \
+      --source-root /path/to/20260620_haze_3opp_withInstanceMask \
       --cad-path /path/to/opponent_car.ply \
       --cameras front --max-frames 100
 """
@@ -32,10 +31,16 @@ import webdataset as wds
 from bop_toolkit_lib import pycoco_utils
 from PIL import Image
 
+from fine_tuning.ac_geometry import (
+    instance_mask_for_row,
+    instance_mask_path,
+    load_instance_ids,
+)
+
 
 DEFAULT_SOURCE_ROOT = Path(
     "/mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/"
-    "apps/lua/multi_cam_obs/frames/20260619_clear_2opponent_withMask"
+    "apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask"
 )
 CAMERA_SCENE_IDS = {
     "front": 1,
@@ -94,8 +99,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--center-cad",
+        dest="center_cad",
         action="store_true",
-        help="Translate the CAD bounding-box center to the origin before export.",
+        help="Translate the CAD bounding-box center to the origin (the default).",
+    )
+    parser.add_argument(
+        "--no-center-cad",
+        dest="center_cad",
+        action="store_false",
+        help="Keep the source CAD origin. Use only with templates rendered that way.",
     )
     parser.add_argument(
         "--max-shard-size", type=int, default=1000, help="Images per WebDataset shard."
@@ -103,12 +115,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Replace an existing output dataset and its detection JSON.",
+        help="Replace the test split/detection JSON while preserving training splits.",
     )
     parser.add_argument(
         "--detection-file-name",
         default="cnos-fastsam_assettocorsa-test.json",
     )
+    parser.set_defaults(center_cad=True)
     return parser.parse_args()
 
 
@@ -143,9 +156,10 @@ def read_annotations(
     with csv_path.open(newline="") as csv_file:
         reader = csv.DictReader(csv_file)
         required = {
-            "frame", "sim_time_ms", "camera_id", "opp_id", "image_width",
-            "image_height", "fx", "fy", "cx", "cy", "xmin", "ymin",
-            "xmax", "ymax", "truncated",
+            "frame", "sim_time_ms", "camera_id", "opp_id", "instance_id",
+            "mask_r", "mask_g", "mask_b", "image_width", "image_height",
+            "fx", "fy", "cx", "cy", "xmin", "ymin", "xmax", "ymax",
+            "truncated",
         }
         missing = required - set(reader.fieldnames or [])
         if missing:
@@ -187,11 +201,13 @@ def bbox_xywh(row: dict[str, str]) -> list[int]:
     return [x0, y0, x1 - x0 + 1, y1 - y0 + 1]
 
 
-def rectangle_mask(height: int, width: int, bbox: list[int]) -> np.ndarray:
-    x, y, box_width, box_height = bbox
-    mask = np.zeros((height, width), dtype=np.uint8)
-    mask[y : y + box_height, x : x + box_width] = 1
-    return mask
+def bbox_from_mask(mask: np.ndarray) -> list[int]:
+    ys, xs = np.where(mask)
+    if len(xs) == 0:
+        return [0, 0, 0, 0]
+    x0, x1 = int(xs.min()), int(xs.max())
+    y0, y1 = int(ys.min()), int(ys.max())
+    return [x0, y0, x1 - x0 + 1, y1 - y0 + 1]
 
 
 def png_bytes(image: Image.Image) -> bytes:
@@ -268,15 +284,18 @@ def prepare_output(args: argparse.Namespace) -> tuple[Path, Path, Path]:
     test_dir = dataset_dir / "test"
     detections_dir = args.output_root / "cnos-fastsam"
     detection_path = detections_dir / args.detection_file_name
-    if dataset_dir.exists() or detection_path.exists():
+    if test_dir.exists() or detection_path.exists():
         if not args.overwrite:
             raise FileExistsError(
-                f"Output exists ({dataset_dir} or {detection_path}); pass --overwrite."
+                f"Output exists ({test_dir} or {detection_path}); pass --overwrite."
             )
-        if dataset_dir.exists():
-            shutil.rmtree(dataset_dir)
+        # Preserve train_pbr_web and val_pbr_web when adding/replacing inference.
+        if test_dir.exists():
+            shutil.rmtree(test_dir)
         detection_path.unlink(missing_ok=True)
-    test_dir.mkdir(parents=True)
+        for metadata_name in ("test_targets_bop19.json", "frame_map.json"):
+            (dataset_dir / metadata_name).unlink(missing_ok=True)
+    test_dir.mkdir(parents=True, exist_ok=True)
     detections_dir.mkdir(parents=True, exist_ok=True)
     return dataset_dir, test_dir, detection_path
 
@@ -322,12 +341,22 @@ def main() -> None:
             scene_id = CAMERA_SCENE_IDS[camera_id]
             stem = row_image_stem(rows[0])
             image_path = args.source_root / "images" / camera_id / f"{stem}.jpg"
-            combined_mask_path = args.source_root / "masks" / camera_id / f"{stem}.pgm"
             if not image_path.is_file():
                 raise FileNotFoundError(f"Image referenced by CSV is missing: {image_path}")
             image = Image.open(image_path).convert("RGB")
             validate_group(rows, image, image_path)
             width, height = image.size
+            mask_path = instance_mask_path(args.source_root, camera_id, rows[0])
+            instance_ids = load_instance_ids(mask_path, image.size)
+            instance_data = []
+            for row in sorted(rows, key=lambda item: int(item["opp_id"])):
+                mask = instance_mask_for_row(instance_ids, row)
+                if not mask.any():
+                    continue
+                instance_data.append((row, mask.astype(np.uint8), bbox_from_mask(mask)))
+            if not instance_data:
+                continue
+
             first = rows[0]
             camera = {
                 "cam_K": [
@@ -353,13 +382,11 @@ def main() -> None:
                     "scene_id": scene_id,
                     "im_id": frame,
                     "obj_id": args.object_id,
-                    "inst_count": len(rows),
+                    "inst_count": len(instance_data),
                 }
             )
             instance_records = []
-            for row in sorted(rows, key=lambda item: int(item["opp_id"])):
-                bbox = bbox_xywh(row)
-                mask = rectangle_mask(height, width, bbox)
+            for row, mask, bbox in instance_data:
                 detections.append(
                     {
                         "scene_id": scene_id,
@@ -370,13 +397,17 @@ def main() -> None:
                         "segmentation": pycoco_utils.binary_mask_to_rle(mask),
                         "time": 0.0,
                         "opp_id": int(row["opp_id"]),
+                        "instance_id": int(row["instance_id"]),
                         "truncated": int(row["truncated"]),
                     }
                 )
                 instance_records.append(
                     {
                         "opp_id": int(row["opp_id"]),
+                        "instance_id": int(row["instance_id"]),
                         "bbox": bbox,
+                        "bbox_3d_projection": bbox_xywh(row),
+                        "visible_pixels": int(mask.sum()),
                         "truncated": bool(int(row["truncated"])),
                     }
                 )
@@ -388,9 +419,7 @@ def main() -> None:
                     "source_frame": frame,
                     "sim_time_ms": int(first["sim_time_ms"]),
                     "image_path": str(image_path),
-                    "combined_box_mask_path": (
-                        str(combined_mask_path) if combined_mask_path.is_file() else None
-                    ),
+                    "instance_mask_path": str(mask_path),
                     "instances": instance_records,
                 }
             )
@@ -409,7 +438,7 @@ def main() -> None:
     print(f"Prepared {len(targets)} annotated camera frames ({len(detections)} boxes).")
     print(f"Dataset: {dataset_dir}")
     print(f"Detections: {detection_path}")
-    print("PGMs are combined box masks; per-instance RLE masks came from CSV boxes.")
+    print("Detection RLEs and boxes came from the visible per-instance PNG masks.")
 
 
 if __name__ == "__main__":
