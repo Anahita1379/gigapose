@@ -130,7 +130,7 @@ def matrix_from_value(value):
         K = intrinsics_from_dict(value)
         if K is not None:
             return K
-        for key in ("K", "cam_K", "data", "matrix", "camera_matrix"):
+        for key in ("K", "k", "cam_K", "data", "matrix", "camera_matrix"):
             if key in value:
                 K = matrix_from_value(value[key])
                 if K is not None:
@@ -293,7 +293,7 @@ def extract_path_from_metadata(metadata, metadata_path, wanted):
             "file_name",
         },
         "depth": {"depth", "depth_path", "depth_file"},
-        "mask": {"mask", "mask_path", "mask_file", "segmentation_path"},
+        "mask": {"mask", "mask_path", "mask_file", "segmentation_path", "roi_path"},
     }[wanted]
     blocked_tokens = {
         "image": ("depth", "mask", "segmentation", "metadata", "calib"),
@@ -401,18 +401,42 @@ def mask_from_bbox(bbox, image_size):
     return mask
 
 
+def clip_bbox(bbox, image_size):
+    width, height = image_size
+    x, y, w, h = [int(round(v)) for v in bbox]
+    x0 = max(0, min(width, x))
+    y0 = max(0, min(height, y))
+    x1 = max(0, min(width, x + max(1, w)))
+    y1 = max(0, min(height, y + max(1, h)))
+    return x0, y0, x1, y1
+
+
+def bbox_from_xywh_dict(data):
+    values = [as_number(data.get(name)) for name in ("x", "y", "width", "height")]
+    if any(value is None for value in values):
+        return None
+    return values
+
+
 def extract_bbox(metadata):
+    for key in ("yolo_bbox", "crop_transform"):
+        value = metadata.get(key)
+        if isinstance(value, dict):
+            bbox = bbox_from_xywh_dict(value)
+            if bbox is not None:
+                return bbox, key
+
     bbox_keys = {"bbox", "box", "bbox_obj", "bbox_visib", "bbox_est", "bounding_box"}
     for key, value in iter_nested_items(metadata):
         if str(key).lower() not in bbox_keys:
             continue
         arr = np.asarray(value, dtype=float).reshape(-1)
         if arr.size >= 4:
-            return arr[:4].tolist()
-    return None
+            return arr[:4].tolist(), str(key)
+    return None, None
 
 
-def read_mask(path, image_size):
+def read_mask(path, image_size, placement_bbox=None):
     if path is None:
         return None
     if path.suffix.lower() == ".npy":
@@ -421,6 +445,19 @@ def read_mask(path, image_size):
         mask = np.array(Image.open(path).convert("L"))
     if mask.ndim == 3:
         mask = mask[..., 0]
+
+    if mask.shape == (image_size[1], image_size[0]):
+        return (mask > 0).astype(np.uint8)
+
+    if placement_bbox is not None:
+        x0, y0, x1, y1 = clip_bbox(placement_bbox, image_size)
+        target_w = max(1, x1 - x0)
+        target_h = max(1, y1 - y0)
+        resized = Image.fromarray(mask).resize((target_w, target_h), Image.NEAREST)
+        full_mask = np.zeros((image_size[1], image_size[0]), dtype=np.uint8)
+        full_mask[y0:y1, x0:x1] = (np.array(resized) > 0).astype(np.uint8)
+        return full_mask
+
     if mask.shape != (image_size[1], image_size[0]):
         mask = np.array(Image.fromarray(mask).resize(image_size, Image.NEAREST))
     return (mask > 0).astype(np.uint8)
@@ -436,16 +473,25 @@ def parse_fixed_bbox(text):
 
 
 def make_detection_mask(metadata, mask_path, image_size, fixed_bbox):
-    mask = read_mask(mask_path, image_size)
-    if mask is not None:
-        return mask
-    bbox = extract_bbox(metadata)
+    bbox, bbox_source = extract_bbox(metadata)
     if bbox is None:
         bbox = fixed_bbox
+        bbox_source = "fixed_bbox"
     if bbox is not None:
-        return mask_from_bbox(bbox, image_size)
+        bbox_mask = mask_from_bbox(bbox, image_size)
+        roi_mask = read_mask(mask_path, image_size, placement_bbox=bbox)
+        if roi_mask is not None:
+            combined = np.logical_and(bbox_mask > 0, roi_mask > 0).astype(np.uint8)
+            if combined.sum() > 0:
+                return combined, f"{bbox_source}+roi_path"
+        return bbox_mask, bbox_source
+
+    mask = read_mask(mask_path, image_size)
+    if mask is not None:
+        return mask, "roi_path"
+
     width, height = image_size
-    return np.ones((height, width), dtype=np.uint8)
+    return np.ones((height, width), dtype=np.uint8), "full_image_fallback"
 
 
 def mesh_info(mesh_path):
@@ -539,7 +585,9 @@ def main():
             rgb = read_image(image_path)
             depth = read_depth(depth_path, rgb.size)
             K = extract_intrinsics(metadata)
-            mask = make_detection_mask(metadata, mask_path, rgb.size, fixed_bbox)
+            mask, mask_source = make_detection_mask(
+                metadata, mask_path, rgb.size, fixed_bbox
+            )
             bbox = bbox_from_mask(mask)
             key = f"{args.scene_id:06d}_{im_id:06d}"
 
@@ -581,6 +629,8 @@ def main():
                     "image_path": str(image_path),
                     "depth_path": str(depth_path) if depth_path else None,
                     "mask_path": str(mask_path) if mask_path else None,
+                    "mask_source": mask_source,
+                    "bbox": bbox,
                 }
             )
             im_id += 1
