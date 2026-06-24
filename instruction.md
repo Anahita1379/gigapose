@@ -468,7 +468,7 @@ python3 -m src.scripts.visualize_racecar_predictions \
   --max-images 100
 ```
 
-
+<!-- AC_ROOT=/mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/20260620_haze_3opp_withInstanceMask -->
 
 Expected output:
 

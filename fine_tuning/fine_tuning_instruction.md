@@ -286,7 +286,7 @@ python -m fine_tuning.train \
 ## CAD overlay on preditions: 
 ```bash
 python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions /path/to/predictions.csv \
+  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_ac_instance_masks/predictions/large-pbrreal-rgb-mmodel_assettocorsa-test_ac_instance_masks.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa \
   --split test \
   --output-dir fine_tuning/prediction_overlays
