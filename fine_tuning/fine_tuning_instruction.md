@@ -1,5 +1,10 @@
 # Fine-tuning GigaPose on the Assetto Corsa recording
 
+> **20260623+ schema:** recordings with `camera_frames.csv` and
+> `transforms.csv` use [`Assetto_data_prep/README.md`](../Assetto_data_prep/README.md).
+> The workflow below describes the older `bboxes_3d.csv` plus recorded-mask
+> schema.
+
 This folder is an isolated extension of the parent GigaPose checkout. It keeps
 the dataset preparation, coordinate conversion, validation, configuration, and
 training entry point together while importing the tested core model and utility
@@ -311,4 +316,3 @@ Use the exact dataset mesh used for template rendering. Add --translation-scale 
 - A single mostly stationary recording is not enough to demonstrate useful
   generalization. Add sessions with different ranges, orientations, lighting,
   tracks, and opponent placements, then hold out entire sessions.
-

@@ -195,14 +195,20 @@ class InstanceRenderer:
     """Render visible instance IDs and metric depth with pyrender/EGL."""
 
     def __init__(self, mesh: trimesh.Trimesh):
+        # Use one EGL context and resize its framebuffer. PyOpenGL meshes cannot
+        # be shared across contexts, and deleting multiple EGL contexts backed
+        # by the same display is unreliable. A single resizable renderer safely
+        # supports mixed front/rear and stereo resolutions.
         self.mesh = pyrender.Mesh.from_trimesh(mesh, smooth=False)
-        self.renderers: dict[tuple[int, int], pyrender.OffscreenRenderer] = {}
+        self.renderer: pyrender.OffscreenRenderer | None = None
 
     def _renderer(self, width: int, height: int) -> pyrender.OffscreenRenderer:
-        key = (width, height)
-        if key not in self.renderers:
-            self.renderers[key] = pyrender.OffscreenRenderer(width, height)
-        return self.renderers[key]
+        if self.renderer is None:
+            self.renderer = pyrender.OffscreenRenderer(width, height)
+        else:
+            self.renderer.viewport_width = width
+            self.renderer.viewport_height = height
+        return self.renderer
 
     def render(
         self,
@@ -232,6 +238,6 @@ class InstanceRenderer:
         return segmentation[:, :, 0], depth_m
 
     def close(self) -> None:
-        for renderer in self.renderers.values():
-            renderer.delete()
-        self.renderers.clear()
+        if self.renderer is not None:
+            self.renderer.delete()
+            self.renderer = None
