@@ -24,6 +24,7 @@ from fine_tuning.dataloader import SplitWebSceneDataset
 from fine_tuning.train import REPO_ROOT, make_dataset_config
 from src.custom_megapose.web_scene_dataset import IterableWebSceneDataset
 from src.dataloader.keypoints import Keypoint, KeypointInput
+from src.megapose.datasets.scene_dataset import SceneObservation
 from src.lib3d.torch import inverse_affine
 from src.utils.inout import MAX_VALUES
 
@@ -129,11 +130,11 @@ def save_panel(observation, output_path: Path) -> dict[str, object]:
     }
 
 
-def keypoint_stage_stats(dataset, batch) -> dict[str, object]:
+def keypoint_stage_stats(dataset, real_data) -> dict[str, object]:
     """Mirror KeyPointSampler.sample_pts with counters at each filter stage."""
-    template_data, T_real2temp, T_temp2real = dataset.process_template(batch)
+    template_data, T_real2temp, T_temp2real = dataset.process_template(real_data)
     all_data = {}
-    for name, data in zip(["real", "template"], [batch, template_data]):
+    for name, data in zip(["real", "template"], [real_data, template_data]):
         all_data[name] = KeypointInput(
             full_rgb=data.full_rgb,
             full_depth=data.full_depth,
@@ -202,7 +203,7 @@ def keypoint_stage_stats(dataset, batch) -> dict[str, object]:
 
     return {
         "template_mask_pixels_after_crop": [int(v.item()) for v in template_data.mask.flatten(1).sum(dim=1)],
-        "real_mask_pixels_after_crop": [int(v.item()) for v in batch.mask.flatten(1).sum(dim=1)],
+        "real_mask_pixels_after_crop": [int(v.item()) for v in real_data.mask.flatten(1).sum(dim=1)],
         "initial_template_grid_points_in_mask": [int(v.item()) for v in initial_src.sum(dim=1)],
         "initial_real_grid_points_in_mask": [int(v.item()) for v in initial_tar.sum(dim=1)],
         "template_depth_valid_grid_points": [int(v.item()) for v in src_depth_valid.sum(dim=1)],
@@ -262,7 +263,9 @@ def main() -> None:
         if batch is None:
             report["batches"].append({"batch_index": batch_idx, "collate": "none"})
             continue
-        stage_stats = keypoint_stage_stats(dataset, batch)
+        scene_batch = SceneObservation.collate_fn(observations)
+        real_data = dataset.process_real(scene_batch)
+        stage_stats = keypoint_stage_stats(dataset, real_data)
         src_valid = torch.logical_and(batch.src_pts[:, :, 0] != -1, batch.src_pts[:, :, 1] != -1)
         tar_valid = torch.logical_and(batch.tar_pts[:, :, 0] != -1, batch.tar_pts[:, :, 1] != -1)
         pair_valid = torch.logical_and(src_valid, tar_valid)
