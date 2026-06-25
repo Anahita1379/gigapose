@@ -23,6 +23,9 @@ from PIL import Image, ImageDraw
 from fine_tuning.dataloader import SplitWebSceneDataset
 from fine_tuning.train import REPO_ROOT, make_dataset_config
 from src.custom_megapose.web_scene_dataset import IterableWebSceneDataset
+from src.dataloader.keypoints import Keypoint, KeypointInput
+from src.lib3d.torch import inverse_affine
+from src.utils.inout import MAX_VALUES
 
 
 def parse_args() -> argparse.Namespace:
@@ -126,6 +129,91 @@ def save_panel(observation, output_path: Path) -> dict[str, object]:
     }
 
 
+def keypoint_stage_stats(dataset, batch) -> dict[str, object]:
+    """Mirror KeyPointSampler.sample_pts with counters at each filter stage."""
+    template_data, T_real2temp, T_temp2real = dataset.process_template(batch)
+    all_data = {}
+    for name, data in zip(["real", "template"], [batch, template_data]):
+        all_data[name] = KeypointInput(
+            full_rgb=data.full_rgb,
+            full_depth=data.full_depth,
+            K=data.K,
+            M=data.M,
+            mask=data.mask,
+            rgb=data.rgb,
+        )
+
+    sampler = dataset.keypoint_sampler
+    batch_size = T_temp2real.shape[0]
+    init_points = sampler.grid_points.clone().unsqueeze(0).repeat(batch_size, 1, 1)
+
+    key_pts2d = Keypoint(src=init_points.clone(), tar=init_points.clone())
+    key_pts2d.mask("src", all_data["template"].mask)
+    key_pts2d.mask("tar", all_data["real"].mask)
+    key_pts2d_cropped = key_pts2d.clone()
+    initial_src = key_pts2d_cropped.src[:, :, 0] != -1
+    initial_tar = key_pts2d_cropped.tar[:, :, 0] != -1
+
+    key_pts2d.apply_affine("src", inverse_affine(all_data["template"].M))
+    key_pts2d.apply_affine("tar", inverse_affine(all_data["real"].M))
+    key_pts3d_src = key_pts2d.unproject(
+        "src", K=all_data["template"].K, depth=all_data["template"].full_depth
+    )
+    key_pts3d_tar = key_pts2d.unproject(
+        "tar", K=all_data["real"].K, depth=all_data["real"].full_depth
+    )
+    src_depth_valid = key_pts3d_src[:, :, 2] > 0
+    tar_depth_valid = key_pts3d_tar[:, :, 2] > 0
+
+    key_pts3d = Keypoint(src=key_pts3d_src, tar=key_pts3d_tar)
+    key_pts3d.apply_3D_transform("src", T_temp2real)
+    key_pts3d.apply_3D_transform("tar", T_real2temp)
+
+    reproj_src = key_pts3d.project("src", K=all_data["real"].K)
+    reproj_tar = key_pts3d.project("tar", K=all_data["template"].K)
+    reproj_key_pts2d = Keypoint(src=reproj_src, tar=reproj_tar)
+    reproj_key_pts2d.apply_affine("src", all_data["real"].M)
+    reproj_key_pts2d.apply_affine("tar", all_data["template"].M)
+    reproj_key_pts2d.mask("src", all_data["real"].mask)
+    reproj_key_pts2d.mask("tar", all_data["template"].mask)
+    reproj_src_valid = reproj_key_pts2d.src[:, :, 0] != -1
+    reproj_tar_valid = reproj_key_pts2d.tar[:, :, 0] != -1
+
+    final_counts = []
+    min_distances = []
+    for idx in range(batch_size):
+        mask_tar_all = torch.logical_or(
+            key_pts2d_cropped.tar[idx, :, 0] == -1,
+            reproj_key_pts2d.tar[idx, :, 0] == -1,
+        )
+        mask_src_all = torch.logical_or(
+            key_pts2d_cropped.src[idx, :, 0] == -1,
+            reproj_key_pts2d.src[idx, :, 0] == -1,
+        )
+        distance = torch.cdist(
+            reproj_key_pts2d.tar[idx].float(), key_pts2d.src[idx].float()
+        )
+        distance[mask_tar_all] = MAX_VALUES
+        distance[:, mask_src_all] = MAX_VALUES
+        per_tar_distance, _ = torch.min(distance, dim=1)
+        finite = per_tar_distance < MAX_VALUES
+        final_counts.append(int((per_tar_distance < 1000.0).sum().item()))
+        min_distances.append(float(per_tar_distance[finite].min().item()) if finite.any() else None)
+
+    return {
+        "template_mask_pixels_after_crop": [int(v.item()) for v in template_data.mask.flatten(1).sum(dim=1)],
+        "real_mask_pixels_after_crop": [int(v.item()) for v in batch.mask.flatten(1).sum(dim=1)],
+        "initial_template_grid_points_in_mask": [int(v.item()) for v in initial_src.sum(dim=1)],
+        "initial_real_grid_points_in_mask": [int(v.item()) for v in initial_tar.sum(dim=1)],
+        "template_depth_valid_grid_points": [int(v.item()) for v in src_depth_valid.sum(dim=1)],
+        "real_depth_valid_grid_points": [int(v.item()) for v in tar_depth_valid.sum(dim=1)],
+        "template_to_real_reprojected_points_in_real_mask": [int(v.item()) for v in reproj_src_valid.sum(dim=1)],
+        "real_to_template_reprojected_points_in_template_mask": [int(v.item()) for v in reproj_tar_valid.sum(dim=1)],
+        "final_valid_patch_pairs_per_instance": final_counts,
+        "min_final_patch_distance_per_instance": min_distances,
+    }
+
+
 def main() -> None:
     args = parse_args()
     pl.seed_everything(args.seed)
@@ -174,6 +262,7 @@ def main() -> None:
         if batch is None:
             report["batches"].append({"batch_index": batch_idx, "collate": "none"})
             continue
+        stage_stats = keypoint_stage_stats(dataset, batch)
         src_valid = torch.logical_and(batch.src_pts[:, :, 0] != -1, batch.src_pts[:, :, 1] != -1)
         tar_valid = torch.logical_and(batch.tar_pts[:, :, 0] != -1, batch.tar_pts[:, :, 1] != -1)
         pair_valid = torch.logical_and(src_valid, tar_valid)
@@ -184,6 +273,7 @@ def main() -> None:
                 "src_valid_patches": int(src_valid.sum().item()),
                 "tar_valid_patches": int(tar_valid.sum().item()),
                 "valid_patch_pairs": int(pair_valid.sum().item()),
+                "keypoint_stage_stats": stage_stats,
                 "instances": [
                     {
                         "scene_id": str(row.scene_id),
