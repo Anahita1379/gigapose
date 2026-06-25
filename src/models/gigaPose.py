@@ -232,7 +232,9 @@ class GigaPose(pl.LightningModule):
             gt_relScale = gather(gt_relScale, src_pts).squeeze(1)
 
         if preds["inplane"].shape[0] == 0 or gt_relScale.numel() == 0:
-            zero = (batch.src_img.sum() + batch.tar_img.sum()) * 0.0
+            # Keep the zero loss connected to trainable IST parameters so
+            # Lightning/DDP can still run backward on an all-skipped batch.
+            zero = next(self.ist_net.parameters()).sum() * 0.0
             for metric_name in ("inp", "scale", "scale_err", "angle_err"):
                 self.log(
                     f"{split}/{metric_name}",
