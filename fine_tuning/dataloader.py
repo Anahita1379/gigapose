@@ -90,7 +90,7 @@ class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
                     if getattr(sample, "rgb", None) is not None
                     and tuple(sample.rgb.shape[:2]) == keep_resolution
                 ]
-                logger.info(
+                logger.debug(
                     "Mixed camera resolutions in batch %s; keeping %d/%d samples at %s",
                     sorted(set(resolutions)),
                     len(filtered),

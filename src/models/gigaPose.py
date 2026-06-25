@@ -219,6 +219,38 @@ class GigaPose(pl.LightningModule):
             gt_relScale = repeat(gt_relScale, "b -> b 1 H W", H=H, W=W)
             gt_relScale = gather(gt_relScale, src_pts).squeeze(1)
 
+        pred_scale_finite = torch.isfinite(preds["scale"])
+        if pred_scale_finite.ndim > 1:
+            pred_scale_finite = pred_scale_finite.flatten(start_dim=1).all(dim=1)
+        valid = (
+            torch.isfinite(gt_relInplane)
+            & torch.isfinite(gt_relScale)
+            & (gt_relScale > 0)
+            & torch.isfinite(preds["inplane"]).all(dim=1)
+            & pred_scale_finite
+        )
+        if not valid.all():
+            num_invalid = int((~valid).sum().detach().cpu())
+            total = int(valid.numel())
+            logger.info(
+                "Skipping %d/%d non-finite or invalid %s regression targets",
+                num_invalid,
+                total,
+                split,
+            )
+            gt_relInplane = gt_relInplane[valid]
+            gt_relScale = gt_relScale[valid]
+            preds["inplane"] = preds["inplane"][valid]
+            preds["scale"] = preds["scale"][valid]
+
+        if gt_relScale.numel() == 0:
+            zero = (preds["inplane"].sum() + preds["scale"].sum()) * 0.0
+            loss["inp"] = zero
+            loss["scale"] = zero
+            loss["scale_err"] = zero.detach()
+            loss["angle_err"] = zero.detach()
+            return loss
+
         # it is simpler to use l2 loss for warm up to regress correct magnitudes
         if self.trainer.global_step < self.optim_config.warm_up_steps:
             loss["inp"] = self.l2_loss(
