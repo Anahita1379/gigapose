@@ -378,7 +378,12 @@ def load_test_list_and_cnos_detections(
     test_list = inout.load_json(root_dir / dataset_name / "test_targets_bop19.json")
 
     # load cnos detections
-    cnos_dets_name = cnos_detections[dataset_name]
+    if dataset_name in cnos_detections:
+        cnos_dets_name = cnos_detections[dataset_name]
+    elif dataset_name.startswith("assettocorsa"):
+        cnos_dets_name = cnos_detections["assettocorsa"]
+    else:
+        cnos_dets_name = cnos_detections[dataset_name]
     cnos_dets_path = root_dir / "cnos-fastsam" / cnos_dets_name
     all_cnos_dets = inout.load_json(cnos_dets_path)
 

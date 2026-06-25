@@ -16,6 +16,7 @@ cnos_detections = {
     "racecar": "cnos-fastsam_racecar-test.json",
     # Generated from multi_cam_obs CSV boxes by prepare_AC_metadata_dataset.py.
     "assettocorsa": "cnos-fastsam_assettocorsa-test.json",
+    "assettocorsa_inference": "cnos-fastsam_assettocorsa-test.json",
 }
 
 
