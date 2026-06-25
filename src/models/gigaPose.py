@@ -443,6 +443,24 @@ class GigaPose(pl.LightningModule):
         )
         return loss
 
+    def log_validation_keypoints(self, batch, idx_batch, split, type_data="gt"):
+        if idx_batch != 0 and idx_batch % self.log_interval != 0:
+            return
+        vis_pts = plot_keypoints_batch(batch, type_data=type_data)
+        image_dir = osp.join(self.log_dir, "validation_images")
+        os.makedirs(image_dir, exist_ok=True)
+        sample_path = osp.join(
+            image_dir,
+            f"{split}_{type_data}_step{int(self.global_step):06d}_batch{idx_batch:04d}_rank{self.global_rank}.png",
+        )
+        save_tensor_to_image(vis_pts, sample_path)
+        log_image(
+            logger=self.logger,
+            name=f"vis/{split}_{type_data}_samples",
+            path=sample_path,
+            step=int(self.global_step),
+        )
+
     def validate_contrast_loss(self, batch, idx_batch, split):
         src_feat = self.ae_net(batch.src_img)
         tar_feat = self.ae_net(batch.tar_img)
@@ -470,24 +488,7 @@ class GigaPose(pl.LightningModule):
             prog_bar=True,
         )
 
-        if idx_batch != 0 and idx_batch % self.log_interval != 0:
-            return
-
-        # visualize matches
-        vis_pts = plot_keypoints_batch(batch, type_data="pred")
-        image_dir = osp.join(self.log_dir, "validation_images")
-        os.makedirs(image_dir, exist_ok=True)
-        sample_path = osp.join(
-            image_dir,
-            f"{split}_step{int(self.global_step):06d}_batch{idx_batch:04d}_rank{self.global_rank}.png",
-        )
-        save_tensor_to_image(vis_pts, sample_path)
-        log_image(
-            logger=self.logger,
-            name=f"vis/{split}_samples",
-            path=sample_path,
-            step=int(self.global_step),
-        )
+        self.log_validation_keypoints(batch, idx_batch, split, type_data="pred")
 
     def validation_step(self, batch, idx_batch):
         if batch is None:
@@ -496,6 +497,7 @@ class GigaPose(pl.LightningModule):
         if self.optim_config.nets_to_train in ["ist", "all"]:
             loss_ = self.compute_regression_loss(batch, "val")
             loss += loss_["scale"] + loss_["inp"]
+            self.log_validation_keypoints(batch, idx_batch, "val", type_data="gt")
         if self.optim_config.nets_to_train in ["ae", "all"]:
             _ = self.validate_contrast_loss(batch, idx_batch, "val")
         self.log(
