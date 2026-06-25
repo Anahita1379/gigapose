@@ -207,6 +207,39 @@ class KeyPointSampler:
         # convert to patch coordinates
         src_patchs = self.convert_to_patch_coordinates(reproj_key_pts2d.tar)
         tar_patchs = self.convert_to_patch_coordinates(key_pts2d_cropped.tar)
+
+        # The target-driven path above samples real-image points and projects
+        # them back into the template. For some CAD/rendered-depth fine-tuning
+        # data this can be empty even though the opposite direction is valid:
+        # template visible-surface points project cleanly into the real mask.
+        # Fall back per instance to those source-driven correspondences so IST
+        # still receives valid template<->real patch pairs.
+        src_driven_src = key_pts2d_cropped.src.clone()
+        src_driven_tar = reproj_key_pts2d.src.clone()
+        src_driven_invalid = torch.logical_or(
+            key_pts2d_cropped.src[:, :, 0] == -1,
+            reproj_key_pts2d.src[:, :, 0] == -1,
+        )
+        src_driven_src[src_driven_invalid] = -1
+        src_driven_tar[src_driven_invalid] = -1
+        src_driven_src_patchs = self.convert_to_patch_coordinates(src_driven_src)
+        src_driven_tar_patchs = self.convert_to_patch_coordinates(src_driven_tar)
+
+        target_driven_valid = torch.logical_and(
+            src_patchs[:, :, 0] != -1,
+            tar_patchs[:, :, 0] != -1,
+        )
+        source_driven_valid = torch.logical_and(
+            src_driven_src_patchs[:, :, 0] != -1,
+            src_driven_tar_patchs[:, :, 0] != -1,
+        )
+        use_source_driven = torch.logical_and(
+            target_driven_valid.sum(dim=1) == 0,
+            source_driven_valid.sum(dim=1) > 0,
+        )
+        if use_source_driven.any():
+            src_patchs[use_source_driven] = src_driven_src_patchs[use_source_driven]
+            tar_patchs[use_source_driven] = src_driven_tar_patchs[use_source_driven]
         return {
             "src_pts": src_patchs,
             "tar_pts": tar_patchs,
