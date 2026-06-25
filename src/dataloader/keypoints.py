@@ -111,7 +111,13 @@ class KeyPointSampler:
         y += self.patch_size / 2
 
         yy, xx = torch.meshgrid(y, x)
-        self.grid_points = torch.stack([yy.flatten(), xx.flatten()], dim=1)
+        # Points are represented everywhere else as (x, y): mask() checks
+        # points[..., 0] against image width and indexes mask[y, x], affine
+        # transforms consume homogeneous [x, y, 1], and projection returns
+        # pixel coordinates as [u, v]. Keep the initial patch grid in that same
+        # convention. Using (y, x) here can make otherwise valid crops produce
+        # zero template↔real correspondences.
+        self.grid_points = torch.stack([xx.flatten(), yy.flatten()], dim=1)
         logger.info("Initialized normalized center patch done!")
 
     def convert_to_patch_coordinates(self, points):
