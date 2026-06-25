@@ -219,24 +219,54 @@ class GigaPose(pl.LightningModule):
             gt_relScale = repeat(gt_relScale, "b -> b 1 H W", H=H, W=W)
             gt_relScale = gather(gt_relScale, src_pts).squeeze(1)
 
+        gt_inplane_finite = torch.isfinite(gt_relInplane)
+        gt_scale_finite = torch.isfinite(gt_relScale)
+        gt_scale_positive = gt_relScale > 0
+        pred_inplane_finite = torch.isfinite(preds["inplane"]).all(dim=1)
         pred_scale_finite = torch.isfinite(preds["scale"])
         if pred_scale_finite.ndim > 1:
             pred_scale_finite = pred_scale_finite.flatten(start_dim=1).all(dim=1)
         valid = (
-            torch.isfinite(gt_relInplane)
-            & torch.isfinite(gt_relScale)
-            & (gt_relScale > 0)
-            & torch.isfinite(preds["inplane"]).all(dim=1)
+            gt_inplane_finite
+            & gt_scale_finite
+            & gt_scale_positive
+            & pred_inplane_finite
             & pred_scale_finite
+        )
+        valid_fraction = valid.float().mean()
+        invalid_fraction = 1.0 - valid_fraction
+        self.log(
+            f"{split}/valid_regression_fraction",
+            valid_fraction,
+            sync_dist=True,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=False,
+        )
+        self.log(
+            f"{split}/invalid_regression_fraction",
+            invalid_fraction,
+            sync_dist=True,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=False,
         )
         if not valid.all():
             num_invalid = int((~valid).sum().detach().cpu())
             total = int(valid.numel())
+            reason_counts = {
+                "gt_inplane_nan": int((~gt_inplane_finite).sum().detach().cpu()),
+                "gt_scale_nan": int((~gt_scale_finite).sum().detach().cpu()),
+                "gt_scale_nonpositive": int((gt_scale_finite & ~gt_scale_positive).sum().detach().cpu()),
+                "pred_inplane_nan": int((~pred_inplane_finite).sum().detach().cpu()),
+                "pred_scale_nan": int((~pred_scale_finite).sum().detach().cpu()),
+            }
             logger.info(
-                "Skipping %d/%d non-finite or invalid %s regression targets",
+                "Skipping %d/%d non-finite or invalid %s regression targets: %s",
                 num_invalid,
                 total,
                 split,
+                reason_counts,
             )
             gt_relInplane = gt_relInplane[valid]
             gt_relScale = gt_relScale[valid]
@@ -249,6 +279,15 @@ class GigaPose(pl.LightningModule):
             loss["scale"] = zero
             loss["scale_err"] = zero.detach()
             loss["angle_err"] = zero.detach()
+            for metric_name, metric_value in loss.items():
+                self.log(
+                    f"{split}/{metric_name}",
+                    metric_value,
+                    sync_dist=True,
+                    on_step=True,
+                    on_epoch=False,
+                    prog_bar=metric_name in ["inp", "scale"],
+                )
             return loss
 
         # it is simpler to use l2 loss for warm up to regress correct magnitudes
