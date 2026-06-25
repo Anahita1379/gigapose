@@ -204,7 +204,7 @@ poses, run:
 
 ```bash
 python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions /path/to/gigapose_predictions.csv \
+  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_oracle_masks/predictions/large-pbrreal-rgb-mmodel_assettocorsa-test_assettocorsa_oracle_masks.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa \
   --split test \
   --output-dir fine_tuning/prediction_overlays

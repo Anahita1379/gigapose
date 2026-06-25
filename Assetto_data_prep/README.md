@@ -16,7 +16,7 @@ First test a few frames:
 SESSION=/path/to/frames/20260623_laguna2026_clear_4opp_noMask_2Laps
 
 python -m Assetto_data_prep.generate_masks \
-  --source-root "$SESSION" \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
   --cameras front \
   --max-frames-per-session 20 \
@@ -25,13 +25,32 @@ python -m Assetto_data_prep.generate_masks \
 
 Then generate every camera:
 
+<!-- paths:  
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_rain_2opp_noMask_6Laps (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_clear_2opp_noMask_fixedSkin_6Laps (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_haze_2opp_noMask_6Laps (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_cloudyThunder_2opp_fixedSkin_noMask_6Laps (DONE)
+
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_4opp_noMask_2Laps (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_2opp_noMask_6Laps (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask
+-->
 ```bash
 python -m Assetto_data_prep.generate_masks \
-  --source-root "$SESSION" \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --visible-mask-dir-name="" \
   --cameras all
 ```
-
+--visible-mask-dir-name "" to disable these additional files.
 Repeat `--source-root` for multiple recordings. Existing masks are skipped, so
 an interrupted run can be resumed. Output is written to:
 
@@ -60,7 +79,8 @@ Use identical alignment options in all three preparation commands.
 Use a held-out session:
 
 ```bash
-VAL_SESSION=/path/to/frames/20260623_putnam_snow_3opp_noMask_4Laps
+VAL_SESSION=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps
+
 
 python -m Assetto_data_prep.prepare_inference \
   --source-root "$VAL_SESSION" \
