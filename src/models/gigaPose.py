@@ -212,12 +212,62 @@ class GigaPose(pl.LightningModule):
             src_pts=src_pts,
             tar_pts=tar_pts,
         )
+        src_patch_valid = torch.logical_and(src_pts[:, :, 0] != -1, src_pts[:, :, 1] != -1)
+        tar_patch_valid = torch.logical_and(tar_pts[:, :, 0] != -1, tar_pts[:, :, 1] != -1)
+        pair_patch_valid = torch.logical_and(src_patch_valid, tar_patch_valid)
+        num_patch_pairs = pair_patch_valid.sum()
+        self.log(
+            f"{split}/valid_patch_pairs",
+            num_patch_pairs.float(),
+            sync_dist=True,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=False,
+        )
         if preds["inplane"].shape[0] != src_pts.shape[0]:
             gt_relInplane = repeat(gt_relInplane, "b -> b 1 H W", H=H, W=W)
             gt_relInplane = gather(gt_relInplane, src_pts).squeeze(1)
 
             gt_relScale = repeat(gt_relScale, "b -> b 1 H W", H=H, W=W)
             gt_relScale = gather(gt_relScale, src_pts).squeeze(1)
+
+        if preds["inplane"].shape[0] == 0 or gt_relScale.numel() == 0:
+            zero = (batch.src_img.sum() + batch.tar_img.sum()) * 0.0
+            for metric_name in ("inp", "scale", "scale_err", "angle_err"):
+                self.log(
+                    f"{split}/{metric_name}",
+                    zero.detach() if metric_name.endswith("err") else zero,
+                    sync_dist=True,
+                    on_step=True,
+                    on_epoch=False,
+                    prog_bar=metric_name in ["inp", "scale"],
+                )
+            self.log(
+                f"{split}/valid_regression_fraction",
+                zero.detach(),
+                sync_dist=True,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+            )
+            self.log(
+                f"{split}/invalid_regression_fraction",
+                torch.ones_like(zero).detach(),
+                sync_dist=True,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+            )
+            logger.info(
+                "Skipping %s regression batch with zero valid patch correspondences",
+                split,
+            )
+            return {
+                "inp": zero,
+                "scale": zero,
+                "scale_err": zero.detach(),
+                "angle_err": zero.detach(),
+            }
 
         gt_inplane_finite = torch.isfinite(gt_relInplane)
         gt_scale_finite = torch.isfinite(gt_relScale)
