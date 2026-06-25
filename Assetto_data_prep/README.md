@@ -125,9 +125,10 @@ python -m Assetto_data_prep.prepare_training \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
   --dataset-name assettocorsa \
-  --cameras front \
+  --cameras all \
   --frame-stride 5 \
   --max-frames-per-session 6000 \
+  --mask-dir-name generated_mask \
   --validation-sessions 1 \
   --overwrite
 ```
