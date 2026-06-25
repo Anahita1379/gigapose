@@ -25,6 +25,7 @@ python -m Assetto_data_prep.generate_masks \
 
 Then generate every camera:
 
+
 <!-- paths:  
 /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps (DONE)
 
@@ -41,7 +42,7 @@ Then generate every camera:
 
 /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_2opp_noMask_6Laps (DONE)
 
-/media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask (DONE)
 -->
 ```bash
 python -m Assetto_data_prep.generate_masks \
@@ -114,13 +115,14 @@ default, rather than randomly mixing adjacent frames:
 
 ```bash
 python -m Assetto_data_prep.prepare_training \
-  --source-root /path/to/frames/20260623_195032 \
-  --source-root /path/to/frames/20260623_laguna2026_clear_2opp_noMask_6Laps \
-  --source-root /path/to/frames/20260623_laguna2026_clear_4opp_noMask_2Laps \
-  --source-root /path/to/frames/20260623_laguna2026_haze_2opp_noMask_6Laps \
-  --source-root /path/to/frames/20260623_putnam_clear_2opp_noMask_fixedSkin_6Laps \
-  --source-root /path/to/frames/20260623_putnam_rain_2opp_noMask_6Laps \
-  --source-root /path/to/frames/20260623_putnam_snow_3opp_noMask_4Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_rain_2opp_noMask_6Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_clear_2opp_noMask_fixedSkin_6Laps  \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_haze_2opp_noMask_6Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_cloudyThunder_2opp_fixedSkin_noMask_6Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_4opp_noMask_2Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_2opp_noMask_6Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
   --dataset-name assettocorsa \
   --cameras front \
@@ -152,8 +154,26 @@ python -m fine_tuning.train \
   --batch-size 4 \
   --max-steps 5000 \
   --validation-interval 250 \
-  --run-name assettocorsa_20260623_ist
+  --run-name assettocorsa_20260623_ist \
+  --logger tensorboard \
+  --print-loss-every 50
 ```
+
+Then open Tensorboard with 
+```bash
+tensorboard --logdir /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_20260623_ist/tensorboard
+```
+
+Checkpoints will be saved here:
+```bash
+gigapose/gigaPose_datasets/results/assettocorsa_20260623_ist/checkpoints/
+```
+
+Validation images will be saved here:
+```bash
+gigapose/gigaPose_datasets/results/assettocorsa_20260623_ist/validation_images/
+```
+
 
 ## Consistency rules
 
