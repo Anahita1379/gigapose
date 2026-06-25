@@ -179,6 +179,8 @@ def keypoint_stage_stats(dataset, real_data) -> dict[str, object]:
     reproj_key_pts2d.mask("tar", all_data["template"].mask)
     reproj_src_valid = reproj_key_pts2d.src[:, :, 0] != -1
     reproj_tar_valid = reproj_key_pts2d.tar[:, :, 0] != -1
+    usable_src_columns = torch.logical_and(initial_src, reproj_src_valid)
+    usable_tar_rows = torch.logical_and(initial_tar, reproj_tar_valid)
 
     final_counts = []
     min_distances = []
@@ -210,6 +212,8 @@ def keypoint_stage_stats(dataset, real_data) -> dict[str, object]:
         "real_depth_valid_grid_points": [int(v.item()) for v in tar_depth_valid.sum(dim=1)],
         "template_to_real_reprojected_points_in_real_mask": [int(v.item()) for v in reproj_src_valid.sum(dim=1)],
         "real_to_template_reprojected_points_in_template_mask": [int(v.item()) for v in reproj_tar_valid.sum(dim=1)],
+        "usable_source_grid_points_initial_and_reprojected": [int(v.item()) for v in usable_src_columns.sum(dim=1)],
+        "usable_target_grid_points_initial_and_reprojected": [int(v.item()) for v in usable_tar_rows.sum(dim=1)],
         "final_valid_patch_pairs_per_instance": final_counts,
         "min_final_patch_distance_per_instance": min_distances,
     }
