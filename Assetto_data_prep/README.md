@@ -148,14 +148,14 @@ python -m src.scripts.render_custom_templates \
   machine.num_workers=1
 
 python -m fine_tuning.train \
-  --dataset-name assettocorsa \
+  --dataset-name assettocorsa_front_rear \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train ist \
   --ist-lr 1e-5 \
   --batch-size 4 \
   --max-steps 5000 \
-  --validation-interval 250 \
-  --run-name assettocorsa_20260623_ist \
+  --validation-interval 500 \
+  --run-name assettocorsa_20260623_front_back_debug \
   --logger wandb \
   --print-loss-every 50
 ```
