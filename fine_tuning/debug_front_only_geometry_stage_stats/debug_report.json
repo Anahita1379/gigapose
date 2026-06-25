@@ -275,6 +275,18 @@
           0,
           0
         ],
+        "usable_source_grid_points_initial_and_reprojected": [
+          128,
+          128,
+          128,
+          0
+        ],
+        "usable_target_grid_points_initial_and_reprojected": [
+          0,
+          0,
+          0,
+          0
+        ],
         "final_valid_patch_pairs_per_instance": [
           0,
           0,
@@ -363,6 +375,18 @@
         "real_to_template_reprojected_points_in_template_mask": [
           141,
           141,
+          0,
+          0
+        ],
+        "usable_source_grid_points_initial_and_reprojected": [
+          128,
+          128,
+          128,
+          128
+        ],
+        "usable_target_grid_points_initial_and_reprojected": [
+          0,
+          0,
           0,
           0
         ],
@@ -457,6 +481,18 @@
           0,
           0
         ],
+        "usable_source_grid_points_initial_and_reprojected": [
+          128,
+          0,
+          0,
+          128
+        ],
+        "usable_target_grid_points_initial_and_reprojected": [
+          0,
+          0,
+          0,
+          0
+        ],
         "final_valid_patch_pairs_per_instance": [
           0,
           0,
@@ -543,6 +579,18 @@
           0
         ],
         "real_to_template_reprojected_points_in_template_mask": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "usable_source_grid_points_initial_and_reprojected": [
+          0,
+          128,
+          0,
+          0
+        ],
+        "usable_target_grid_points_initial_and_reprojected": [
           0,
           0,
           0,
