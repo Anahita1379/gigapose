@@ -86,18 +86,27 @@ VAL_SESSION=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3
 python -m Assetto_data_prep.prepare_inference \
   --source-root "$VAL_SESSION" \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --dataset-name assettocorsa \
-  --cameras front \
+  --dataset-name assettocorsa_inference \
+  --cameras front,rear \
   --frame-stride 5 \
   --overwrite
 
 python -m src.scripts.render_custom_templates \
-  custom_dataset_name=assettocorsa \
+  custom_dataset_name=assettocorsa_inference \
   machine.num_workers=1
 
 python test.py \
-  test_dataset_name=assettocorsa \
-  run_id=assettocorsa_oracle_masks
+  test_dataset_name=assettocorsa_inference \
+  run_id=assettocorsa_assettocorsa_inference_run
+```
+
+for testing the fine tuned model: 
+```bash
+python test.py \
+  test_dataset_name=assettocorsa_inference \
+  model.checkpoint_path=gigaPose_datasets/results/assettocorsa_front_rear_run/checkpoints/epoch=2-step=2000.ckpt \
+  run_id=assettocorsa_assettocorsa_inference_run \
+  name_exp=large_assettocorsa_finetuned
 ```
 
 This writes the `test/` shards, centered CAD, targets, GT poses, frame map, and
