@@ -85,9 +85,12 @@ def image_stem(row: dict[str, str]) -> str:
 
 
 def instance_mask_path(
-    source_root: Path, camera_id: str, row: dict[str, str]
+    source_root: Path,
+    camera_id: str,
+    row: dict[str, str],
+    mask_dir_name: str = "masks",
 ) -> Path:
-    return source_root / "masks" / camera_id / f"{image_stem(row)}.png"
+    return source_root / mask_dir_name / camera_id / f"{image_stem(row)}.png"
 
 
 def load_instance_ids(mask_path: Path, expected_size: tuple[int, int]) -> np.ndarray:

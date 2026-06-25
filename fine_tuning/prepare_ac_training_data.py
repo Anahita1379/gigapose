@@ -74,6 +74,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dataset-name", default="assettocorsa")
     parser.add_argument("--object-id", type=int, default=1)
     parser.add_argument("--cameras", default="front")
+    parser.add_argument(
+        "--mask-dir-name",
+        default="masks",
+        help=(
+            "Directory under each source root that contains per-camera instance PNGs. "
+            "Use generated_mask if your recording stores masks there."
+        ),
+    )
     parser.add_argument("--opponent-ids", default=None)
     parser.add_argument("--frame-stride", type=int, default=1)
     parser.add_argument("--max-frames-per-session", type=int, default=None)
@@ -257,6 +265,7 @@ def write_split(
     object_id: int,
     max_shard_size: int,
     min_mask_overlap: float,
+    mask_dir_name: str,
 ) -> tuple[int, int, list[dict[str, object]]]:
     split_dir.mkdir(parents=True)
     writer = wds.ShardWriter(
@@ -280,7 +289,12 @@ def write_split(
             poses_m = [cad_to_camera_pose(row, cad_to_ac_body) for row in rows]
             segmentation, depth_m = mesh_renderer.render(poses_m, K, width, height)
             observed_instance_ids = load_instance_ids(
-                instance_mask_path(frame.source_root, frame.camera_id, first),
+                instance_mask_path(
+                    frame.source_root,
+                    frame.camera_id,
+                    first,
+                    mask_dir_name=mask_dir_name,
+                ),
                 image.size,
             )
 
@@ -288,7 +302,11 @@ def write_split(
             for render_id, (row, pose_m) in enumerate(zip(rows, poses_m), start=1):
                 observed_mask = instance_mask_for_row(observed_instance_ids, row)
                 rendered_mask = segmentation == render_id
-                mask = np.logical_and(observed_mask, rendered_mask)
+                # SEG and depth come from the same renderer, but pyrender can
+                # occasionally leave zero-depth pixels on hard silhouette edges.
+                # GigaPose samples geometric correspondences from these masks,
+                # so keep only pixels with valid rendered CAD depth.
+                mask = np.logical_and.reduce((observed_mask, rendered_mask, depth_m > 0))
                 observed_pixels = int(observed_mask.sum())
                 rendered_pixels = int(rendered_mask.sum())
                 overlap_fraction = (
@@ -405,6 +423,7 @@ def main() -> None:
             args.object_id,
             args.max_shard_size,
             args.min_mask_overlap,
+            args.mask_dir_name,
         )
         val_count, val_instances, val_manifest = write_split(
             val_frames,
@@ -414,6 +433,7 @@ def main() -> None:
             args.object_id,
             args.max_shard_size,
             args.min_mask_overlap,
+            args.mask_dir_name,
         )
     finally:
         renderer.close()
@@ -430,6 +450,7 @@ def main() -> None:
         "depth_storage_units": "millimeters",
         "training_depth_scale": 1.0,
         "mask_supervision": "observed_instance_mask_intersected_with_rendered_cad",
+        "mask_dir_name": args.mask_dir_name,
         "minimum_observed_mask_overlap": args.min_mask_overlap,
         "split_policy": split_policy,
         "train": {
