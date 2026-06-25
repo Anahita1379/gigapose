@@ -109,7 +109,15 @@ def write_split(
             gt, gt_info, visible_masks, kept = [], [], {}, []
             for render_id, (row, pose) in enumerate(zip(frame.rows, poses), start=1):
                 opponent_id = int(row["opp_id"])
-                mask = instance_ids == opponent_id
+                observed_mask = instance_ids == opponent_id
+                rendered_mask = segmentation == render_id
+                # Keep only pixels that are in the generated/observed instance
+                # mask, the rendered CAD silhouette, and the rendered depth map.
+                # GigaPose samples 3D correspondences from this mask, so every
+                # supervised pixel needs valid CAD depth.
+                mask = np.logical_and.reduce(
+                    (observed_mask, rendered_mask, depth_m > 0)
+                )
                 pixels = int(mask.sum())
                 if pixels < min_mask_pixels:
                     continue
@@ -228,7 +236,10 @@ def main() -> None:
         "centered_model_local_center": alignment.local_center.tolist(),
         "pose_translation_units": "millimeters",
         "depth_storage_units": "millimeters",
-        "mask_supervision": "ground_truth_pose_rendered_cad_instance_mask",
+        "mask_dir_name": args.mask_dir_name,
+        "mask_supervision": (
+            "generated_instance_mask_intersected_with_rendered_cad_and_valid_depth"
+        ),
         "mask_limitations": (
             "Opponent-opponent occlusion is rendered. Track, ego-car, and static-scene "
             "occlusion is not represented unless it is implicitly removed by CSV clipping."
