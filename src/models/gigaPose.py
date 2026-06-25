@@ -342,6 +342,14 @@ class GigaPose(pl.LightningModule):
             on_epoch=False,
             prog_bar=True,
         )
+        self.log(
+            "train/loss",
+            loss,
+            sync_dist=True,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=False,
+        )
         return loss
 
     def validate_contrast_loss(self, batch, idx_batch, split):
@@ -393,8 +401,21 @@ class GigaPose(pl.LightningModule):
     def validation_step(self, batch, idx_batch):
         if batch is None:
             return None
-        _ = self.compute_regression_loss(batch, "val")
-        _ = self.validate_contrast_loss(batch, idx_batch, "val")
+        loss = 0
+        if self.optim_config.nets_to_train in ["ist", "all"]:
+            loss_ = self.compute_regression_loss(batch, "val")
+            loss += loss_["scale"] + loss_["inp"]
+        if self.optim_config.nets_to_train in ["ae", "all"]:
+            _ = self.validate_contrast_loss(batch, idx_batch, "val")
+        self.log(
+            "val/loss",
+            loss,
+            sync_dist=True,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=True,
+        )
+        return loss
 
     def set_template_data(self, dataset_name):
         logger.info("Initializing template data ...")

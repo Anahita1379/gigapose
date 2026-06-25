@@ -38,7 +38,7 @@ class LossPrintCallback(pl.Callback):
     def _format_metrics(self, trainer: pl.Trainer, prefixes: tuple[str, ...]) -> str:
         parts = []
         for name, value in sorted(trainer.callback_metrics.items()):
-            if name == "total" or any(name.startswith(prefix) for prefix in prefixes):
+            if name != "total" and any(name.startswith(prefix) for prefix in prefixes):
                 scalar = self._as_float(value)
                 if scalar is not None:
                     parts.append(f"{name}={scalar:.5f}")
@@ -49,7 +49,15 @@ class LossPrintCallback(pl.Callback):
             return
         if trainer.global_step == 0 or trainer.global_step % self.every_n_steps != 0:
             return
+        parts = []
+        loss = outputs.get("loss") if isinstance(outputs, dict) else outputs
+        scalar_loss = self._as_float(loss)
+        if scalar_loss is not None:
+            parts.append(f"loss={scalar_loss:.5f}")
         metrics = self._format_metrics(trainer, ("train/",))
+        if metrics:
+            parts.append(metrics)
+        metrics = " ".join(parts)
         if metrics:
             logger.info("step=%d %s", trainer.global_step, metrics)
 

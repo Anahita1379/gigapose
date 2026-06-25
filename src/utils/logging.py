@@ -76,10 +76,10 @@ def log_image(logger, name, path=None, step=None):
     if isinstance(logger, WandbLogger):
         assert isinstance(path, str), "image must be a path to an image"
         data = {f"{name}": wandb.Image(path)}
-        if step is None:
-            logger.experiment.log(data)
-        else:
-            logger.experiment.log(data, step=step)
+        # Let Lightning/W&B own the global step. Passing explicit steps here can
+        # conflict with Lightning's internal monotonically-increasing W&B step
+        # and cause image logs to be dropped.
+        logger.experiment.log(data)
     elif isinstance(logger, TensorBoardLogger):
         image = Image.open(path)
         image = torch.tensor(np.array(image) / 255.0)
