@@ -277,6 +277,7 @@ class GigaPose(pl.LightningModule):
                     logger=self.logger,
                     name=f"vis/train_samples_{idx_dataset}",
                     path=sample_path,
+                    step=int(self.global_step),
                 )
 
             if self.optim_config.nets_to_train in ["ist", "all"]:
@@ -338,14 +339,23 @@ class GigaPose(pl.LightningModule):
             prog_bar=True,
         )
 
+        if idx_batch != 0 and idx_batch % self.log_interval != 0:
+            return
+
         # visualize matches
         vis_pts = plot_keypoints_batch(batch, type_data="pred")
-        sample_path = f"{self.log_dir}/{split}_sample_rank{self.global_rank}.png"
+        image_dir = osp.join(self.log_dir, "validation_images")
+        os.makedirs(image_dir, exist_ok=True)
+        sample_path = osp.join(
+            image_dir,
+            f"{split}_step{int(self.global_step):06d}_batch{idx_batch:04d}_rank{self.global_rank}.png",
+        )
         save_tensor_to_image(vis_pts, sample_path)
         log_image(
             logger=self.logger,
             name=f"vis/{split}_samples",
             path=sample_path,
+            step=int(self.global_step),
         )
 
     def validation_step(self, batch, idx_batch):
@@ -629,6 +639,7 @@ class GigaPose(pl.LightningModule):
                 logger=self.logger,
                 name=f"{dataset_name}",
                 path=sample_path,
+                step=int(self.global_step),
             )
 
     @torch.no_grad()

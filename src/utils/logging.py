@@ -72,12 +72,14 @@ def stop_disable_output(original_stdout):
     os.dup2(original_stdout, 1)
 
 
-def log_image(logger, name, path=None):
+def log_image(logger, name, path=None, step=None):
     if isinstance(logger, WandbLogger):
         assert isinstance(path, str), "image must be a path to an image"
-        logger.experiment.log(
-            {f"{name}": wandb.Image(path)},
-        )
+        data = {f"{name}": wandb.Image(path)}
+        if step is None:
+            logger.experiment.log(data)
+        else:
+            logger.experiment.log(data, step=step)
     elif isinstance(logger, TensorBoardLogger):
         image = Image.open(path)
         image = torch.tensor(np.array(image) / 255.0)
@@ -86,4 +88,5 @@ def log_image(logger, name, path=None):
         logger.experiment.add_image(
             f"{name}",
             image,
+            global_step=step,
         )

@@ -20,6 +20,47 @@ logger = get_logger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+class LossPrintCallback(pl.Callback):
+    """Print compact train/validation metrics while Lightning also logs them."""
+
+    def __init__(self, every_n_steps: int) -> None:
+        self.every_n_steps = every_n_steps
+
+    @staticmethod
+    def _as_float(value):
+        if hasattr(value, "detach"):
+            return float(value.detach().cpu())
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _format_metrics(self, trainer: pl.Trainer, prefixes: tuple[str, ...]) -> str:
+        parts = []
+        for name, value in sorted(trainer.callback_metrics.items()):
+            if name == "total" or any(name.startswith(prefix) for prefix in prefixes):
+                scalar = self._as_float(value)
+                if scalar is not None:
+                    parts.append(f"{name}={scalar:.5f}")
+        return " ".join(parts)
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if self.every_n_steps <= 0 or not trainer.is_global_zero:
+            return
+        if trainer.global_step == 0 or trainer.global_step % self.every_n_steps != 0:
+            return
+        metrics = self._format_metrics(trainer, ("train/",))
+        if metrics:
+            logger.info("step=%d %s", trainer.global_step, metrics)
+
+    def on_validation_epoch_end(self, trainer, pl_module):
+        if not trainer.is_global_zero:
+            return
+        metrics = self._format_metrics(trainer, ("val/",))
+        if metrics:
+            logger.info("validation step=%d %s", trainer.global_step, metrics)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset-name", default="assettocorsa")
@@ -43,6 +84,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--run-name", default="assettocorsa_ist_finetune")
     parser.add_argument("--seed", type=int, default=2023)
+    parser.add_argument(
+        "--logger",
+        choices=("tensorboard", "wandb", "none"),
+        default="tensorboard",
+        help="Experiment logger to use for losses and validation images.",
+    )
+    parser.add_argument("--wandb-project", default="gigapose")
+    parser.add_argument("--wandb-offline", action="store_true")
+    parser.add_argument("--log-every-n-steps", type=int, default=1)
+    parser.add_argument(
+        "--print-loss-every",
+        type=int,
+        default=50,
+        help="Print compact loss metrics every N optimizer steps; use 0 to disable.",
+    )
+    parser.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=1000,
+        help="Save a checkpoint every N optimizer steps.",
+    )
     return parser.parse_args()
 
 
@@ -86,14 +148,40 @@ def main() -> None:
     cfg.machine.trainer.val_check_interval = args.validation_interval
     cfg.machine.trainer.check_val_every_n_epoch = None
     cfg.machine.trainer.num_sanity_val_steps = 2
+    cfg.machine.trainer.log_every_n_steps = args.log_every_n_steps
     cfg.model.log_dir = str(output_dir)
     cfg.model.optim_config.nets_to_train = args.nets_to_train
     cfg.model.optim_config.ist_lr = args.ist_lr
     cfg.model.optim_config.ae_lr = args.ae_lr
     cfg.callback.checkpoint.dirpath = str(output_dir / "checkpoints")
+    cfg.callback.checkpoint.every_n_train_steps = args.checkpoint_interval
+
+    if args.logger == "tensorboard":
+        cfg.machine.trainer.logger = OmegaConf.create(
+            {
+                "_target_": "pytorch_lightning.loggers.TensorBoardLogger",
+                "save_dir": str(output_dir),
+                "name": "tensorboard",
+                "version": "",
+            }
+        )
+    elif args.logger == "wandb":
+        cfg.machine.trainer.logger = OmegaConf.create(
+            {
+                "_target_": "pytorch_lightning.loggers.WandbLogger",
+                "project": args.wandb_project,
+                "save_dir": str(output_dir),
+                "offline": args.wandb_offline,
+                "name": args.run_name,
+            }
+        )
+    else:
+        cfg.machine.trainer.logger = False
 
     os.makedirs(output_dir, exist_ok=True)
     trainer = instantiate(cfg.machine.trainer)
+    if args.print_loss_every > 0:
+        trainer.callbacks.append(LossPrintCallback(args.print_loss_every))
 
     train_dataset = instantiate(
         make_dataset_config(cfg, args, args.train_split, augment=True)
@@ -124,6 +212,12 @@ def main() -> None:
         args.dataset_name,
         output_dir,
     )
+    logger.info("Checkpoints: %s", output_dir / "checkpoints")
+    logger.info("Validation images: %s", output_dir / "validation_images")
+    if args.logger == "tensorboard":
+        logger.info("TensorBoard: tensorboard --logdir %s", output_dir / "tensorboard")
+    elif args.logger == "wandb":
+        logger.info("Weights & Biases run: project=%s name=%s", args.wandb_project, args.run_name)
     trainer.fit(
         model,
         train_dataloaders=[train_loader],
