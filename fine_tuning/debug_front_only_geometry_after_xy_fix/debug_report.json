@@ -1,0 +1,456 @@
+{
+  "dataset_name": "assettocorsa_front_only",
+  "split": "train_pbr_web",
+  "sample_visuals": [
+    {
+      "scene_id": "000001",
+      "view_id": "000000",
+      "rgb_shape": [
+        400,
+        2064,
+        3
+      ],
+      "depth_positive_pixels": 84268,
+      "mask_pixels": 84268,
+      "mask_without_depth_pixels": 0,
+      "objects": [
+        {
+          "unique_id": "0",
+          "label": "1",
+          "mask_pixels": 16989,
+          "mask_depth_pixels": 16989,
+          "pose_z": 12537.07096176393,
+          "bbox_modal": [
+            1289,
+            150,
+            274,
+            109
+          ]
+        },
+        {
+          "unique_id": "1",
+          "label": "1",
+          "mask_pixels": 15424,
+          "mask_depth_pixels": 15424,
+          "pose_z": 11216.64870013779,
+          "bbox_modal": [
+            938,
+            145,
+            189,
+            124
+          ]
+        },
+        {
+          "unique_id": "2",
+          "label": "1",
+          "mask_pixels": 51855,
+          "mask_depth_pixels": 51855,
+          "pose_z": 4083.3000726865666,
+          "bbox_modal": [
+            1611,
+            166,
+            453,
+            199
+          ]
+        }
+      ],
+      "panel": "fine_tuning/debug_front_only_geometry_after_xy_fix/000000_000001_000000.jpg"
+    },
+    {
+      "scene_id": "000001",
+      "view_id": "000003",
+      "rgb_shape": [
+        400,
+        2064,
+        3
+      ],
+      "depth_positive_pixels": 84272,
+      "mask_pixels": 84272,
+      "mask_without_depth_pixels": 0,
+      "objects": [
+        {
+          "unique_id": "0",
+          "label": "1",
+          "mask_pixels": 16989,
+          "mask_depth_pixels": 16989,
+          "pose_z": 12536.96494736468,
+          "bbox_modal": [
+            1289,
+            150,
+            274,
+            109
+          ]
+        },
+        {
+          "unique_id": "1",
+          "label": "1",
+          "mask_pixels": 15424,
+          "mask_depth_pixels": 15424,
+          "pose_z": 11216.527078561207,
+          "bbox_modal": [
+            938,
+            145,
+            189,
+            124
+          ]
+        },
+        {
+          "unique_id": "2",
+          "label": "1",
+          "mask_pixels": 51859,
+          "mask_depth_pixels": 51859,
+          "pose_z": 4083.178536741766,
+          "bbox_modal": [
+            1611,
+            166,
+            453,
+            199
+          ]
+        }
+      ],
+      "panel": "fine_tuning/debug_front_only_geometry_after_xy_fix/000001_000001_000003.jpg"
+    },
+    {
+      "scene_id": "000001",
+      "view_id": "000006",
+      "rgb_shape": [
+        400,
+        2064,
+        3
+      ],
+      "depth_positive_pixels": 84272,
+      "mask_pixels": 84272,
+      "mask_without_depth_pixels": 0,
+      "objects": [
+        {
+          "unique_id": "0",
+          "label": "1",
+          "mask_pixels": 16988,
+          "mask_depth_pixels": 16988,
+          "pose_z": 12536.842903850968,
+          "bbox_modal": [
+            1289,
+            150,
+            274,
+            109
+          ]
+        },
+        {
+          "unique_id": "1",
+          "label": "1",
+          "mask_pixels": 15427,
+          "mask_depth_pixels": 15427,
+          "pose_z": 11216.42042016448,
+          "bbox_modal": [
+            938,
+            145,
+            189,
+            124
+          ]
+        },
+        {
+          "unique_id": "2",
+          "label": "1",
+          "mask_pixels": 51857,
+          "mask_depth_pixels": 51857,
+          "pose_z": 4083.071819652119,
+          "bbox_modal": [
+            1611,
+            166,
+            453,
+            199
+          ]
+        }
+      ],
+      "panel": "fine_tuning/debug_front_only_geometry_after_xy_fix/000002_000001_000006.jpg"
+    },
+    {
+      "scene_id": "000001",
+      "view_id": "000009",
+      "rgb_shape": [
+        400,
+        2064,
+        3
+      ],
+      "depth_positive_pixels": 84268,
+      "mask_pixels": 84268,
+      "mask_without_depth_pixels": 0,
+      "objects": [
+        {
+          "unique_id": "0",
+          "label": "1",
+          "mask_pixels": 16986,
+          "mask_depth_pixels": 16986,
+          "pose_z": 12536.700601493025,
+          "bbox_modal": [
+            1289,
+            150,
+            274,
+            109
+          ]
+        },
+        {
+          "unique_id": "1",
+          "label": "1",
+          "mask_pixels": 15424,
+          "mask_depth_pixels": 15424,
+          "pose_z": 11216.279214337952,
+          "bbox_modal": [
+            938,
+            145,
+            189,
+            124
+          ]
+        },
+        {
+          "unique_id": "2",
+          "label": "1",
+          "mask_pixels": 51858,
+          "mask_depth_pixels": 51858,
+          "pose_z": 4082.9294047244853,
+          "bbox_modal": [
+            1611,
+            166,
+            453,
+            199
+          ]
+        }
+      ],
+      "panel": "fine_tuning/debug_front_only_geometry_after_xy_fix/000003_000001_000009.jpg"
+    }
+  ],
+  "batches": [
+    {
+      "batch_index": 0,
+      "batch_size_after_collate": 4,
+      "src_valid_patches": 0,
+      "tar_valid_patches": 0,
+      "valid_patch_pairs": 0,
+      "instances": [
+        {
+          "scene_id": "000001",
+          "view_id": "000003",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000006",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000000",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000000",
+          "label": "1"
+        }
+      ]
+    },
+    {
+      "batch_index": 1,
+      "batch_size_after_collate": 4,
+      "src_valid_patches": 0,
+      "tar_valid_patches": 0,
+      "valid_patch_pairs": 0,
+      "instances": [
+        {
+          "scene_id": "000001",
+          "view_id": "000021",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000015",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000015",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000012",
+          "label": "1"
+        }
+      ]
+    },
+    {
+      "batch_index": 2,
+      "batch_size_after_collate": 4,
+      "src_valid_patches": 0,
+      "tar_valid_patches": 0,
+      "valid_patch_pairs": 0,
+      "instances": [
+        {
+          "scene_id": "000001",
+          "view_id": "000030",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000027",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000027",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000030",
+          "label": "1"
+        }
+      ]
+    },
+    {
+      "batch_index": 3,
+      "batch_size_after_collate": 4,
+      "src_valid_patches": 0,
+      "tar_valid_patches": 0,
+      "valid_patch_pairs": 0,
+      "instances": [
+        {
+          "scene_id": "000001",
+          "view_id": "000045",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000042",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000039",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000042",
+          "label": "1"
+        }
+      ]
+    },
+    {
+      "batch_index": 4,
+      "batch_size_after_collate": 4,
+      "src_valid_patches": 0,
+      "tar_valid_patches": 0,
+      "valid_patch_pairs": 0,
+      "instances": [
+        {
+          "scene_id": "000001",
+          "view_id": "000057",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000048",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000051",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000054",
+          "label": "1"
+        }
+      ]
+    },
+    {
+      "batch_index": 5,
+      "batch_size_after_collate": 4,
+      "src_valid_patches": 0,
+      "tar_valid_patches": 0,
+      "valid_patch_pairs": 0,
+      "instances": [
+        {
+          "scene_id": "000001",
+          "view_id": "000060",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000066",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000069",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000060",
+          "label": "1"
+        }
+      ]
+    },
+    {
+      "batch_index": 6,
+      "batch_size_after_collate": 4,
+      "src_valid_patches": 0,
+      "tar_valid_patches": 0,
+      "valid_patch_pairs": 0,
+      "instances": [
+        {
+          "scene_id": "000001",
+          "view_id": "000081",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000078",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000075",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000081",
+          "label": "1"
+        }
+      ]
+    },
+    {
+      "batch_index": 7,
+      "batch_size_after_collate": 4,
+      "src_valid_patches": 0,
+      "tar_valid_patches": 0,
+      "valid_patch_pairs": 0,
+      "instances": [
+        {
+          "scene_id": "000001",
+          "view_id": "000090",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000087",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000084",
+          "label": "1"
+        },
+        {
+          "scene_id": "000001",
+          "view_id": "000084",
+          "label": "1"
+        }
+      ]
+    }
+  ]
+}
