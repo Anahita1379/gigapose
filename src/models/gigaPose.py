@@ -359,6 +359,8 @@ class GigaPose(pl.LightningModule):
         )
 
     def validation_step(self, batch, idx_batch):
+        if batch is None:
+            return None
         _ = self.compute_regression_loss(batch, "val")
         _ = self.validate_contrast_loss(batch, idx_batch, "val")
 

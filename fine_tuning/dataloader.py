@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 import copy
 import json
 from pathlib import Path
@@ -13,6 +14,10 @@ from src.custom_megapose.template_dataset import TemplateDataset, NearestTemplat
 from src.custom_megapose.web_scene_dataset import IterableWebSceneDataset, WebSceneDataset
 from src.dataloader.keypoints import KeyPointSampler
 from src.dataloader.train import GigaPoseTrainSet
+from src.utils.logging import get_logger
+
+
+logger = get_logger(__name__)
 
 
 class SplitWebSceneDataset(WebSceneDataset):
@@ -21,11 +26,14 @@ class SplitWebSceneDataset(WebSceneDataset):
     def load_frame_index(self) -> pd.DataFrame:
         mapping_path = self.wds_dir / "key_to_shard.json"
         mapping = json.loads(mapping_path.read_text())
-        shard_filenames = [
-            f"shard-{int(shard_id):06d}.tar" for shard_id in mapping.values()
-        ]
+        items = sorted(
+            mapping.items(),
+            key=lambda item: tuple(int(part) for part in item[0].split("_", 1)),
+        )
+        keys = [key for key, _ in items]
+        shard_filenames = [f"shard-{int(shard_id):06d}.tar" for _, shard_id in items]
         return pd.DataFrame(
-            {"key": list(mapping), "shard_fname": shard_filenames}
+            {"key": keys, "shard_fname": shard_filenames}
         )
 
 
@@ -59,3 +67,37 @@ class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
         self.template_dataset = TemplateDataset.from_config(model_infos, template_config)
         self.template_finder = NearestTemplateFinder(template_config)
         self.keypoint_sampler = KeyPointSampler()
+
+    def collate_fn(self, batch):
+        """Collate Assetto Corsa samples without mixing full-frame resolutions.
+
+        The AC train split can contain front/rear/stereo cameras with different
+        image sizes. MegaPose's base SceneObservation collate stacks full RGB and
+        depth before object crops are resized, so mixed resolutions in a single
+        DataLoader batch fail with e.g. 760-vs-400 tensor-size errors.
+        """
+        if len(batch) > 1:
+            resolutions = [
+                tuple(sample.rgb.shape[:2])
+                for sample in batch
+                if getattr(sample, "rgb", None) is not None
+            ]
+            if resolutions and len(set(resolutions)) > 1:
+                keep_resolution, _ = Counter(resolutions).most_common(1)[0]
+                filtered = [
+                    sample
+                    for sample in batch
+                    if getattr(sample, "rgb", None) is not None
+                    and tuple(sample.rgb.shape[:2]) == keep_resolution
+                ]
+                logger.info(
+                    "Mixed camera resolutions in batch %s; keeping %d/%d samples at %s",
+                    sorted(set(resolutions)),
+                    len(filtered),
+                    len(batch),
+                    keep_resolution,
+                )
+                batch = filtered
+        if not batch:
+            return None
+        return super().collate_fn(batch)
