@@ -156,7 +156,7 @@ python -m fine_tuning.train \
   --max-steps 5000 \
   --validation-interval 250 \
   --run-name assettocorsa_20260623_ist \
-  --logger tensorboard \
+  --logger wandb \
   --print-loss-every 50
 ```
 
