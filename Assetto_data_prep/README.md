@@ -128,7 +128,7 @@ python -m Assetto_data_prep.prepare_training \
   --cameras all \
   --frame-stride 5 \
   --max-frames-per-session 6000 \
-  --mask-dir-name generated_mask \
+  --mask-dir-name generated_masks \
   --validation-sessions 1 \
   --overwrite
 ```
@@ -148,14 +148,14 @@ python -m src.scripts.render_custom_templates \
   machine.num_workers=1
 
 python -m fine_tuning.train \
-  --dataset-name assettocorsa_front_rear \
+  --dataset-name assettocorsa_front_only \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train ist \
   --ist-lr 1e-5 \
   --batch-size 4 \
-  --max-steps 5000 \
+  --max-steps 45000 \
   --validation-interval 500 \
-  --run-name assettocorsa_20260623_front_back_debug \
+  --run-name assettocorsa_20260623_front_debug \
   --logger wandb \
   --print-loss-every 50
 ```
