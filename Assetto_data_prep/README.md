@@ -107,6 +107,14 @@ python test.py \
   model.checkpoint_path=gigaPose_datasets/results/assettocorsa_front_rear_run/checkpoints/epoch=2-step=2000.ckpt \
   run_id=assettocorsa_assettocorsa_inference_run \
   name_exp=large_assettocorsa_finetuned
+
+
+python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_finetuned/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_run.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
+  --split test \
+  --output-dir fine_tuning/prediction_overlays_finetuned \
+  --min-score 0.01
 ```
 
 This writes the `test/` shards, centered CAD, targets, GT poses, frame map, and
@@ -157,14 +165,15 @@ python -m src.scripts.render_custom_templates \
   machine.num_workers=1
 
 python -m fine_tuning.train \
-  --dataset-name assettocorsa_front_only \
+  --dataset-name assettocorsa \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
-  --nets-to-train ist \
-  --ist-lr 1e-5 \
-  --batch-size 4 \
-  --max-steps 45000 \
-  --validation-interval 500 \
-  --run-name assettocorsa_20260623_front_debug \
+  --nets-to-train all \
+  --ist-lr 2e-5 \
+  --ae-lr 1e-6 \
+  --batch-size 32 \
+  --max-steps 10000 \
+  --validation-interval 250 \
+  --run-name assettocorsa_fine_tune_all_nets \
   --logger wandb \
   --print-loss-every 50
 ```
