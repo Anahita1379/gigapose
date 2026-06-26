@@ -39,25 +39,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--mesh-scale",
         type=float,
-        default=None,
+        default=1.0,
         help=(
-            "Multiply mesh vertices by this before rendering. Use 1000 when "
-            "the mesh is in meters and CSV translations are in millimeters. "
-            "If omitted, the script auto-detects meter-scale meshes and uses 1000."
+            "Multiply mesh vertices by this before rendering. Usually keep this "
+            "at 1.0 and use --translation-scale/auto translation scaling instead."
         ),
     )
     parser.add_argument(
-        "--disable-mesh-scale-auto",
+        "--disable-translation-scale-auto",
         action="store_true",
-        help="Disable automatic meter-to-millimeter mesh scaling.",
+        help="Disable automatic millimeter-to-meter translation scaling.",
     )
     parser.add_argument(
         "--translation-scale",
         type=float,
-        default=1.0,
+        default=None,
         help=(
             "Multiply CSV translations by this before rendering. Use 0.001 when "
-            "the CSV stores millimeters and the mesh uses meters."
+            "the CSV stores millimeters and the mesh uses meters. If omitted, "
+            "the script auto-detects meter-scale meshes and uses 0.001."
         ),
     )
     parser.add_argument(
@@ -74,19 +74,20 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def infer_mesh_scale(mesh: trimesh.Trimesh, args: argparse.Namespace) -> float:
-    if args.mesh_scale is not None:
-        return args.mesh_scale
-    if args.disable_mesh_scale_auto:
+def infer_translation_scale(mesh: trimesh.Trimesh, args: argparse.Namespace) -> float:
+    if args.translation_scale is not None:
+        return args.translation_scale
+    if args.disable_translation_scale_auto:
         return 1.0
 
     extent = float(np.linalg.norm(mesh.extents))
     # Assetto/CAD meshes here are usually in meters (racecar diagonal ~5.4),
-    # while GigaPose/BOP CSV translations are in millimeters.  If we render a
-    # meter-scale mesh at millimeter translations, the overlay becomes a tiny
-    # sub-pixel speck.  Auto-scale plausible meter-scale meshes to millimeters.
-    if 0.01 < extent < 100.0 and args.translation_scale == 1.0:
-        return 1000.0
+    # while GigaPose/BOP CSV translations are in millimeters.  If we render
+    # millimeter translations directly, z can be >1000 and the pyrender camera
+    # clips everything.  Auto-convert plausible meter-scale meshes' translations
+    # from millimeters to meters.
+    if 0.01 < extent < 100.0:
+        return 0.001
     return 1.0
 
 
@@ -200,11 +201,22 @@ def main() -> None:
     if not isinstance(mesh, trimesh.Trimesh) or mesh.is_empty:
         raise ValueError(f"Could not load mesh: {mesh_path}")
     mesh = mesh.copy()
-    mesh_scale = infer_mesh_scale(mesh, args)
+    raw_mesh_extent = float(np.linalg.norm(mesh.extents))
+    translation_scale = infer_translation_scale(mesh, args)
+    mesh_scale = args.mesh_scale
     if mesh_scale != 1.0:
         mesh.apply_scale(mesh_scale)
     if args.center_mesh:
         mesh.apply_translation(-mesh.bounds.mean(axis=0))
+    print(
+        f"Overlay source: {Path(__file__).resolve()}",
+        flush=True,
+    )
+    print(
+        f"Mesh extent before scaling: {raw_mesh_extent:g}; mesh scale: {mesh_scale:g}; "
+        f"translation scale: {translation_scale:g}",
+        flush=True,
+    )
 
     predictions = select_multi_hypothesis_top1(load_prediction_rows(args.predictions))
     if args.min_score is not None:
@@ -227,7 +239,7 @@ def main() -> None:
             for row in rows:
                 pose = np.eye(4, dtype=float)
                 pose[:3, :3] = row["R"]
-                pose[:3, 3] = row["t"] * args.translation_scale
+                pose[:3, 3] = row["t"] * translation_scale
                 poses.append(pose)
             segmentation, _ = renderer.render(poses, K, image.width, image.height)
             pixel_counts = prediction_pixel_counts(segmentation, rows)
@@ -254,7 +266,7 @@ def main() -> None:
     report_path.write_text(json.dumps(report, indent=2))
     print(f"Rendered {len(report)} images / {sum(r['prediction_count'] for r in report)} poses")
     print(
-        f"Mesh scale: {mesh_scale:g}; translation scale: {args.translation_scale:g}; "
+        f"Mesh scale: {mesh_scale:g}; translation scale: {translation_scale:g}; "
         f"visible poses: {sum(r['visible_prediction_count'] for r in report)}"
     )
     print(f"Wrote {report_path}")
