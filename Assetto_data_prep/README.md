@@ -175,7 +175,8 @@ python -m fine_tuning.train \
   --validation-interval 250 \
   --run-name assettocorsa_fine_tune_all_nets \
   --logger wandb \
-  --print-loss-every 50
+  --print-loss-every 50 \
+  --devices all
 ```
 
 Then open Tensorboard with 
