@@ -1,0 +1,251 @@
+ModelCheckpoint(save_last=True, save_top_k=-1, monitor=None) will duplicate the last checkpoint saved.
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+INFO:src.custom_megapose.web_scene_dataset:WebSceneDataset: 101 shards
+INFO:src.custom_megapose.web_scene_dataset:IterableWebSceneDataset: 25693 samples
+100%|███████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 1920.47it/s]
+INFO:src.custom_megapose.template_dataset:Loaded 1 template datas
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/torch/functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at ../aten/src/ATen/native/TensorShape.cpp:3483.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+INFO:src.dataloader.keypoints:Initialized normalized center patch done!
+INFO:src.custom_megapose.web_scene_dataset:WebSceneDataset: 6 shards
+INFO:src.custom_megapose.web_scene_dataset:IterableWebSceneDataset: 1367 samples
+100%|███████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 2955.82it/s]
+INFO:src.custom_megapose.template_dataset:Loaded 1 template datas
+INFO:src.dataloader.keypoints:Initialized normalized center patch done!
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:43: UserWarning: xFormers is available (SwiGLU)
+  warnings.warn("xFormers is available (SwiGLU)")
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/attention.py:28: UserWarning: xFormers is available (Attention)
+  warnings.warn("xFormers is available (Attention)")
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/block.py:34: UserWarning: xFormers is available (Block)
+  warnings.warn("xFormers is available (Block)")
+INFO:src.models.network.ae_net:Initialize AENet done!
+INFO:src.models.network.ist_net:Init for Regressor with done!
+INFO:src.models.network.ist_net:Init weights for ISTNet done!
+INFO:src.models.network.ist_net:Init for ISTNet done!
+INFO:src.models.gigaPose:Initialize GigaPose done!
+INFO:src.utils.weight:Cannot load: []
+INFO:src.utils.weight:Not update: []
+INFO:src.utils.weight:Pretrained: 476/ Loaded: 476/ Cannot loaded: 0 VS Current model: 476
+INFO:src.utils.weight:Load pretrained done!
+INFO:__main__:Fine-tuning ist on assettocorsa; outputs: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run
+INFO:__main__:Checkpoints: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run/checkpoints
+INFO:__main__:Validation images: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run/validation_images
+INFO:__main__:Weights & Biases run: project=gigapose name=assettocorsa_ist_only_run
+[rank: 0] Global seed set to 2023
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+INFO:src.models.gigaPose:Optimizer for ist net
+
+  | Name           | Type            | Params
+---------------------------------------------------
+0 | ae_net         | AENet           | 304 M
+1 | ist_net        | ISTNet          | 13.4 M
+2 | testing_metric | LocalSimilarity | 0
+3 | l2_loss        | MSELoss         | 0
+---------------------------------------------------
+13.4 M    Trainable params
+304 M     Non-trainable params
+317 M     Total params
+1,271.195 Total estimated model params size (MB)
+Epoch 0:  72%|▋| 729/1018 [14:34<05:46,  1.20s/it, loss=41.4, v_num=ioyg, train/inp=0.542, train/scale=40.60, total=41.20, val/inp=1.560, val/scale=36
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/pytorch_lightning/utilities/data.py:135: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:src.models.gigaPose:Step=0, lr warm up: lr=0.0
+INFO:__main__:step=50 loss=3.86733 train/angle_err=91.19019 train/inp=1.00752 train/invalid_regression_fraction=0.00000 train/loss=3.86733 train/scale=2.85981 train/scale_err=1.62998 train/valid_patch_pairs=3136.00000 train/valid_regression_fraction=1.00000
+INFO:src.models.gigaPose:Step=50, lr warm up: lr=2.5e-06
+INFO:__main__:step=100 loss=3.14391 train/angle_err=98.82124 train/inp=1.11282 train/invalid_regression_fraction=0.00000 train/loss=3.14391 train/scale=2.03109 train/scale_err=1.38081 train/valid_patch_pairs=3906.00000 train/valid_regression_fraction=1.00000
+INFO:src.models.gigaPose:Step=100, lr warm up: lr=5e-06
+INFO:__main__:step=150 loss=3.08308 train/angle_err=91.23305 train/inp=1.01994 train/invalid_regression_fraction=0.00000 train/loss=3.08308 train/scale=2.06314 train/scale_err=1.39707 train/valid_patch_pairs=2688.00000 train/valid_regression_fraction=1.00000
+                                                                                                                                                      
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:src.models.gigaPose:Step=150, lr warm up: lr=7.500000000000001e-06
+INFO:__main__:step=200 loss=2.55495 train/angle_err=84.70781 train/inp=0.94017 train/invalid_regression_fraction=0.00000 train/loss=2.55495 train/scale=1.61478 train/scale_err=1.24000 train/valid_patch_pairs=2560.00000 train/valid_regression_fraction=1.00000
+INFO:src.models.gigaPose:Finished warm up, setting lr to 1e-05
+INFO:__main__:step=250 loss=46.64913 train/angle_err=106.24841 train/inp=1.85439 train/invalid_regression_fraction=0.00000 train/loss=46.64913 train/scale=44.79474 train/scale_err=0.91540 train/valid_patch_pairs=1520.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=300 loss=39.23255 train/angle_err=83.81592 train/inp=1.46286 train/invalid_regression_fraction=0.00000 train/loss=39.23255 train/scale=37.76969 train/scale_err=0.41137 train/valid_patch_pairs=2744.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=350 loss=42.44375 train/angle_err=54.86902 train/inp=0.95765 train/invalid_regression_fraction=0.00000 train/loss=42.44375 train/scale=41.48610 train/scale_err=0.60289 train/valid_patch_pairs=1904.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=400 loss=40.12380 train/angle_err=54.50761 train/inp=0.95134 train/invalid_regression_fraction=0.00000 train/loss=40.12380 train/scale=39.17246 train/scale_err=0.53354 train/valid_patch_pairs=3722.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=450 loss=41.04360 train/angle_err=68.96553 train/inp=1.20368 train/invalid_regression_fraction=0.00000 train/loss=41.04360 train/scale=39.83992 train/scale_err=0.60033 train/valid_patch_pairs=2881.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=500 loss=42.81231 train/angle_err=12.80295 train/inp=0.22346 train/invalid_regression_fraction=0.00000 train/loss=42.81231 train/scale=42.58885 train/scale_err=0.84306 train/valid_patch_pairs=2688.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=550 loss=41.52850 train/angle_err=14.03725 train/inp=0.24501 train/invalid_regression_fraction=0.00000 train/loss=41.52850 train/scale=41.28349 train/scale_err=0.62229 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=600 loss=41.16962 train/angle_err=31.06728 train/inp=0.54223 train/invalid_regression_fraction=0.00000 train/loss=41.16962 train/scale=40.62739 train/scale_err=0.50077 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=650 loss=41.76266 train/angle_err=8.60587 train/inp=0.15021 train/invalid_regression_fraction=0.00000 train/loss=41.76266 train/scale=41.61245 train/scale_err=0.63362 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=700 loss=41.91620 train/angle_err=7.31989 train/inp=0.12777 train/invalid_regression_fraction=0.00000 train/loss=41.91620 train/scale=41.78844 train/scale_err=1.09905 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=750 loss=41.19842 train/angle_err=4.67421 train/inp=0.08159 train/invalid_regression_fraction=0.00000 train/loss=41.19842 train/scale=41.11683 train/scale_err=0.96897 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=800 loss=44.40385 train/angle_err=68.45285 train/inp=1.19473 train/invalid_regression_fraction=0.00000 train/loss=44.40385 train/scale=43.20913 train/scale_err=0.97919 train/valid_patch_pairs=2288.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=850 loss=46.05002 train/angle_err=57.95218 train/inp=1.01146 train/invalid_regression_fraction=0.00000 train/loss=46.05002 train/scale=45.03856 train/scale_err=1.04940 train/valid_patch_pairs=1968.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=900 loss=44.01120 train/angle_err=8.32315 train/inp=0.14527 train/invalid_regression_fraction=0.00000 train/loss=44.01120 train/scale=43.86593 train/scale_err=1.11919 train/valid_patch_pairs=2688.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=950 loss=42.79728 train/angle_err=19.03106 train/inp=0.33217 train/invalid_regression_fraction=0.00000 train/loss=42.79728 train/scale=42.46511 train/scale_err=1.26290 train/valid_patch_pairs=2400.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1000 loss=43.29128 train/angle_err=8.45195 train/inp=0.14752 train/invalid_regression_fraction=0.00000 train/loss=43.29128 train/scale=43.14375 train/scale_err=1.23627 train/valid_patch_pairs=2512.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1050 loss=44.42548 train/angle_err=70.87698 train/inp=1.23704 train/invalid_regression_fraction=0.00000 train/loss=44.42548 train/scale=43.18844 train/scale_err=1.08961 train/valid_patch_pairs=2006.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=1100 loss=43.58801 train/angle_err=11.41040 train/inp=0.19916 train/invalid_regression_fraction=0.00000 train/loss=43.58801 train/scale=43.38885 train/scale_err=1.30858 train/valid_patch_pairs=2544.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1150 loss=45.11359 train/angle_err=74.05733 train/inp=1.29255 train/invalid_regression_fraction=0.00000 train/loss=45.11359 train/scale=43.82104 train/scale_err=1.31451 train/valid_patch_pairs=1552.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1200 loss=46.74073 train/angle_err=74.37105 train/inp=1.29802 train/invalid_regression_fraction=0.00000 train/loss=46.74073 train/scale=45.44270 train/scale_err=1.57319 train/valid_patch_pairs=1066.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=1250 loss=46.83338 train/angle_err=57.59480 train/inp=1.00522 train/invalid_regression_fraction=0.00000 train/loss=46.83338 train/scale=45.82816 train/scale_err=1.30023 train/valid_patch_pairs=2078.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1300 loss=42.68169 train/angle_err=5.37312 train/inp=0.09379 train/invalid_regression_fraction=0.00000 train/loss=42.68169 train/scale=42.58790 train/scale_err=1.20741 train/valid_patch_pairs=2816.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1350 loss=41.78768 train/angle_err=5.58844 train/inp=0.09754 train/invalid_regression_fraction=0.00000 train/loss=41.78768 train/scale=41.69014 train/scale_err=1.03068 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=1400 loss=41.69298 train/angle_err=5.94881 train/inp=0.10384 train/invalid_regression_fraction=0.00000 train/loss=41.69298 train/scale=41.58914 train/scale_err=0.81450 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1450 loss=41.62323 train/angle_err=3.82111 train/inp=0.06671 train/invalid_regression_fraction=0.00000 train/loss=41.62323 train/scale=41.55653 train/scale_err=0.76903 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1500 loss=41.74601 train/angle_err=2.12087 train/inp=0.03704 train/invalid_regression_fraction=0.00000 train/loss=41.74601 train/scale=41.70897 train/scale_err=1.00259 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=1550 loss=41.29120 train/angle_err=1.85714 train/inp=0.03245 train/invalid_regression_fraction=0.00000 train/loss=41.29120 train/scale=41.25875 train/scale_err=1.09824 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1600 loss=41.73170 train/angle_err=7.92067 train/inp=0.13825 train/invalid_regression_fraction=0.00000 train/loss=41.73170 train/scale=41.59344 train/scale_err=0.87410 train/valid_patch_pairs=1920.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1650 loss=42.62402 train/angle_err=58.66117 train/inp=1.02383 train/invalid_regression_fraction=0.00000 train/loss=42.62402 train/scale=41.60019 train/scale_err=1.03866 train/valid_patch_pairs=5012.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=1700 loss=43.22181 train/angle_err=19.38186 train/inp=0.33829 train/invalid_regression_fraction=0.00000 train/loss=43.22181 train/scale=42.88352 train/scale_err=1.24245 train/valid_patch_pairs=1760.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1750 loss=46.26117 train/angle_err=44.37622 train/inp=0.77452 train/invalid_regression_fraction=0.00000 train/loss=46.26117 train/scale=45.48665 train/scale_err=0.98951 train/valid_patch_pairs=1472.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1800 loss=43.82572 train/angle_err=25.37943 train/inp=0.44296 train/invalid_regression_fraction=0.00000 train/loss=43.82572 train/scale=43.38276 train/scale_err=1.13571 train/valid_patch_pairs=2160.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=1850 loss=43.04185 train/angle_err=53.26168 train/inp=0.92960 train/invalid_regression_fraction=0.00000 train/loss=43.04185 train/scale=42.11225 train/scale_err=1.09517 train/valid_patch_pairs=2807.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1900 loss=44.06454 train/angle_err=52.52279 train/inp=0.91670 train/invalid_regression_fraction=0.00000 train/loss=44.06454 train/scale=43.14784 train/scale_err=1.27689 train/valid_patch_pairs=3068.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=1950 loss=45.16394 train/angle_err=53.80850 train/inp=0.93914 train/invalid_regression_fraction=0.00000 train/loss=45.16394 train/scale=44.22480 train/scale_err=1.25485 train/valid_patch_pairs=1907.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=2000 loss=42.24871 train/angle_err=12.65944 train/inp=0.22096 train/invalid_regression_fraction=0.00000 train/loss=42.24871 train/scale=42.02776 train/scale_err=1.18231 train/valid_patch_pairs=3072.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2050 loss=45.31302 train/angle_err=49.92325 train/inp=0.87133 train/invalid_regression_fraction=0.00000 train/loss=45.31302 train/scale=44.44170 train/scale_err=1.04720 train/valid_patch_pairs=2144.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2100 loss=43.55796 train/angle_err=19.29552 train/inp=0.33679 train/invalid_regression_fraction=0.00000 train/loss=43.55796 train/scale=43.22117 train/scale_err=1.19434 train/valid_patch_pairs=1712.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=2150 loss=42.10625 train/angle_err=2.19348 train/inp=0.03832 train/invalid_regression_fraction=0.00000 train/loss=42.10625 train/scale=42.06794 train/scale_err=1.24383 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2200 loss=42.01219 train/angle_err=2.21301 train/inp=0.03865 train/invalid_regression_fraction=0.00000 train/loss=42.01219 train/scale=41.97354 train/scale_err=1.16639 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2250 loss=42.32381 train/angle_err=2.10076 train/inp=0.03670 train/invalid_regression_fraction=0.00000 train/loss=42.32381 train/scale=42.28711 train/scale_err=1.12894 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=2300 loss=41.92513 train/angle_err=1.37744 train/inp=0.02409 train/invalid_regression_fraction=0.00000 train/loss=41.92513 train/scale=41.90104 train/scale_err=1.07444 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2350 loss=40.96753 train/angle_err=1.09541 train/inp=0.01916 train/invalid_regression_fraction=0.00000 train/loss=40.96753 train/scale=40.94837 train/scale_err=0.96829 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2400 loss=48.24886 train/angle_err=73.38051 train/inp=1.28074 train/invalid_regression_fraction=0.00000 train/loss=48.24886 train/scale=46.96811 train/scale_err=0.95323 train/valid_patch_pairs=2062.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=2450 loss=48.52492 train/angle_err=61.50745 train/inp=1.07351 train/invalid_regression_fraction=0.00000 train/loss=48.52492 train/scale=47.45141 train/scale_err=0.88136 train/valid_patch_pairs=1488.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2500 loss=44.41269 train/angle_err=43.68373 train/inp=0.76244 train/invalid_regression_fraction=0.00000 train/loss=44.41269 train/scale=43.65025 train/scale_err=0.96831 train/valid_patch_pairs=1536.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2550 loss=42.91889 train/angle_err=6.76484 train/inp=0.11810 train/invalid_regression_fraction=0.00000 train/loss=42.91889 train/scale=42.80079 train/scale_err=0.90940 train/valid_patch_pairs=2464.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=2600 loss=39.91598 train/angle_err=15.56712 train/inp=0.27172 train/invalid_regression_fraction=0.00000 train/loss=39.91598 train/scale=39.64426 train/scale_err=0.86621 train/valid_patch_pairs=2160.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2650 loss=41.77138 train/angle_err=7.46244 train/inp=0.13028 train/invalid_regression_fraction=0.00000 train/loss=41.77138 train/scale=41.64111 train/scale_err=0.96030 train/valid_patch_pairs=2528.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2700 loss=40.92619 train/angle_err=44.21698 train/inp=0.77174 train/invalid_regression_fraction=0.00000 train/loss=40.92619 train/scale=40.15445 train/scale_err=0.78828 train/valid_patch_pairs=3203.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=2750 loss=42.04379 train/angle_err=12.43198 train/inp=0.21700 train/invalid_regression_fraction=0.00000 train/loss=42.04379 train/scale=41.82680 train/scale_err=0.78149 train/valid_patch_pairs=2896.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2800 loss=42.79705 train/angle_err=17.99766 train/inp=0.31414 train/invalid_regression_fraction=0.00000 train/loss=42.79705 train/scale=42.48291 train/scale_err=0.94002 train/valid_patch_pairs=1953.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2850 loss=40.80592 train/angle_err=5.42829 train/inp=0.09476 train/invalid_regression_fraction=0.00000 train/loss=40.80592 train/scale=40.71115 train/scale_err=0.72222 train/valid_patch_pairs=2688.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=2900 loss=39.94790 train/angle_err=43.71789 train/inp=0.76302 train/invalid_regression_fraction=0.00000 train/loss=39.94790 train/scale=39.18488 train/scale_err=0.61772 train/valid_patch_pairs=4608.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=2950 loss=40.48823 train/angle_err=2.78243 train/inp=0.04860 train/invalid_regression_fraction=0.00000 train/loss=40.48823 train/scale=40.43962 train/scale_err=0.66249 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3000 loss=40.76333 train/angle_err=1.17023 train/inp=0.02053 train/invalid_regression_fraction=0.00000 train/loss=40.76333 train/scale=40.74281 train/scale_err=0.67918 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=3050 loss=40.19067 train/angle_err=4.32927 train/inp=0.07558 train/invalid_regression_fraction=0.00000 train/loss=40.19067 train/scale=40.11509 train/scale_err=0.35298 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3100 loss=40.70257 train/angle_err=0.91927 train/inp=0.01611 train/invalid_regression_fraction=0.00000 train/loss=40.70257 train/scale=40.68645 train/scale_err=0.68202 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3150 loss=40.23376 train/angle_err=0.81643 train/inp=0.01434 train/invalid_regression_fraction=0.00000 train/loss=40.23376 train/scale=40.21942 train/scale_err=0.68369 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=3200 loss=39.33907 train/angle_err=2.06788 train/inp=0.03615 train/invalid_regression_fraction=0.00000 train/loss=39.33907 train/scale=39.30292 train/scale_err=0.65420 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3250 loss=40.70426 train/angle_err=69.16518 train/inp=1.20717 train/invalid_regression_fraction=0.00000 train/loss=40.70426 train/scale=39.49709 train/scale_err=0.50389 train/valid_patch_pairs=3043.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3300 loss=44.57933 train/angle_err=43.96230 train/inp=0.76729 train/invalid_regression_fraction=0.00000 train/loss=44.57933 train/scale=43.81204 train/scale_err=0.73933 train/valid_patch_pairs=912.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=3350 loss=39.99839 train/angle_err=9.93279 train/inp=0.17339 train/invalid_regression_fraction=0.00000 train/loss=39.99839 train/scale=39.82500 train/scale_err=0.80915 train/valid_patch_pairs=2352.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3400 loss=40.13460 train/angle_err=58.65614 train/inp=1.02374 train/invalid_regression_fraction=0.00000 train/loss=40.13460 train/scale=39.11086 train/scale_err=0.56944 train/valid_patch_pairs=3859.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3450 loss=40.49823 train/angle_err=46.10075 train/inp=0.80462 train/invalid_regression_fraction=0.00000 train/loss=40.49823 train/scale=39.69361 train/scale_err=0.65164 train/valid_patch_pairs=1973.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=3500 loss=41.50692 train/angle_err=2.39320 train/inp=0.04180 train/invalid_regression_fraction=0.00000 train/loss=41.50692 train/scale=41.46512 train/scale_err=0.64973 train/valid_patch_pairs=2816.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3550 loss=40.03152 train/angle_err=40.52737 train/inp=0.70736 train/invalid_regression_fraction=0.00000 train/loss=40.03152 train/scale=39.32416 train/scale_err=0.57015 train/valid_patch_pairs=4530.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3600 loss=40.34716 train/angle_err=10.92083 train/inp=0.19063 train/invalid_regression_fraction=0.00000 train/loss=40.34716 train/scale=40.15653 train/scale_err=0.79349 train/valid_patch_pairs=2208.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=3650 loss=40.11783 train/angle_err=11.73499 train/inp=0.20484 train/invalid_regression_fraction=0.00000 train/loss=40.11783 train/scale=39.91299 train/scale_err=0.68787 train/valid_patch_pairs=3200.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3700 loss=40.96543 train/angle_err=23.87565 train/inp=0.41674 train/invalid_regression_fraction=0.00000 train/loss=40.96543 train/scale=40.54869 train/scale_err=0.81299 train/valid_patch_pairs=3220.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3750 loss=40.69024 train/angle_err=1.65258 train/inp=0.02891 train/invalid_regression_fraction=0.00000 train/loss=40.69024 train/scale=40.66133 train/scale_err=0.65468 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=3800 loss=40.58211 train/angle_err=1.07911 train/inp=0.01887 train/invalid_regression_fraction=0.00000 train/loss=40.58211 train/scale=40.56324 train/scale_err=0.55698 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3850 loss=39.18889 train/angle_err=1.08705 train/inp=0.01905 train/invalid_regression_fraction=0.00000 train/loss=39.18889 train/scale=39.16985 train/scale_err=0.41222 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=3900 loss=40.22400 train/angle_err=0.43897 train/inp=0.00778 train/invalid_regression_fraction=0.00000 train/loss=40.22400 train/scale=40.21622 train/scale_err=0.72701 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=3950 loss=40.01571 train/angle_err=0.43279 train/inp=0.00770 train/invalid_regression_fraction=0.00000 train/loss=40.01571 train/scale=40.00800 train/scale_err=0.67040 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4000 loss=39.04517 train/angle_err=1.06334 train/inp=0.01865 train/invalid_regression_fraction=0.00000 train/loss=39.04517 train/scale=39.02652 train/scale_err=0.62777 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4050 loss=40.37524 train/angle_err=64.20697 train/inp=1.12062 train/invalid_regression_fraction=0.00000 train/loss=40.37524 train/scale=39.25462 train/scale_err=0.57862 train/valid_patch_pairs=3332.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=4100 loss=40.38828 train/angle_err=41.70554 train/inp=0.72793 train/invalid_regression_fraction=0.00000 train/loss=40.38828 train/scale=39.66035 train/scale_err=0.61525 train/valid_patch_pairs=1948.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4150 loss=39.41223 train/angle_err=50.77636 train/inp=0.88622 train/invalid_regression_fraction=0.00000 train/loss=39.41223 train/scale=38.52601 train/scale_err=0.45241 train/valid_patch_pairs=4572.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4200 loss=37.03617 train/angle_err=15.41947 train/inp=0.26915 train/invalid_regression_fraction=0.00000 train/loss=37.03617 train/scale=36.76702 train/scale_err=0.67370 train/valid_patch_pairs=1600.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=4250 loss=39.93367 train/angle_err=44.79412 train/inp=0.78182 train/invalid_regression_fraction=0.00000 train/loss=39.93367 train/scale=39.15185 train/scale_err=0.64028 train/valid_patch_pairs=2170.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4300 loss=38.43836 train/angle_err=47.16431 train/inp=0.82318 train/invalid_regression_fraction=0.00000 train/loss=38.43836 train/scale=37.61518 train/scale_err=0.56324 train/valid_patch_pairs=2821.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4350 loss=37.62530 train/angle_err=16.15071 train/inp=0.28189 train/invalid_regression_fraction=0.00000 train/loss=37.62530 train/scale=37.34341 train/scale_err=0.70287 train/valid_patch_pairs=1472.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=4400 loss=41.70267 train/angle_err=12.23088 train/inp=0.21351 train/invalid_regression_fraction=0.00000 train/loss=41.70267 train/scale=41.48917 train/scale_err=0.69458 train/valid_patch_pairs=2268.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4450 loss=39.14787 train/angle_err=45.21107 train/inp=0.78909 train/invalid_regression_fraction=0.00000 train/loss=39.14787 train/scale=38.35878 train/scale_err=0.72881 train/valid_patch_pairs=1505.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4500 loss=39.90173 train/angle_err=33.00587 train/inp=0.57607 train/invalid_regression_fraction=0.00000 train/loss=39.90173 train/scale=39.32566 train/scale_err=0.50865 train/valid_patch_pairs=4208.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=4550 loss=38.94437 train/angle_err=2.10517 train/inp=0.03679 train/invalid_regression_fraction=0.00000 train/loss=38.94437 train/scale=38.90758 train/scale_err=0.46792 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4600 loss=37.36764 train/angle_err=0.65099 train/inp=0.01147 train/invalid_regression_fraction=0.00000 train/loss=37.36764 train/scale=37.35617 train/scale_err=0.43446 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4650 loss=39.29199 train/angle_err=2.05363 train/inp=0.03592 train/invalid_regression_fraction=0.00000 train/loss=39.29199 train/scale=39.25607 train/scale_err=0.45512 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=4700 loss=37.81797 train/angle_err=0.81843 train/inp=0.01442 train/invalid_regression_fraction=0.00000 train/loss=37.81797 train/scale=37.80354 train/scale_err=0.46222 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4750 loss=37.94424 train/angle_err=0.47846 train/inp=0.00852 train/invalid_regression_fraction=0.00000 train/loss=37.94424 train/scale=37.93572 train/scale_err=0.42962 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4800 loss=37.35197 train/angle_err=0.88543 train/inp=0.01559 train/invalid_regression_fraction=0.00000 train/loss=37.35197 train/scale=37.33639 train/scale_err=0.40785 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=4850 loss=39.97217 train/angle_err=43.85419 train/inp=0.76540 train/invalid_regression_fraction=0.00000 train/loss=39.97217 train/scale=39.20677 train/scale_err=0.74620 train/valid_patch_pairs=4060.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4900 loss=40.81662 train/angle_err=12.03995 train/inp=0.21016 train/invalid_regression_fraction=0.00000 train/loss=40.81662 train/scale=40.60646 train/scale_err=1.34247 train/valid_patch_pairs=1616.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=4950 loss=38.63316 train/angle_err=2.90166 train/inp=0.05075 train/invalid_regression_fraction=0.00000 train/loss=38.63316 train/scale=38.58241 train/scale_err=0.44484 train/valid_patch_pairs=3584.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=5000 loss=38.52275 train/angle_err=42.57155 train/inp=0.74305 train/invalid_regression_fraction=0.00000 train/loss=38.52275 train/scale=37.77971 train/scale_err=0.46626 train/valid_patch_pairs=1556.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=5050 loss=38.99821 train/angle_err=12.75263 train/inp=0.22263 train/invalid_regression_fraction=0.00000 train/loss=38.99821 train/scale=38.77559 train/scale_err=0.46296 train/valid_patch_pairs=2826.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=5100 loss=38.66128 train/angle_err=7.72870 train/inp=0.13493 train/invalid_regression_fraction=0.00000 train/loss=38.66128 train/scale=38.52636 train/scale_err=0.47642 train/valid_patch_pairs=2794.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=5150 loss=39.03220 train/angle_err=58.19732 train/inp=1.01573 train/invalid_regression_fraction=0.00000 train/loss=39.03220 train/scale=38.01646 train/scale_err=0.56371 train/valid_patch_pairs=1929.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=5200 loss=39.36618 train/angle_err=1.33793 train/inp=0.02340 train/invalid_regression_fraction=0.00000 train/loss=39.36618 train/scale=39.34278 train/scale_err=0.48860 train/valid_patch_pairs=2688.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=5250 loss=39.21383 train/angle_err=2.65514 train/inp=0.04636 train/invalid_regression_fraction=0.00000 train/loss=39.21383 train/scale=39.16747 train/scale_err=0.48424 train/valid_patch_pairs=2688.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=5300 loss=39.26505 train/angle_err=15.35206 train/inp=0.26798 train/invalid_regression_fraction=0.00000 train/loss=39.26505 train/scale=38.99707 train/scale_err=0.61274 train/valid_patch_pairs=1790.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=5350 loss=36.81259 train/angle_err=1.48117 train/inp=0.02594 train/invalid_regression_fraction=0.00000 train/loss=36.81259 train/scale=36.78665 train/scale_err=0.46780 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=5400 loss=37.94706 train/angle_err=0.36075 train/inp=0.00643 train/invalid_regression_fraction=0.00000 train/loss=37.94706 train/scale=37.94063 train/scale_err=0.45754 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=5450 loss=37.72400 train/angle_err=0.58218 train/inp=0.01030 train/invalid_regression_fraction=0.00000 train/loss=37.72400 train/scale=37.71370 train/scale_err=0.43082 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000

@@ -178,7 +178,8 @@ python -m fine_tuning.train \
   --run-name assettocorsa_ist_penultimate_last_ae  \
   --logger wandb \
   --print-loss-every 50 \
-  --devices all
+  --devices all \
+  --match-sim-threshold 0.1
 
 IST only training: 
 
@@ -193,7 +194,8 @@ IST only training:
   --run-name assettocorsa_ist_only_run  \
   --logger wandb \
   --print-loss-every 50 \
-  --devices all
+  --devices all \
+  --match-sim-threshold 0.2 
 ```
 when fine tuning all nets, f train/infoNCE improves but val/matching gets worse, AE is overfitting; lower ae-lr or train fewer steps.
 

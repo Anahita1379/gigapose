@@ -1,0 +1,42 @@
+ModelCheckpoint(save_last=True, save_top_k=-1, monitor=None) will duplicate the last checkpoint saved.
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+INFO:src.custom_megapose.web_scene_dataset:WebSceneDataset: 101 shards
+INFO:src.custom_megapose.web_scene_dataset:IterableWebSceneDataset: 25693 samples
+100%|███████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 3647.22it/s]
+INFO:src.custom_megapose.template_dataset:Loaded 1 template datas
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/torch/functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at ../aten/src/ATen/native/TensorShape.cpp:3483.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+INFO:src.dataloader.keypoints:Initialized normalized center patch done!
+INFO:src.custom_megapose.web_scene_dataset:WebSceneDataset: 6 shards
+INFO:src.custom_megapose.web_scene_dataset:IterableWebSceneDataset: 1367 samples
+100%|███████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 3134.76it/s]
+INFO:src.custom_megapose.template_dataset:Loaded 1 template datas
+INFO:src.dataloader.keypoints:Initialized normalized center patch done!
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:43: UserWarning: xFormers is available (SwiGLU)
+  warnings.warn("xFormers is available (SwiGLU)")
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/attention.py:28: UserWarning: xFormers is available (Attention)
+  warnings.warn("xFormers is available (Attention)")
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/block.py:34: UserWarning: xFormers is available (Block)
+  warnings.warn("xFormers is available (Block)")
+INFO:src.models.network.ae_net:Initialize AENet done!
+INFO:src.models.network.ist_net:Init for Regressor with done!
+INFO:src.models.network.ist_net:Init weights for ISTNet done!
+INFO:src.models.network.ist_net:Init for ISTNet done!
+INFO:src.models.gigaPose:Initialize GigaPose done!
+INFO:src.utils.weight:Cannot load: []
+INFO:src.utils.weight:Not update: []
+INFO:src.utils.weight:Pretrained: 476/ Loaded: 476/ Cannot loaded: 0 VS Current model: 476
+INFO:src.utils.weight:Load pretrained done!
+INFO:__main__:Fine-tuning ist on assettocorsa; outputs: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run
+INFO:__main__:Checkpoints: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run/checkpoints
+INFO:__main__:Validation images: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run/validation_images
+INFO:__main__:Weights & Biases run: project=gigapose name=assettocorsa_ist_only_run
+[rank: 0] Global seed set to 2023
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
