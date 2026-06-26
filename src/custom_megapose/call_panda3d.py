@@ -34,7 +34,7 @@ if __name__ == "__main__":
     label = 0
     is_shapeNet = "shapenet" in args.cad_path
     mesh_units = get_obj_diameter(args.cad_path) if not is_shapeNet else 1.0
-    mesh_units = "m" if (mesh_units < 10 or is_shapeNet) else "mm"
+    mesh_units = "m" if (mesh_units < 100 or is_shapeNet) else "mm"
 
     object = RigidObject(label=label, mesh_path=args.cad_path, mesh_units=mesh_units)
     rigid_object_dataset = RigidObjectDataset([object])

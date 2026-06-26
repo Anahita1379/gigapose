@@ -14,6 +14,7 @@ import sys
 
 from src.lib3d.template_transform import get_obj_poses_from_template_level
 from src.utils.logging import get_logger
+from src.utils.trimesh import get_obj_diameter
 
 logger = get_logger(__name__)
 
@@ -113,8 +114,7 @@ def render(cfg) -> None:
     # it as a model.
     root_dir = Path(cfg.data.test.root_dir).resolve()
     root_save_dir = root_dir / "templates"
-    template_poses = get_obj_poses_from_template_level(level=1, pose_distribution="all")
-    template_poses[:, :3, 3] *= 0.4  # zoom to object
+    base_template_poses = get_obj_poses_from_template_level(level=1, pose_distribution="all")
     dataset_name = cfg.custom_dataset_name
 
     dataset_save_dir = root_save_dir / f"{dataset_name}"
@@ -142,9 +142,19 @@ def render(cfg) -> None:
         output_dir = dataset_save_dir / f"{object_id:06d}"
         output_dirs.append(output_dir)
 
+        diameter = get_obj_diameter(cad_path)
+        diameter_m = diameter / 1000.0 if diameter > 100 else diameter
+        render_distance_m = max(0.4, 0.6 * diameter_m)
+        logger.info(
+            f"Object {object_id:06d}: diameter={diameter:.3f}, render_distance={render_distance_m:.3f}m"
+        )
+
+        obj_poses = base_template_poses.copy()
+        obj_poses[:, :3, 3] *= render_distance_m
+
         obj_pose_path = os.path.join(obj_pose_dir, f"{object_id:06d}.npy")
         obj_pose_paths.append(obj_pose_path)
-        np.save(obj_pose_path, template_poses)
+        np.save(obj_pose_path, obj_poses)
 
     os.makedirs(dataset_save_dir, exist_ok=True)
 
