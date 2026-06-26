@@ -110,10 +110,10 @@ python test.py \
 
 
 python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_finetuned2/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_run2.csv \
+  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
   --split test \
-  --output-dir fine_tuning/prediction_overlays_finetuned \
+  --output-dir fine_tuning/prediction_overlays_corrected \
   --min-score 0.01
 ```
 
