@@ -37,6 +37,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", default="test")
     parser.add_argument("--mesh", type=Path, default=None)
     parser.add_argument(
+        "--mesh-scale",
+        type=float,
+        default=None,
+        help=(
+            "Multiply mesh vertices by this before rendering. Use 1000 when "
+            "the mesh is in meters and CSV translations are in millimeters. "
+            "If omitted, the script auto-detects meter-scale meshes and uses 1000."
+        ),
+    )
+    parser.add_argument(
+        "--disable-mesh-scale-auto",
+        action="store_true",
+        help="Disable automatic meter-to-millimeter mesh scaling.",
+    )
+    parser.add_argument(
         "--translation-scale",
         type=float,
         default=1.0,
@@ -57,6 +72,22 @@ def parse_args() -> argparse.Namespace:
         "--output-dir", type=Path, default=Path("fine_tuning/prediction_overlays")
     )
     return parser.parse_args()
+
+
+def infer_mesh_scale(mesh: trimesh.Trimesh, args: argparse.Namespace) -> float:
+    if args.mesh_scale is not None:
+        return args.mesh_scale
+    if args.disable_mesh_scale_auto:
+        return 1.0
+
+    extent = float(np.linalg.norm(mesh.extents))
+    # Assetto/CAD meshes here are usually in meters (racecar diagonal ~5.4),
+    # while GigaPose/BOP CSV translations are in millimeters.  If we render a
+    # meter-scale mesh at millimeter translations, the overlay becomes a tiny
+    # sub-pixel speck.  Auto-scale plausible meter-scale meshes to millimeters.
+    if 0.01 < extent < 100.0 and args.translation_scale == 1.0:
+        return 1000.0
+    return 1.0
 
 
 def load_prediction_rows(path: Path) -> list[dict[str, object]]:
@@ -150,6 +181,15 @@ def blend_predictions(
     return result
 
 
+def prediction_pixel_counts(
+    segmentation: np.ndarray, predictions: list[dict[str, object]]
+) -> list[int]:
+    return [
+        int(np.count_nonzero(segmentation == render_id))
+        for render_id, _ in enumerate(predictions, start=1)
+    ]
+
+
 def main() -> None:
     args = parse_args()
     if not 0.0 <= args.alpha <= 1.0:
@@ -160,6 +200,9 @@ def main() -> None:
     if not isinstance(mesh, trimesh.Trimesh) or mesh.is_empty:
         raise ValueError(f"Could not load mesh: {mesh_path}")
     mesh = mesh.copy()
+    mesh_scale = infer_mesh_scale(mesh, args)
+    if mesh_scale != 1.0:
+        mesh.apply_scale(mesh_scale)
     if args.center_mesh:
         mesh.apply_translation(-mesh.bounds.mean(axis=0))
 
@@ -187,6 +230,7 @@ def main() -> None:
                 pose[:3, 3] = row["t"] * args.translation_scale
                 poses.append(pose)
             segmentation, _ = renderer.render(poses, K, image.width, image.height)
+            pixel_counts = prediction_pixel_counts(segmentation, rows)
             overlay = blend_predictions(image, segmentation, rows, args.alpha)
             side_by_side = Image.new("RGB", (image.width * 2, image.height))
             side_by_side.paste(image, (0, 0))
@@ -199,6 +243,8 @@ def main() -> None:
                     "im_id": im_id,
                     "prediction_count": len(rows),
                     "scores": [row["score"] for row in rows],
+                    "rendered_pixel_counts": pixel_counts,
+                    "visible_prediction_count": int(sum(count > 0 for count in pixel_counts)),
                     "output": str(output_path),
                 }
             )
@@ -207,9 +253,12 @@ def main() -> None:
     report_path = args.output_dir / "prediction_overlay_report.json"
     report_path.write_text(json.dumps(report, indent=2))
     print(f"Rendered {len(report)} images / {sum(r['prediction_count'] for r in report)} poses")
+    print(
+        f"Mesh scale: {mesh_scale:g}; translation scale: {args.translation_scale:g}; "
+        f"visible poses: {sum(r['visible_prediction_count'] for r in report)}"
+    )
     print(f"Wrote {report_path}")
 
 
 if __name__ == "__main__":
     main()
-
