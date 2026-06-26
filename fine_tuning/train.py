@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import warnings
 from pathlib import Path
 
 import pytorch_lightning as pl
@@ -34,6 +35,12 @@ def parse_devices(value: str | None, legacy_device: int | None) -> list[int]:
     if not devices:
         raise ValueError("--devices must be 'all' or a comma-separated GPU list.")
     return [int(device) for device in devices]
+
+
+def parse_int_list(value: str | None) -> list[int] | None:
+    if value is None or value.strip() == "":
+        return None
+    return [int(part.strip()) for part in value.split(",") if part.strip()]
 
 
 class LossPrintCallback(pl.Callback):
@@ -106,6 +113,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ae-lr", type=float, default=1e-6)
     parser.add_argument("--nets-to-train", choices=("ist", "ae", "all"), default="ist")
     parser.add_argument(
+        "--ae-train-mode",
+        choices=("all", "last-block", "last-blocks", "block-offsets", "norm"),
+        default="all",
+        help="Which AE/DINOv2 parameters to update when training ae/all.",
+    )
+    parser.add_argument(
+        "--ae-train-last-n-blocks",
+        type=int,
+        default=1,
+        help="Number of final DINOv2 blocks to update when --ae-train-mode=last-blocks.",
+    )
+    parser.add_argument(
+        "--ae-train-block-offsets",
+        default=None,
+        help=(
+            "Comma-separated block offsets from the end for --ae-train-mode=block-offsets. "
+            "Example: '2' trains the penultimate block; '2,3' trains the two before last."
+        ),
+    )
+    parser.add_argument(
         "--device",
         type=int,
         default=None,
@@ -160,6 +187,11 @@ def make_dataset_config(cfg, args: argparse.Namespace, split_name: str, augment:
 
 
 def main() -> None:
+    warnings.filterwarnings(
+        "ignore",
+        message="TypedStorage is deprecated.*",
+        category=UserWarning,
+    )
     args = parse_args()
     pl.seed_everything(args.seed)
     if not args.checkpoint.is_file():
@@ -188,6 +220,9 @@ def main() -> None:
     cfg.model.optim_config.nets_to_train = args.nets_to_train
     cfg.model.optim_config.ist_lr = args.ist_lr
     cfg.model.optim_config.ae_lr = args.ae_lr
+    cfg.model.ae_net.train_mode = args.ae_train_mode
+    cfg.model.ae_net.train_last_n_blocks = args.ae_train_last_n_blocks
+    cfg.model.ae_net.train_block_offsets = parse_int_list(args.ae_train_block_offsets)
     cfg.callback.checkpoint.dirpath = str(output_dir / "checkpoints")
     cfg.callback.checkpoint.every_n_train_steps = args.checkpoint_interval
 
