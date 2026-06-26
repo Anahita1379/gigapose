@@ -104,13 +104,13 @@ for testing the fine tuned model:
 ```bash
 python test.py \
   test_dataset_name=assettocorsa_inference \
-  model.checkpoint_path=gigaPose_datasets/results/assettocorsa_front_rear_run/checkpoints/epoch=2-step=2000.ckpt \
-  run_id=assettocorsa_assettocorsa_inference_run \
-  name_exp=large_assettocorsa_finetuned
+  model.checkpoint_path=/home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run/checkpoints/last.ckpt \
+  run_id=assettocorsa_assettocorsa_inference_run2 \
+  name_exp=large_assettocorsa_finetuned2
 
 
 python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_finetuned/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_run.csv \
+  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_finetuned2/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_run2.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
   --split test \
   --output-dir fine_tuning/prediction_overlays_finetuned \
