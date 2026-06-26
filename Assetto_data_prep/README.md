@@ -179,6 +179,21 @@ python -m fine_tuning.train \
   --logger wandb \
   --print-loss-every 50 \
   --devices all
+
+IST only training: 
+
+  python -m fine_tuning.train \
+  --dataset-name assettocorsa \
+  --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
+  --nets-to-train ist \
+  --ist-lr 1e-5 \
+  --batch-size 32 \
+  --max-steps 10000 \
+  --validation-interval 150 \
+  --run-name assettocorsa_ist_only_run  \
+  --logger wandb \
+  --print-loss-every 50 \
+  --devices all
 ```
 when fine tuning all nets, f train/infoNCE improves but val/matching gets worse, AE is overfitting; lower ae-lr or train fewer steps.
 
