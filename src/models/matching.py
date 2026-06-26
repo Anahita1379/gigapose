@@ -159,12 +159,10 @@ class LocalSimilarity(torch.nn.Module):
             mask_cycle = torch.ones_like(t_mask)
 
         mask_tar2src = torch.gather(src_mask, 1, idx_tar2src)
-        mask_non_zero = (
-            tar_mask  # mask of query = 0
-            * mask_tar2src  # mask of template = 0
-            * (idx_src2tar != 0)  # sim = 0
-            * (idx_tar2src != 0)  # sim = 0
-        )
+        # A nearest-neighbor index of 0 is a valid patch location, not a
+        # sentinel for "no match".  Invalid matches are already filtered by
+        # mask_sim and by the source/target masks, so do not reject idx == 0.
+        mask_non_zero = tar_mask * mask_tar2src
 
         # Combine all masks
         t_mask = mask_sim * mask_cycle * mask_non_zero  # b x t
@@ -260,12 +258,10 @@ class LocalSimilarity(torch.nn.Module):
             tar_masks = repeat(tar_mask, "b t -> b n t", n=N)
             mask_tar2src = torch.gather(src_masks, 2, idx_tar2src)
 
-            mask_non_zero = (
-                tar_masks  # mask of query = 0
-                * mask_tar2src  # mask of template = 0
-                * (idx_src2tar != 0)  # sim = 0
-                * (idx_tar2src != 0)  # sim = 0
-            )
+            # A nearest-neighbor index of 0 is a valid patch location, not a
+            # sentinel for "no match".  Invalid matches are already filtered by
+            # mask_sim and by the source/target masks, so do not reject idx == 0.
+            mask_non_zero = tar_masks * mask_tar2src
 
             # Combine all masks
             mask_all = mask_sim * mask_cycle * mask_non_zero  # b x t

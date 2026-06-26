@@ -474,11 +474,45 @@ class GigaPose(pl.LightningModule):
         setattr(batch, "pred_src_pts", preds.src_pts)
         setattr(batch, "pred_tar_pts", preds.tar_pts)
 
+        pred_valid = torch.logical_and(
+            batch.pred_src_pts[:, :, 0] != -1,
+            batch.pred_tar_pts[:, :, 0] != -1,
+        )
+        pred_match_counts = pred_valid.sum(dim=1).float()
+        self.log(
+            f"{split}/pred_matches",
+            pred_match_counts.mean(),
+            sync_dist=True,
+            on_step=True,
+            on_epoch=False,
+            prog_bar=True,
+        )
+        if hasattr(preds, "score"):
+            self.log(
+                f"{split}/match_score_max",
+                preds.score.max(dim=1).values.mean(),
+                sync_dist=True,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+            )
+            self.log(
+                f"{split}/match_score_mean",
+                preds.score.mean(),
+                sync_dist=True,
+                on_step=True,
+                on_epoch=False,
+                prog_bar=False,
+            )
+
         # monitor the distance between the gt and the predicted matches for same target patches
         mask = torch.logical_and(
             batch.tar_pts[:, :, 1] != -1, batch.pred_tar_pts[:, :, 1] != -1
         )
-        distance = (batch.tar_pts[mask] - batch.pred_tar_pts[mask]).norm(dim=1).mean()
+        if mask.any():
+            distance = (batch.tar_pts[mask] - batch.pred_tar_pts[mask]).norm(dim=1).mean()
+        else:
+            distance = batch.tar_pts.new_tensor(float("nan"))
         self.log(
             f"{split}/matching",
             distance,

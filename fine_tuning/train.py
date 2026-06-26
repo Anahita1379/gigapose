@@ -166,6 +166,21 @@ def parse_args() -> argparse.Namespace:
         default=1000,
         help="Save a checkpoint every N optimizer steps.",
     )
+    parser.add_argument(
+        "--match-sim-threshold",
+        type=float,
+        default=None,
+        help=(
+            "Override model.testing_metric.sim_threshold. Useful for debugging "
+            "validation/retrieval matches on a new domain."
+        ),
+    )
+    parser.add_argument(
+        "--match-patch-threshold",
+        type=float,
+        default=None,
+        help="Override model.testing_metric.patch_threshold.",
+    )
     return parser.parse_args()
 
 
@@ -223,6 +238,10 @@ def main() -> None:
     cfg.model.ae_net.train_mode = args.ae_train_mode
     cfg.model.ae_net.train_last_n_blocks = args.ae_train_last_n_blocks
     cfg.model.ae_net.train_block_offsets = parse_int_list(args.ae_train_block_offsets)
+    if args.match_sim_threshold is not None:
+        cfg.model.testing_metric.sim_threshold = args.match_sim_threshold
+    if args.match_patch_threshold is not None:
+        cfg.model.testing_metric.patch_threshold = args.match_patch_threshold
     cfg.callback.checkpoint.dirpath = str(output_dir / "checkpoints")
     cfg.callback.checkpoint.every_n_train_steps = args.checkpoint_interval
 
