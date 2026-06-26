@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 import pytorch_lightning as pl
+import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
@@ -18,6 +19,21 @@ from src.utils.weight import load_checkpoint
 
 logger = get_logger(__name__)
 REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def parse_devices(value: str | None, legacy_device: int | None) -> list[int]:
+    if value is None:
+        return [0 if legacy_device is None else legacy_device]
+    value = value.strip().lower()
+    if value in {"all", "auto"}:
+        count = torch.cuda.device_count()
+        if count < 1:
+            raise RuntimeError("No CUDA devices are available.")
+        return list(range(count))
+    devices = [part.strip() for part in value.split(",") if part.strip()]
+    if not devices:
+        raise ValueError("--devices must be 'all' or a comma-separated GPU list.")
+    return [int(device) for device in devices]
 
 
 class LossPrintCallback(pl.Callback):
@@ -89,7 +105,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ist-lr", type=float, default=1e-5)
     parser.add_argument("--ae-lr", type=float, default=1e-6)
     parser.add_argument("--nets-to-train", choices=("ist", "ae", "all"), default="ist")
-    parser.add_argument("--device", type=int, default=0)
+    parser.add_argument(
+        "--device",
+        type=int,
+        default=None,
+        help="Legacy single-GPU option. Prefer --devices.",
+    )
+    parser.add_argument(
+        "--devices",
+        default=None,
+        help="GPU ids to use, e.g. '0', '0,1,2,3', or 'all'.",
+    )
     parser.add_argument("--run-name", default="assettocorsa_ist_finetune")
     parser.add_argument("--seed", type=int, default=2023)
     parser.add_argument(
@@ -146,11 +172,12 @@ def main() -> None:
     OmegaConf.set_struct(cfg, False)
 
     output_dir = (REPO_ROOT / "gigaPose_datasets" / "results" / args.run_name).resolve()
+    devices = parse_devices(args.devices, args.device)
     cfg.save_dir = str(output_dir)
     cfg.name_exp = args.run_name
     cfg.machine.batch_size = args.batch_size
     cfg.machine.num_workers = args.num_workers
-    cfg.machine.trainer.devices = [args.device]
+    cfg.machine.trainer.devices = devices
     cfg.machine.trainer.max_steps = args.max_steps
     cfg.machine.trainer.max_epochs = -1
     cfg.machine.trainer.val_check_interval = args.validation_interval
