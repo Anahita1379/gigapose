@@ -180,3 +180,5 @@ cython_debug/
 # .torch_hub_patched/
 datasets/
 gigaPose_datasets/
+gigaPose_datasets/results/assettocorsa_ist_penultimate_ae/wandb/run-20260625_172123-aknp2vr0/run-aknp2vr0.wandb
+gigaPose_datasets/results/assettocorsa_ist_penultimate_ae/wandb/run-20260625_172123-aknp2vr0/run-aknp2vr0.wandb

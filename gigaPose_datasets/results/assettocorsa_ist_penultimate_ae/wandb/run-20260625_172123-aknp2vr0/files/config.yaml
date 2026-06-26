@@ -1,0 +1,103 @@
+_wandb:
+    value:
+        cli_version: 0.26.1
+        e:
+            lhky7a1455jae9hzucrkfivrnu515zjz:
+                args:
+                    - --dataset-name
+                    - assettocorsa
+                    - --checkpoint
+                    - gigaPose_datasets/pretrained/gigaPose_v1.ckpt
+                    - --nets-to-train
+                    - all
+                    - --ist-lr
+                    - "2e-5"
+                    - --ae-lr
+                    - "1e-6"
+                    - --ae-train-mode
+                    - block-offsets
+                    - --ae-train-block-offsets
+                    - "2"
+                    - --batch-size
+                    - "32"
+                    - --max-steps
+                    - "10000"
+                    - --validation-interval
+                    - "250"
+                    - --run-name
+                    - assettocorsa_ist_penultimate_ae
+                    - --logger
+                    - wandb
+                    - --print-loss-every
+                    - "50"
+                    - --devices
+                    - all
+                cpu_count: 10
+                cpu_count_logical: 20
+                cudaVersion: "13.2"
+                disk:
+                    /:
+                        total: "3936290357248"
+                        used: "3400018280448"
+                email: aeshghet@caltech.edu
+                executable: /home/anahita/miniforge3/envs/gigapose/bin/python
+                git:
+                    commit: f4662471db47d9b2f3c95e3654e098d68133f766
+                    remote: https://github.com/Anahita1379/gigapose.git
+                gpu: NVIDIA TITAN RTX
+                gpu_count: 2
+                gpu_nvidia:
+                    - architecture: Turing
+                      cudaCores: 4608
+                      memoryTotal: "25769803776"
+                      name: NVIDIA TITAN RTX
+                      uuid: GPU-b2fa8b99-b028-c15a-776d-11df70d713c7
+                    - architecture: Turing
+                      cudaCores: 4608
+                      memoryTotal: "25769803776"
+                      name: NVIDIA TITAN RTX
+                      uuid: GPU-d68d83b1-5da6-9e29-5f1c-838fe8ec45ed
+                host: fremont
+                memory:
+                    total: "134728310784"
+                os: Linux-5.15.0-181-generic-x86_64-with-glibc2.35
+                program: -m fine_tuning.train
+                python: CPython 3.9.6
+                root: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_penultimate_ae
+                startedAt: "2026-06-26T00:21:23.565877Z"
+                writerId: lhky7a1455jae9hzucrkfivrnu515zjz
+        m:
+            - "1": trainer/global_step
+              "6":
+                - 3
+              "7": []
+            - "2": '*'
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.9.6
+        t:
+            "1":
+                - 1
+                - 9
+                - 11
+                - 41
+                - 49
+                - 50
+            "2":
+                - 1
+                - 9
+                - 11
+                - 41
+                - 49
+                - 50
+            "3":
+                - 7
+                - 13
+                - 66
+            "4": 3.9.6
+            "5": 0.26.1
+            "6": 4.57.6
+            "12": 0.26.1
+            "13": linux-x86_64

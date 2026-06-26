@@ -168,14 +168,14 @@ python -m fine_tuning.train \
   --dataset-name assettocorsa \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train all \
-  --ist-lr 2e-5 \
-  --ae-lr 1e-6 \
+  --ist-lr 5e-6 \
+  --ae-lr 5e-8 \
   --ae-train-mode block-offsets \
-  --ae-train-block-offsets 2 \
+  --ae-train-block-offsets 2,1 \
   --batch-size 32 \
   --max-steps 10000 \
-  --validation-interval 250 \
-  --run-name assettocorsa_ist_penultimate_ae  \
+  --validation-interval 150 \
+  --run-name assettocorsa_ist_penultimate_last_ae  \
   --logger wandb \
   --print-loss-every 50 \
   --devices all
