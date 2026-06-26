@@ -1,0 +1,10 @@
+{
+  "dataset_name": "assettocorsa_inference",
+  "source_roots": [
+    "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps"
+  ],
+  "mask_provenance": "ground_truth_pose_rendered_cad",
+  "oracle_inference_warning": "These detections are pose-derived and must not be reported as an unbiased GigaPose inference benchmark. Replace the detection JSON with masks from an independent segmenter for a real inference evaluation.",
+  "cad_axis_convention": "x-forward-z-up",
+  "fit_aabb": "nonuniform"
+}
