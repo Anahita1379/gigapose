@@ -170,14 +170,17 @@ python -m fine_tuning.train \
   --nets-to-train all \
   --ist-lr 2e-5 \
   --ae-lr 1e-6 \
+  --ae-train-mode block-offsets \
+  --ae-train-block-offsets 2 \
   --batch-size 32 \
   --max-steps 10000 \
   --validation-interval 250 \
-  --run-name assettocorsa_fine_tune_all_nets \
+  --run-name assettocorsa_ist_penultimate_ae  \
   --logger wandb \
   --print-loss-every 50 \
   --devices all
 ```
+when fine tuning all nets, f train/infoNCE improves but val/matching gets worse, AE is overfitting; lower ae-lr or train fewer steps.
 
 Then open Tensorboard with 
 ```bash

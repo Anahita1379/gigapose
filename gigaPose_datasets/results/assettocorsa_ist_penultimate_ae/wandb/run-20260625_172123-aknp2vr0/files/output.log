@@ -1,0 +1,89 @@
+ModelCheckpoint(save_last=True, save_top_k=-1, monitor=None) will duplicate the last checkpoint saved.
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+INFO:src.custom_megapose.web_scene_dataset:WebSceneDataset: 101 shards
+INFO:src.custom_megapose.web_scene_dataset:IterableWebSceneDataset: 25693 samples
+100%|██████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 2644.58it/s]
+INFO:src.custom_megapose.template_dataset:Loaded 1 template datas
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/torch/functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at ../aten/src/ATen/native/TensorShape.cpp:3483.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+INFO:src.dataloader.keypoints:Initialized normalized center patch done!
+INFO:src.custom_megapose.web_scene_dataset:WebSceneDataset: 6 shards
+INFO:src.custom_megapose.web_scene_dataset:IterableWebSceneDataset: 1367 samples
+100%|██████████████████████████████████████████████████████████████████████████████████████████████| 1/1 [00:00<00:00, 3021.83it/s]
+INFO:src.custom_megapose.template_dataset:Loaded 1 template datas
+INFO:src.dataloader.keypoints:Initialized normalized center patch done!
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/swiglu_ffn.py:43: UserWarning: xFormers is available (SwiGLU)
+  warnings.warn("xFormers is available (SwiGLU)")
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/attention.py:28: UserWarning: xFormers is available (Attention)
+  warnings.warn("xFormers is available (Attention)")
+/home/anahita/gigapose/.torch_hub_patched/facebookresearch_dinov2_main/dinov2/layers/block.py:34: UserWarning: xFormers is available (Block)
+  warnings.warn("xFormers is available (Block)")
+INFO:src.models.network.ae_net:Initialize AENet done!
+INFO:src.models.network.ist_net:Init for Regressor with done!
+INFO:src.models.network.ist_net:Init weights for ISTNet done!
+INFO:src.models.network.ist_net:Init for ISTNet done!
+INFO:src.models.gigaPose:Initialize GigaPose done!
+INFO:src.utils.weight:Cannot load: []
+INFO:src.utils.weight:Not update: []
+INFO:src.utils.weight:Pretrained: 476/ Loaded: 476/ Cannot loaded: 0 VS Current model: 476
+INFO:src.utils.weight:Load pretrained done!
+INFO:__main__:Fine-tuning all on assettocorsa; outputs: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_penultimate_ae
+INFO:__main__:Checkpoints: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_penultimate_ae/checkpoints
+INFO:__main__:Validation images: /home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_penultimate_ae/validation_images
+INFO:__main__:Weights & Biases run: project=gigapose name=assettocorsa_ist_penultimate_ae
+[rank: 0] Global seed set to 2023
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/2
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 2 processes
+----------------------------------------------------------------------------------------------------
+
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1]
+INFO:src.models.gigaPose:Optimizer for ae net
+INFO:src.models.network.ae_net:AENet train_mode=block-offsets train_last_n_blocks=1 trainable_params=12600320
+INFO:src.models.gigaPose:Optimizer for ist net
+
+  | Name           | Type            | Params
+---------------------------------------------------
+0 | ae_net         | AENet           | 304 M
+1 | ist_net        | ISTNet          | 13.4 M
+2 | testing_metric | LocalSimilarity | 0
+3 | l2_loss        | MSELoss         | 0
+---------------------------------------------------
+26.0 M    Trainable params
+291 M     Non-trainable params
+317 M     Total params
+1,271.195 Total estimated model params size (MB)
+Epoch 0:  81%|▊| 756/932 [30:27<07:05,  2.42s/it, loss=50.6, v_num=2vr0, train/inp=0.0337, train/scale=42.30, tra                            
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/pytorch_lightning/utilities/data.py:135: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:src.models.gigaPose:Step=0, lr warm up: lr=0.0
+INFO:__main__:step=50 loss=12.04434 train/angle_err=90.87926 train/infoNCE=8.30136 train/inp=1.00310 train/invalid_regression_fraction=0.00000 train/loss=12.04434 train/neg_sim=0.06044 train/pos_sim=0.05784 train/scale=2.73988 train/scale_err=1.59655 train/valid_patch_pairs=3136.00000 train/valid_regression_fraction=1.00000
+INFO:src.models.gigaPose:Step=50, lr warm up: lr=5e-06
+INFO:__main__:step=100 loss=11.16682 train/angle_err=98.51760 train/infoNCE=8.32599 train/inp=1.11070 train/invalid_regression_fraction=0.00000 train/loss=11.16682 train/neg_sim=0.05132 train/pos_sim=0.05380 train/scale=1.73013 train/scale_err=1.27863 train/valid_patch_pairs=3906.00000 train/valid_regression_fraction=1.00000
+INFO:src.models.gigaPose:Step=100, lr warm up: lr=1e-05
+INFO:__main__:step=150 loss=10.40047 train/angle_err=86.66726 train/infoNCE=7.98238 train/inp=0.96362 train/invalid_regression_fraction=0.00000 train/loss=10.40047 train/neg_sim=0.07197 train/pos_sim=0.07193 train/scale=1.45447 train/scale_err=1.18059 train/valid_patch_pairs=2688.00000 train/valid_regression_fraction=1.00000
+INFO:src.models.gigaPose:Step=150, lr warm up: lr=1.5000000000000002e-05
+INFO:__main__:step=200 loss=9.64891 train/angle_err=70.91290 train/infoNCE=7.88152 train/inp=0.77256 train/invalid_regression_fraction=0.00000 train/loss=9.64890 train/neg_sim=0.06303 train/pos_sim=0.06316 train/scale=0.99483 train/scale_err=0.97882 train/valid_patch_pairs=2560.00000 train/valid_regression_fraction=1.00000
+INFO:src.models.gigaPose:Finished warm up, setting lr to {'ae': 1e-06, 'ist': 2e-05}
+INFO:__main__:step=250 loss=46.91822 train/angle_err=72.22044 train/infoNCE=7.36351 train/inp=1.26048 train/invalid_regression_fraction=0.00000 train/loss=46.91822 train/neg_sim=0.03381 train/pos_sim=0.03381 train/scale=38.29423 train/scale_err=0.31962 train/valid_patch_pairs=1520.00000 train/valid_regression_fraction=1.00000
+                                                                                                                                            
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=300 loss=54.66209 train/angle_err=56.95384 train/infoNCE=8.08091 train/inp=0.99403 train/invalid_regression_fraction=0.00000 train/loss=54.66209 train/neg_sim=0.15859 train/pos_sim=0.18144 train/scale=45.58715 train/scale_err=1.45913 train/valid_patch_pairs=2744.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=350 loss=53.61407 train/angle_err=20.32966 train/infoNCE=7.64665 train/inp=0.35483 train/invalid_regression_fraction=0.00000 train/loss=53.61407 train/neg_sim=0.25804 train/pos_sim=0.25631 train/scale=45.61259 train/scale_err=1.61960 train/valid_patch_pairs=1904.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=400 loss=51.14387 train/angle_err=36.58168 train/infoNCE=8.18226 train/inp=0.63847 train/invalid_regression_fraction=0.00000 train/loss=51.14387 train/neg_sim=0.28080 train/pos_sim=0.28837 train/scale=42.32314 train/scale_err=1.72844 train/valid_patch_pairs=3722.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=450 loss=53.84805 train/angle_err=57.16820 train/infoNCE=8.12222 train/inp=0.99778 train/invalid_regression_fraction=0.00000 train/loss=53.84805 train/neg_sim=0.18748 train/pos_sim=0.19445 train/scale=44.72805 train/scale_err=1.83724 train/valid_patch_pairs=2881.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=500 loss=51.05228 train/angle_err=3.80805 train/infoNCE=7.91222 train/inp=0.06647 train/invalid_regression_fraction=0.00000 train/loss=51.05228 train/neg_sim=0.30330 train/pos_sim=0.30330 train/scale=43.07359 train/scale_err=2.39002 train/valid_patch_pairs=2688.00000 train/valid_regression_fraction=1.00000
+/home/anahita/miniforge3/envs/gigapose/lib/python3.9/site-packages/lightning_lite/utilities/data.py:63: UserWarning: Your `IterableDataset` has `__len__` defined. In combination with multi-process data loading (when num_workers > 1), `__len__` could be inaccurate if each worker is not configured independently to avoid having duplicate data.
+  rank_zero_warn(
+INFO:__main__:step=550 loss=50.57534 train/angle_err=3.69763 train/infoNCE=8.32537 train/inp=0.06455 train/invalid_regression_fraction=0.00000 train/loss=50.57534 train/neg_sim=0.25979 train/pos_sim=0.25979 train/scale=42.18542 train/scale_err=1.98305 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=600 loss=50.52127 train/angle_err=6.64507 train/infoNCE=8.33072 train/inp=0.11600 train/invalid_regression_fraction=0.00000 train/loss=50.52127 train/neg_sim=0.27232 train/pos_sim=0.27232 train/scale=42.07455 train/scale_err=1.28454 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
+INFO:__main__:step=650 loss=50.41920 train/angle_err=2.69185 train/infoNCE=8.32812 train/inp=0.04702 train/invalid_regression_fraction=0.00000 train/loss=50.41920 train/neg_sim=0.27993 train/pos_sim=0.27993 train/scale=42.04406 train/scale_err=1.32668 train/valid_patch_pairs=4096.00000 train/valid_regression_fraction=1.00000
