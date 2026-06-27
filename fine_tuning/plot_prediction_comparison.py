@@ -154,6 +154,84 @@ def plot_recall_curves(rows: list[dict[str, str]], output_dir: Path) -> None:
         plt.close()
 
 
+def plot_paired_improvements(comparison_dir: Path, output_dir: Path, bins: int) -> None:
+    paired_csv = comparison_dir / "paired_instance_comparison.csv"
+    if not paired_csv.is_file() or paired_csv.stat().st_size == 0:
+        return
+    rows = load_rows(paired_csv)
+    if not rows:
+        return
+
+    specs = [
+        ("translation_error_mm_improvement", "Translation improvement", "original error - fine-tuned error (mm)"),
+        ("depth_error_mm_improvement", "Depth improvement", "original error - fine-tuned error (mm)"),
+        ("rotation_error_deg_improvement", "Rotation improvement", "original error - fine-tuned error (deg)"),
+        ("center_error_px_improvement", "Projected-center improvement", "original error - fine-tuned error (px)"),
+        ("add_mm_improvement", "ADD improvement", "original error - fine-tuned error (mm)"),
+        ("score_improvement", "Score improvement", "fine-tuned score - original score"),
+    ]
+    for key, title, xlabel in specs:
+        vals = []
+        for row in rows:
+            try:
+                val = float(row[key])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if np.isfinite(val):
+                vals.append(val)
+        vals = np.asarray(vals, dtype=float)
+        if vals.size == 0:
+            continue
+
+        plt.figure(figsize=(9, 5))
+        plt.hist(vals, bins=bins, alpha=0.75)
+        plt.axvline(0, color="black", linewidth=1.5, label="no change")
+        plt.axvline(np.median(vals), color="tab:red", linestyle="--", linewidth=1.5, label=f"median={np.median(vals):.2f}")
+        plt.title(title)
+        plt.xlabel(xlabel)
+        plt.ylabel("paired instance count")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(output_dir / f"{key}_hist.png", dpi=160)
+        plt.close()
+
+    # Paired scatter: points below y=x mean fine-tuned has lower error.
+    for metric, title, label, lim in [
+        ("translation_error_mm", "Paired translation error", "translation error (mm)", 50000),
+        ("rotation_error_deg", "Paired rotation error", "rotation error (deg)", 180),
+        ("center_error_px", "Paired projected-center error", "center error (px)", 1000),
+    ]:
+        base_key = f"baseline_{metric}"
+        tuned_key = f"finetuned_{metric}"
+        xy = []
+        for row in rows:
+            try:
+                x = float(row[base_key])
+                y = float(row[tuned_key])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if np.isfinite(x) and np.isfinite(y):
+                xy.append((x, y))
+        if not xy:
+            continue
+        arr = np.asarray(xy)
+        mask = (arr[:, 0] >= 0) & (arr[:, 1] >= 0) & (arr[:, 0] <= lim) & (arr[:, 1] <= lim)
+        if not mask.any():
+            continue
+        arr = arr[mask]
+        plt.figure(figsize=(6, 6))
+        plt.scatter(arr[:, 0], arr[:, 1], s=9, alpha=0.35)
+        plt.plot([0, lim], [0, lim], color="black", linewidth=1.2)
+        plt.title(title)
+        plt.xlabel(f"original {label}")
+        plt.ylabel(f"fine-tuned {label}")
+        plt.xlim(0, lim)
+        plt.ylim(0, lim)
+        plt.tight_layout()
+        plt.savefig(output_dir / f"paired_{metric}_scatter.png", dpi=160)
+        plt.close()
+
+
 def main() -> None:
     args = parse_args()
     input_csv = args.input_csv or args.comparison_dir / "per_instance_metrics.csv"
@@ -167,6 +245,7 @@ def main() -> None:
     plot_histograms(rows, output_dir, args.bins)
     plot_score_vs_error(rows, output_dir)
     plot_recall_curves(rows, output_dir)
+    plot_paired_improvements(args.comparison_dir, output_dir, args.bins)
     print(f"Wrote plots to {output_dir}")
 
 

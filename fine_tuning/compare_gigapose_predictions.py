@@ -394,6 +394,77 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer.writerows(rows)
 
 
+def make_paired_rows(
+    rows: list[dict[str, Any]], baseline_name: str, finetuned_name: str
+) -> list[dict[str, Any]]:
+    by_key: dict[tuple[int, int, int], dict[str, dict[str, Any]]] = defaultdict(dict)
+    for row in rows:
+        key = (int(row["scene_id"]), int(row["im_id"]), int(row["gt_index"]))
+        by_key[key][row["method"]] = row
+
+    metric_keys = [
+        "score",
+        "translation_error_mm",
+        "depth_error_mm",
+        "rotation_error_deg",
+        "center_error_px",
+        "gt_bbox_center_error_px",
+        "add_mm",
+    ]
+    paired = []
+    for (scene_id, im_id, gt_index), methods in sorted(by_key.items()):
+        if baseline_name not in methods or finetuned_name not in methods:
+            continue
+        base = methods[baseline_name]
+        tuned = methods[finetuned_name]
+        out: dict[str, Any] = {
+            "scene_id": scene_id,
+            "im_id": im_id,
+            "gt_index": gt_index,
+            "baseline_method": baseline_name,
+            "finetuned_method": finetuned_name,
+            "baseline_instance_id": base.get("instance_id", ""),
+            "finetuned_instance_id": tuned.get("instance_id", ""),
+        }
+        for metric in metric_keys:
+            base_value = float(base[metric])
+            tuned_value = float(tuned[metric])
+            out[f"baseline_{metric}"] = base_value
+            out[f"finetuned_{metric}"] = tuned_value
+            # For error metrics, positive improvement means fine-tuned is better.
+            # For score, positive improvement means fine-tuned score is higher.
+            if metric == "score":
+                out[f"{metric}_improvement"] = tuned_value - base_value
+            else:
+                out[f"{metric}_improvement"] = base_value - tuned_value
+        paired.append(out)
+    return paired
+
+
+def paired_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    summary: dict[str, Any] = {"paired_instances": len(rows)}
+    if not rows:
+        return summary
+    for metric in [
+        "translation_error_mm",
+        "depth_error_mm",
+        "rotation_error_deg",
+        "center_error_px",
+        "gt_bbox_center_error_px",
+        "add_mm",
+        "score",
+    ]:
+        key = f"{metric}_improvement"
+        values = np.asarray([float(row[key]) for row in rows], dtype=float)
+        values = values[np.isfinite(values)]
+        if values.size == 0:
+            continue
+        summary[f"{metric}_improvement_mean"] = float(values.mean())
+        summary[f"{metric}_improvement_median"] = float(np.median(values))
+        summary[f"{metric}_finetuned_better_fraction"] = float((values > 0).mean())
+    return summary
+
+
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -422,7 +493,11 @@ def main() -> None:
 
     write_csv(args.output_dir / "per_instance_metrics.csv", all_rows)
     write_csv(args.output_dir / "summary_metrics.csv", summaries)
+    paired_rows = make_paired_rows(all_rows, args.baseline_name, args.finetuned_name)
+    write_csv(args.output_dir / "paired_instance_comparison.csv", paired_rows)
+    paired = paired_summary(paired_rows)
     (args.output_dir / "summary_metrics.json").write_text(json.dumps(summaries, indent=2))
+    (args.output_dir / "paired_summary.json").write_text(json.dumps(paired, indent=2))
 
     print(f"Loaded GT for {len(gt_by_image)} images / {sum(len(v) for v in gt_by_image.values())} instances")
     for summary in summaries:
@@ -433,6 +508,12 @@ def main() -> None:
             f"center_med={summary.get('center_error_px_median', float('nan')):.1f}px "
             f"t_scale={summary['translation_scale_to_mm']:g}"
         )
+    print(
+        f"paired: n={paired.get('paired_instances', 0)} "
+        f"translation_improvement_med={paired.get('translation_error_mm_improvement_median', float('nan')):.1f}mm "
+        f"rotation_improvement_med={paired.get('rotation_error_deg_improvement_median', float('nan')):.2f}deg "
+        f"center_improvement_med={paired.get('center_error_px_improvement_median', float('nan')):.1f}px"
+    )
     print(f"Wrote {args.output_dir}")
 
 
