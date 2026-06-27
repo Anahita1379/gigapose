@@ -3,6 +3,7 @@ configs/user/nguyen.yaml
 fine_tuning/prediction_overlays
 fine_tuning/prediction_overlays_finetuned
 fine_tuning/prediction_overlays_finetuned_corrected
+fine_tuning/prediction_gt_comparison
 Assetto_data_prep/README.md
 slurm_logs/
 results*

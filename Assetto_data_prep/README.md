@@ -221,6 +221,49 @@ Validation images will be saved here:
 gigapose/gigaPose_datasets/results/assettocorsa_20260623_ist/validation_images/
 ```
 
+## Comparing the models and results:
+
+It compares two GigaPose CSVs against the Assetto GT stored inside the prepared dataset shards:
+
+```bash
+python -m fine_tuning.compare_gigapose_predictions \
+  --baseline-predictions gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
+  --finetuned-predictions gigaPose_datasets/results/large_assettocorsa_finetuned_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_correctedMultiHypothesis.csv \
+  --baseline-name original \
+  --finetuned-name finetuned \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
+  --split test \
+  --output-dir fine_tuning/prediction_gt_comparison
+```
+
+it writes:
+```bash
+fine_tuning/prediction_gt_comparison/per_instance_metrics.csv
+fine_tuning/prediction_gt_comparison/summary_metrics.csv
+fine_tuning/prediction_gt_comparison/summary_metrics.json
+```
+
+After running the comparison script, run:
+```bash
+python -m fine_tuning.plot_prediction_comparison \
+  --comparison-dir fine_tuning/prediction_gt_comparison
+```
+It reads:
+```bash
+fine_tuning/prediction_gt_comparison/per_instance_metrics.csv
+```
+
+and writes plots to:
+```bash
+fine_tuning/prediction_gt_comparison/plots
+```
+
+If you want custom paths:
+```bash
+python -m fine_tuning.plot_prediction_comparison \
+  --input-csv fine_tuning/prediction_gt_comparison/per_instance_metrics.csv \
+  --output-dir fine_tuning/prediction_gt_comparison/plots
+```
 
 ## Consistency rules
 
