@@ -175,6 +175,27 @@ def infer_prediction_translation_scale(rows: list[dict[str, Any]]) -> float:
     return 1000.0 if median_z < 1000.0 else 1.0
 
 
+def collapse_top_predictions_per_detection(
+    predictions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep one hypothesis per detection/instance in each image.
+
+    MultiHypothesis CSVs contain several pose hypotheses per detection.  The
+    ``instance_id`` values are useful for collapsing hypotheses, but they are
+    not guaranteed to be the same ordering as the prepared Assetto GT instances.
+    Pairing to GT is therefore done per image after this collapse.
+    """
+    if not predictions or "instance_id" not in predictions[0]:
+        return predictions
+
+    top_by_detection: dict[tuple[int, int, int], dict[str, Any]] = {}
+    for row in predictions:
+        key = (row["scene_id"], row["im_id"], row["instance_id"])
+        if key not in top_by_detection or row["score"] > top_by_detection[key]["score"]:
+            top_by_detection[key] = row
+    return list(top_by_detection.values())
+
+
 def read_ply_vertices(path: Path, max_points: int) -> np.ndarray | None:
     if path is None or not path.is_file():
         return None
@@ -286,30 +307,15 @@ def evaluate_method(
         row["t_mm"] = row["t"] * t_scale
 
     evaluated: list[tuple[dict[str, Any], dict[str, Any]]] = []
-    if rows and "instance_id" in rows[0] and instance_map:
-        top_by_instance: dict[int, dict[str, Any]] = {}
-        for row in rows:
-            instance_id = row["instance_id"]
-            if instance_id not in top_by_instance or row["score"] > top_by_instance[instance_id]["score"]:
-                top_by_instance[instance_id] = row
-        for instance_id, pred in top_by_instance.items():
-            if instance_id not in instance_map:
-                continue
-            scene_id, im_id, gt_index = instance_map[instance_id]
-            gt_items = gt_by_image.get((scene_id, im_id), [])
-            if gt_index >= len(gt_items):
-                continue
-            evaluated.append((pred, gt_items[gt_index]))
-    else:
-        predictions_by_image: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
-        for row in rows:
-            predictions_by_image[(row["scene_id"], row["im_id"])].append(row)
-        for image_key, gt_items in gt_by_image.items():
-            evaluated.extend(
-                assign_predictions_without_instance_ids(
-                    predictions_by_image.get(image_key, []), gt_items
-                )
+    predictions_by_image: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
+    for row in collapse_top_predictions_per_detection(rows):
+        predictions_by_image[(row["scene_id"], row["im_id"])].append(row)
+    for image_key, gt_items in gt_by_image.items():
+        evaluated.extend(
+            assign_predictions_without_instance_ids(
+                predictions_by_image.get(image_key, []), gt_items
             )
+        )
 
     metrics = []
     for pred, gt in evaluated:

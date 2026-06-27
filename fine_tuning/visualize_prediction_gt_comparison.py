@@ -26,7 +26,8 @@ from PIL import Image, ImageDraw
 
 from fine_tuning.compare_gigapose_predictions import (
     assign_predictions_without_instance_ids,
-    global_instance_map,
+    bbox_xywh_center,
+    collapse_top_predictions_per_detection,
     infer_prediction_translation_scale,
     load_gt,
     load_prediction_rows,
@@ -155,7 +156,7 @@ def load_image_and_camera(dataset_dir: Path, split: str, scene_id: int, im_id: i
 def predictions_by_gt_key(
     prediction_path: Path,
     gt_by_image: dict[tuple[int, int], list[dict[str, Any]]],
-    instance_map: dict[int, tuple[int, int, int]],
+    K_by_image: dict[tuple[int, int], np.ndarray],
 ) -> dict[tuple[int, int, int], dict[str, Any]]:
     rows = load_prediction_rows(prediction_path)
     t_scale = infer_prediction_translation_scale(rows)
@@ -163,25 +164,55 @@ def predictions_by_gt_key(
         row["t_mm"] = row["t"] * t_scale
 
     output: dict[tuple[int, int, int], dict[str, Any]] = {}
-    if rows and "instance_id" in rows[0] and instance_map:
-        top_by_instance: dict[int, dict[str, Any]] = {}
-        for row in rows:
-            instance_id = row["instance_id"]
-            if instance_id not in top_by_instance or row["score"] > top_by_instance[instance_id]["score"]:
-                top_by_instance[instance_id] = row
-        for instance_id, row in top_by_instance.items():
-            if instance_id in instance_map:
-                output[instance_map[instance_id]] = row
-        return output
-
     grouped: dict[tuple[int, int], list[dict[str, Any]]] = defaultdict(list)
-    for row in rows:
+    for row in collapse_top_predictions_per_detection(rows):
         grouped[(row["scene_id"], row["im_id"])].append(row)
     for (scene_id, im_id), gt_items in gt_by_image.items():
-        pairs = assign_predictions_without_instance_ids(grouped.get((scene_id, im_id), []), gt_items)
+        predictions = grouped.get((scene_id, im_id), [])
+        K = K_by_image[(scene_id, im_id)]
+        pairs = assign_predictions_to_gt_by_bbox_center(predictions, gt_items, K)
         for pred, gt in pairs:
             output[(scene_id, im_id, gt["gt_index"])] = pred
     return output
+
+
+def assign_predictions_to_gt_by_bbox_center(
+    predictions: list[dict[str, Any]],
+    gt_items: list[dict[str, Any]],
+    K: np.ndarray,
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Pair predictions and GT inside one image by 2D visible-car location."""
+    if not predictions or not gt_items:
+        return []
+
+    pool_size = min(len(predictions), max(len(gt_items), len(gt_items) * 4))
+    candidates = sorted(predictions, key=lambda item: -item["score"])[:pool_size]
+    gt_centers = [bbox_xywh_center(gt["bbox_visib"]) for gt in gt_items]
+    pred_centers = [project(np.zeros((1, 3), dtype=float), pred["R"], pred["t_mm"], K)[0][0] for pred in candidates]
+
+    remaining_pred = set(range(len(candidates)))
+    remaining_gt = set(range(len(gt_items)))
+    pairs: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    while remaining_pred and remaining_gt:
+        _, pred_idx, gt_idx = min(
+            (
+                (
+                    float(np.linalg.norm(pred_centers[p] - gt_centers[g])),
+                    p,
+                    g,
+                )
+                for p in remaining_pred
+                for g in remaining_gt
+            ),
+            key=lambda item: item[0],
+        )
+        pairs.append((candidates[pred_idx], gt_items[gt_idx]))
+        remaining_pred.remove(pred_idx)
+        remaining_gt.remove(gt_idx)
+
+    if not pairs:
+        pairs = assign_predictions_without_instance_ids(predictions, gt_items)
+    return pairs
 
 
 def center_error_px(pose: dict[str, Any], gt: dict[str, Any], K: np.ndarray) -> float:
@@ -204,16 +235,15 @@ def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    gt_by_image, _ = load_gt(args.dataset_dir, args.split)
-    instance_map = global_instance_map(args.dataset_dir)
+    gt_by_image, K_by_image = load_gt(args.dataset_dir, args.split)
     mesh_path = args.mesh or args.dataset_dir / "models" / "obj_000001.ply"
     vertices_mm = read_ply_vertices(mesh_path, max_points=0)
     if vertices_mm is None:
         raise ValueError(f"Could not read mesh vertices from {mesh_path}")
     corners_mm = bbox_corners_from_vertices(vertices_mm)
 
-    baseline = predictions_by_gt_key(args.baseline_predictions, gt_by_image, instance_map)
-    finetuned = predictions_by_gt_key(args.finetuned_predictions, gt_by_image, instance_map)
+    baseline = predictions_by_gt_key(args.baseline_predictions, gt_by_image, K_by_image)
+    finetuned = predictions_by_gt_key(args.finetuned_predictions, gt_by_image, K_by_image)
 
     candidates = []
     for (scene_id, im_id), gt_items in gt_by_image.items():
