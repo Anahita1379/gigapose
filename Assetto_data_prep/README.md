@@ -265,6 +265,20 @@ python -m fine_tuning.plot_prediction_comparison \
   --output-dir fine_tuning/prediction_gt_comparison/plots
 ```
 
+```bash
+python -m fine_tuning.visualize_prediction_gt_comparison \
+  --baseline-predictions gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
+  --finetuned-predictions gigaPose_datasets/results/large_assettocorsa_finetuned_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_correctedMultiHypothesis.csv \
+  --baseline-name original \
+  --finetuned-name finetuned \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
+  --split test \
+  --output-dir fine_tuning/prediction_gt_comparison/visual_overlays \
+  --max-images 100
+```
+
+ \
+  --finetuned-predictions 
 ## Consistency rules
 
 - All opponents assigned object ID 1 must have the same geometry. Preparation
