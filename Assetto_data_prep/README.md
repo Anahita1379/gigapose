@@ -98,22 +98,29 @@ python -m src.scripts.render_custom_templates \
 python test.py \
   test_dataset_name=assettocorsa_inference \
   run_id=assettocorsa_assettocorsa_inference_run
+
+  python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
+  --split test \
+  --output-dir fine_tuning/prediction_overlays_corrected \
+  --min-score 0.01
 ```
 
 for testing the fine tuned model: 
 ```bash
 python test.py \
   test_dataset_name=assettocorsa_inference \
-  model.checkpoint_path=/home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run/checkpoints/last.ckpt \
-  run_id=assettocorsa_assettocorsa_inference_run2 \
-  name_exp=large_assettocorsa_finetuned2
+  model.checkpoint_path=/home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run_corrected/checkpoints/last.ckpt \
+  run_id=assettocorsa_assettocorsa_inference_corrected \
+  name_exp=large_assettocorsa_finetuned_corrected
 
 
 python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
+  --predictions gigaPose_datasets/results/large_assettocorsa_finetuned_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_correctedMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
   --split test \
-  --output-dir fine_tuning/prediction_overlays_corrected \
+  --output-dir fine_tuning/prediction_overlays_finetuned_corrected \
   --min-score 0.01
 ```
 
@@ -141,10 +148,10 @@ python -m Assetto_data_prep.prepare_training \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_2opp_noMask_6Laps \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --dataset-name assettocorsa \
+  --dataset-name assettocorsa_all \
   --cameras all \
-  --frame-stride 5 \
-  --max-frames-per-session 6000 \
+  --frame-stride 3 \
+  --max-frames-per-session 10000 \
   --mask-dir-name generated_masks \
   --validation-sessions 1 \
   --overwrite
@@ -189,9 +196,9 @@ IST only training:
   --nets-to-train ist \
   --ist-lr 1e-5 \
   --batch-size 32 \
-  --max-steps 10000 \
+  --max-steps 15000 \
   --validation-interval 150 \
-  --run-name assettocorsa_ist_only_run  \
+  --run-name assettocorsa_ist_only_run_corrected  \
   --logger wandb \
   --print-loss-every 50 \
   --devices all \
