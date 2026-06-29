@@ -172,6 +172,15 @@ For controlled simulator evaluation, this is the right practical “GT”.
 Use `fine_tuning.compare_gigapose_predictions` to compare, for example, the
 original model vs a fine-tuned model:
 
+the prediction files are: 
+```bash
+--baseline-predictions 
+--finetuned-predictions
+--finetuned-predictions
+--finetuned-predictions
+
+```
+
 ```bash
 python -m fine_tuning.compare_gigapose_predictions \
   --baseline-predictions gigaPose_datasets/results/<original_run>/predictions/<original>MultiHypothesis.csv \
@@ -432,16 +441,22 @@ left: no meaningful change
 
 Use `fine_tuning.evaluate_gigapose_models` to compare any number of models in
 one run:
+# gigaPose_datasets/results/final_results/large_assettocorsa_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv
 
+# gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv
+# gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv
+
+# gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_original_benchmark_runMultiHypothesis.csv
 ```bash
 python -m fine_tuning.evaluate_gigapose_models \
-  --model original=gigaPose_datasets/results/<original_run>/predictions/<original>MultiHypothesis.csv \
-  --model finetune=gigaPose_datasets/results/<finetune_run>/predictions/<finetune>MultiHypothesis.csv \
-  --model finetune2=gigaPose_datasets/results/<finetune2_run>/predictions/<finetune2>MultiHypothesis.csv \
+  --model original=gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_original_benchmark_runMultiHypothesis.csv \
+  --model finetune=gigaPose_datasets/results/final_results/large_assettocorsa_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --model finetune2=gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv \
+  --model finetune3=gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
   --split test \
   --rendered-iou \
-  --output-dir fine_tuning/metrics/all_models
+  --output-dir gigaPose_datasets/results/final_results/metrics/all_models
 ```
 
 Outputs:
@@ -499,6 +514,12 @@ python -m fine_tuning.visualize_multi_model_per_car \
   --max-images 100
 ```
 
+<!-- finetune2: t=842mm R=18.3deg c=42px
+translation is off by 842 mm
+rotation is off by 18.3 degrees
+projected center is off by 42 pixels
+
+ -->
 If an image has one GT car, the output has one full-image panel. If it has three
 GT cars, the output has three full-image panels next to each other. Each panel
 corresponds to one GT car and overlays GT plus all model predictions paired to
