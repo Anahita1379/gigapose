@@ -65,6 +65,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validation-fraction", type=float, default=0.2)
     parser.add_argument("--gap-frames", type=int, default=50)
     parser.add_argument("--min-mask-pixels", type=int, default=64)
+    parser.add_argument(
+        "--max-depth-m",
+        type=float,
+        default=None,
+        help=(
+            "Skip object instances whose CAD center depth is farther than this "
+            "many meters in the camera frame. Frames with no remaining objects "
+            "are skipped."
+        ),
+    )
     parser.add_argument("--max-shard-size", type=int, default=250)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
@@ -78,6 +88,7 @@ def write_split(
     object_id: int,
     max_shard_size: int,
     min_mask_pixels: int,
+    max_depth_m: float | None,
 ) -> tuple[int, int, list[dict[str, object]]]:
     output_dir.mkdir(parents=True)
     renderer = InstanceRenderer(alignment.mesh)
@@ -108,6 +119,8 @@ def write_split(
 
             gt, gt_info, visible_masks, kept = [], [], {}, []
             for render_id, (row, pose) in enumerate(zip(frame.rows, poses), start=1):
+                if max_depth_m is not None and pose[2, 3] > max_depth_m:
+                    continue
                 opponent_id = int(row["opp_id"])
                 observed_mask = instance_ids == opponent_id
                 rendered_mask = segmentation == render_id
@@ -188,6 +201,8 @@ def main() -> None:
     args = parse_args()
     if args.min_mask_pixels < 1:
         raise ValueError("--min-mask-pixels must be positive")
+    if args.max_depth_m is not None and args.max_depth_m <= 0:
+        raise ValueError("--max-depth-m must be positive")
     sessions = collect_sessions(
         args.source_root,
         parse_cameras(args.cameras),
@@ -220,10 +235,12 @@ def main() -> None:
     train_count, train_instances, train_manifest = write_split(
         train_frames, train_dir, alignment, args.mask_dir_name,
         args.object_id, args.max_shard_size, args.min_mask_pixels,
+        args.max_depth_m,
     )
     val_count, val_instances, val_manifest = write_split(
         val_frames, val_dir, alignment, args.mask_dir_name,
         args.object_id, args.max_shard_size, args.min_mask_pixels,
+        args.max_depth_m,
     )
     shutil.copyfile(train_dir / "key_to_shard.json", dataset_dir / "key_to_shard.json")
     metadata = {
@@ -237,6 +254,7 @@ def main() -> None:
         "pose_translation_units": "millimeters",
         "depth_storage_units": "millimeters",
         "mask_dir_name": args.mask_dir_name,
+        "max_depth_m": args.max_depth_m,
         "mask_supervision": (
             "generated_instance_mask_intersected_with_rendered_cad_and_valid_depth"
         ),

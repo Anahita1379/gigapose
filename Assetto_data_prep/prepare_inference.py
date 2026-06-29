@@ -52,6 +52,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--frame-stride", type=int, default=1)
     parser.add_argument("--max-frames-per-session", type=int, default=None)
     parser.add_argument("--exclude-truncated", action="store_true")
+    parser.add_argument(
+        "--max-depth-m",
+        type=float,
+        default=None,
+        help=(
+            "Skip object instances whose CAD center depth is farther than this "
+            "many meters in the camera frame. Frames with no remaining objects "
+            "are skipped."
+        ),
+    )
     parser.add_argument("--cad-scale", type=float, default=1.0)
     parser.add_argument(
         "--cad-axis-convention", choices=("x-forward-z-up", "csp"),
@@ -71,6 +81,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.max_depth_m is not None and args.max_depth_m <= 0:
+        raise ValueError("--max-depth-m must be positive")
     sessions = collect_sessions(
         args.source_root,
         parse_cameras(args.cameras),
@@ -128,6 +140,8 @@ def main() -> None:
                     if not mask.any():
                         continue
                     pose = cad_to_camera_pose(row, alignment.local_center)
+                    if args.max_depth_m is not None and pose[2, 3] > args.max_depth_m:
+                        continue
                     bbox = bbox_from_mask(mask)
                     gt_index = len(gt)
                     gt.append({
@@ -212,6 +226,7 @@ def main() -> None:
         ),
         "cad_axis_convention": args.cad_axis_convention,
         "fit_aabb": args.fit_aabb,
+        "max_depth_m": args.max_depth_m,
     }, indent=2))
     print(f"Prepared {len(targets)} camera frames and {len(detections)} detections.")
     print(f"Dataset: {dataset_dir}")
