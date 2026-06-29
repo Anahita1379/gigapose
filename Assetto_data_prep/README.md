@@ -100,16 +100,16 @@ python -m Assetto_data_prep.prepare_inference \
   --overwrite
 
 python -m src.scripts.render_custom_templates \
-  custom_dataset_name=assettocorsa_inference \
+  custom_dataset_name=assettocorsa_benchmark \
   machine.num_workers=1
 
 python test.py \
-  test_dataset_name=assettocorsa_inference \
-  run_id=assettocorsa_assettocorsa_inference_run
+  test_dataset_name=assettocorsa_benchmark \
+  run_id=assettocorsa_benchmark_run
 
   python -m fine_tuning.overlay_gigapose_predictions \
   --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
   --split test \
   --output-dir fine_tuning/prediction_overlays_corrected \
   --min-score 0.01
@@ -118,18 +118,72 @@ python test.py \
 for testing the fine tuned model: 
 ```bash
 python test.py \
-  test_dataset_name=assettocorsa_inference \
-  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_newdata/checkpoints/epoch=14-step=18000.ckpt'" \
-  run_id=assettocorsa_IST_only_inference_corrected \
-  name_exp=large_assettocorsa_IST_only_inference_corrected
+  test_dataset_name=assettocorsa_benchmark \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_newdata/checkpoints/epoch=13-step=17000.ckpt'" \
+  run_id=assettocorsa_IST_only_benchmark \
+  name_exp=large_assettocorsa_IST_only_benchmark
+
+Now this command can split both .csv and .npz files:
+python -m fine_tuning.split_predictions_by_camera \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark
 
 
 python -m fine_tuning.overlay_gigapose_predictions \
   --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_inference_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_IST_only_inference_correctedMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
   --split test \
   --output-dir fine_tuning/prediction_overlays_IST_only_inference_corrected \
   --min-score 0.01
+```
+
+or overlay the images seperately for each camera folder: 
+```bash
+(front only)
+python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/front/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/front \
+  --min-score 0.1
+
+(rear only)
+ python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/rear/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/rear \
+  --min-score 0.1 
+
+(stereo_left)
+ python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/stereo_left/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/stereo_left \
+  --min-score 0.1 
+
+(stereo_right)
+ python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/stereo_right/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/stereo_right \
+  --min-score 0.1 
+```
+we are currectly using teh follwing results/preditions: 
+
+
+<!-- /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK
+ rsync -avP /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark   /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK/
+ -->
+```bash
+assettocorsa_ist_only_run_newdata
+gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark
+
+large_assettocorsa_assettocorsa_inference_run (not bench mark, need to rerun on benchmark)
+large_assettocorsa_finetuned_corrected (not benchmark, need to rerun on benchmark)
+
 ```
 
 This writes the `test/` shards, centered CAD, targets, GT poses, frame map, and
@@ -284,7 +338,7 @@ python -m fine_tuning.visualize_prediction_gt_comparison \
   --finetuned-predictions gigaPose_datasets/results/large_assettocorsa_finetuned_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_correctedMultiHypothesis.csv \
   --baseline-name original \
   --finetuned-name finetuned \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
+  --dataset-dir gigaPose_datasets/datasets/  \
   --split test \
   --output-dir fine_tuning/prediction_gt_comparison/visual_overlays \
   --max-images 100
