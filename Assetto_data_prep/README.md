@@ -263,6 +263,15 @@ python -m Assetto_data_prep.validate_generated_masks \
   --frame-stride 20 \
   --mask-dir-name generated_masks \
   --output-json fine_tuning/generated_mask_validation_report.json
+
+
+  python -m Assetto_data_prep.validate_camera_geometry \
+  --source-root "$BENCHMARK" \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --cameras rear \
+  --frame-stride 20 \
+  --mask-dir-name generated_masks \
+  --output-json fine_tuning/camera_geometry_validation_report.json
 ```
 
 Generate masks using the same sessions, cameras, stride, and per-session cap.

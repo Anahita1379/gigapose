@@ -1,0 +1,2475 @@
+{
+  "summary_by_camera": [
+    {
+      "camera_id": "rear",
+      "instances": 82,
+      "rendered_vs_csv_bbox_iou_median": 0.562258064516129,
+      "rendered_vs_saved_mask_iou_median": 1.0,
+      "rendered_pixels_median": 74.0,
+      "saved_pixels_median": 74.0,
+      "gt_z_mm_median": 167306.5806434987
+    }
+  ],
+  "details": [
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 344,
+      "stem": "0000108141_000344",
+      "opp_id": 2,
+      "gt_z_mm": 2017.340185370099,
+      "csv_bbox": [
+        1633,
+        373,
+        431,
+        27
+      ],
+      "rendered_bbox_unclipped": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "saved_bbox": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "rendered_pixels": 0,
+      "saved_pixels": 0,
+      "rendered_vs_csv_bbox_iou": 0.0,
+      "rendered_vs_saved_mask_iou": NaN
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 364,
+      "stem": "0000110386_000364",
+      "opp_id": 2,
+      "gt_z_mm": 26685.65194932161,
+      "csv_bbox": [
+        1087,
+        234,
+        87,
+        61
+      ],
+      "rendered_bbox_unclipped": [
+        1090,
+        238,
+        80,
+        51
+      ],
+      "saved_bbox": [
+        1090,
+        238,
+        80,
+        51
+      ],
+      "rendered_pixels": 2559,
+      "saved_pixels": 2559,
+      "rendered_vs_csv_bbox_iou": 0.7687959299039006,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 384,
+      "stem": "0000112484_000384",
+      "opp_id": 2,
+      "gt_z_mm": 14789.994162164669,
+      "csv_bbox": [
+        1336,
+        235,
+        160,
+        128
+      ],
+      "rendered_bbox_unclipped": [
+        1342,
+        243,
+        150,
+        102
+      ],
+      "saved_bbox": [
+        1342,
+        243,
+        150,
+        102
+      ],
+      "rendered_pixels": 9595,
+      "saved_pixels": 9595,
+      "rendered_vs_csv_bbox_iou": 0.7470703125,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 404,
+      "stem": "0000114773_000404",
+      "opp_id": 2,
+      "gt_z_mm": 26095.838645233365,
+      "csv_bbox": [
+        1194,
+        204,
+        87,
+        67
+      ],
+      "rendered_bbox_unclipped": [
+        1196,
+        209,
+        81,
+        55
+      ],
+      "saved_bbox": [
+        1196,
+        209,
+        81,
+        55
+      ],
+      "rendered_pixels": 2748,
+      "saved_pixels": 2748,
+      "rendered_vs_csv_bbox_iou": 0.7642820380854349,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 424,
+      "stem": "0000116945_000424",
+      "opp_id": 2,
+      "gt_z_mm": 47271.20015011119,
+      "csv_bbox": [
+        1054,
+        221,
+        45,
+        35
+      ],
+      "rendered_bbox_unclipped": [
+        1056,
+        224,
+        40,
+        29
+      ],
+      "saved_bbox": [
+        1056,
+        224,
+        40,
+        29
+      ],
+      "rendered_pixels": 746,
+      "saved_pixels": 746,
+      "rendered_vs_csv_bbox_iou": 0.7365079365079366,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 444,
+      "stem": "0000119376_000444",
+      "opp_id": 2,
+      "gt_z_mm": 84056.71287616431,
+      "csv_bbox": [
+        1031,
+        215,
+        27,
+        19
+      ],
+      "rendered_bbox_unclipped": [
+        1033,
+        216,
+        23,
+        16
+      ],
+      "saved_bbox": [
+        1033,
+        216,
+        23,
+        16
+      ],
+      "rendered_pixels": 225,
+      "saved_pixels": 225,
+      "rendered_vs_csv_bbox_iou": 0.7173489278752436,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 464,
+      "stem": "0000121805_000464",
+      "opp_id": 2,
+      "gt_z_mm": 78426.99929132008,
+      "csv_bbox": [
+        1710,
+        193,
+        47,
+        18
+      ],
+      "rendered_bbox_unclipped": [
+        1713,
+        193,
+        41,
+        16
+      ],
+      "saved_bbox": [
+        1713,
+        193,
+        41,
+        16
+      ],
+      "rendered_pixels": 375,
+      "saved_pixels": 375,
+      "rendered_vs_csv_bbox_iou": 0.7754137115839244,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 484,
+      "stem": "0000124184_000484",
+      "opp_id": 2,
+      "gt_z_mm": 132646.60204525868,
+      "csv_bbox": [
+        1325,
+        131,
+        30,
+        14
+      ],
+      "rendered_bbox_unclipped": [
+        1327,
+        134,
+        25,
+        9
+      ],
+      "saved_bbox": [
+        1327,
+        134,
+        25,
+        9
+      ],
+      "rendered_pixels": 135,
+      "saved_pixels": 135,
+      "rendered_vs_csv_bbox_iou": 0.5357142857142857,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 504,
+      "stem": "0000126378_000504",
+      "opp_id": 2,
+      "gt_z_mm": 182075.49701144162,
+      "csv_bbox": [
+        1121,
+        246,
+        19,
+        11
+      ],
+      "rendered_bbox_unclipped": [
+        1122,
+        247,
+        15,
+        8
+      ],
+      "saved_bbox": [
+        1122,
+        247,
+        15,
+        8
+      ],
+      "rendered_pixels": 61,
+      "saved_pixels": 61,
+      "rendered_vs_csv_bbox_iou": 0.5741626794258373,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 524,
+      "stem": "0000128471_000524",
+      "opp_id": 2,
+      "gt_z_mm": 213674.79212668215,
+      "csv_bbox": [
+        844,
+        236,
+        12,
+        9
+      ],
+      "rendered_bbox_unclipped": [
+        844,
+        237,
+        10,
+        6
+      ],
+      "saved_bbox": [
+        844,
+        237,
+        10,
+        6
+      ],
+      "rendered_pixels": 36,
+      "saved_pixels": 36,
+      "rendered_vs_csv_bbox_iou": 0.5555555555555556,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 544,
+      "stem": "0000130851_000544",
+      "opp_id": 2,
+      "gt_z_mm": 188087.8388967159,
+      "csv_bbox": [
+        1450,
+        295,
+        16,
+        9
+      ],
+      "rendered_bbox_unclipped": [
+        1452,
+        296,
+        12,
+        6
+      ],
+      "saved_bbox": [
+        1452,
+        296,
+        12,
+        6
+      ],
+      "rendered_pixels": 51,
+      "saved_pixels": 51,
+      "rendered_vs_csv_bbox_iou": 0.5,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 579,
+      "stem": "0000135094_000579",
+      "opp_id": 2,
+      "gt_z_mm": 125109.40544832479,
+      "csv_bbox": [
+        434,
+        166,
+        43,
+        18
+      ],
+      "rendered_bbox_unclipped": [
+        436,
+        170,
+        37,
+        11
+      ],
+      "saved_bbox": [
+        436,
+        170,
+        37,
+        11
+      ],
+      "rendered_pixels": 209,
+      "saved_pixels": 209,
+      "rendered_vs_csv_bbox_iou": 0.5258397932816538,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 599,
+      "stem": "0000137559_000599",
+      "opp_id": 2,
+      "gt_z_mm": 183993.2176703996,
+      "csv_bbox": [
+        1549,
+        148,
+        20,
+        11
+      ],
+      "rendered_bbox_unclipped": [
+        1550,
+        150,
+        16,
+        8
+      ],
+      "saved_bbox": [
+        1550,
+        150,
+        16,
+        8
+      ],
+      "rendered_pixels": 70,
+      "saved_pixels": 70,
+      "rendered_vs_csv_bbox_iou": 0.5818181818181818,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 645,
+      "stem": "0000143254_000645",
+      "opp_id": 2,
+      "gt_z_mm": 270043.0896802767,
+      "csv_bbox": [
+        629,
+        143,
+        24,
+        7
+      ],
+      "rendered_bbox_unclipped": [
+        631,
+        144,
+        20,
+        5
+      ],
+      "saved_bbox": [
+        631,
+        144,
+        20,
+        5
+      ],
+      "rendered_pixels": 51,
+      "saved_pixels": 51,
+      "rendered_vs_csv_bbox_iou": 0.5952380952380952,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 689,
+      "stem": "0000148342_000689",
+      "opp_id": 2,
+      "gt_z_mm": 278589.41383012326,
+      "csv_bbox": [
+        621,
+        190,
+        23,
+        7
+      ],
+      "rendered_bbox_unclipped": [
+        622,
+        191,
+        19,
+        4
+      ],
+      "saved_bbox": [
+        622,
+        191,
+        19,
+        4
+      ],
+      "rendered_pixels": 51,
+      "saved_pixels": 51,
+      "rendered_vs_csv_bbox_iou": 0.4720496894409938,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 751,
+      "stem": "0000155961_000751",
+      "opp_id": 2,
+      "gt_z_mm": 189527.78496797621,
+      "csv_bbox": [
+        1497,
+        194,
+        32,
+        9
+      ],
+      "rendered_bbox_unclipped": [
+        1497,
+        195,
+        30,
+        6
+      ],
+      "saved_bbox": [
+        1497,
+        195,
+        30,
+        6
+      ],
+      "rendered_pixels": 107,
+      "saved_pixels": 107,
+      "rendered_vs_csv_bbox_iou": 0.625,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 771,
+      "stem": "0000158384_000771",
+      "opp_id": 2,
+      "gt_z_mm": 348513.164884623,
+      "csv_bbox": [
+        1192,
+        136,
+        17,
+        7
+      ],
+      "rendered_bbox_unclipped": [
+        1193,
+        137,
+        14,
+        4
+      ],
+      "saved_bbox": [
+        1193,
+        137,
+        14,
+        4
+      ],
+      "rendered_pixels": 28,
+      "saved_pixels": 28,
+      "rendered_vs_csv_bbox_iou": 0.47058823529411764,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 791,
+      "stem": "0000160834_000791",
+      "opp_id": 2,
+      "gt_z_mm": 438753.1286895742,
+      "csv_bbox": [
+        1292,
+        237,
+        8,
+        6
+      ],
+      "rendered_bbox_unclipped": [
+        1293,
+        238,
+        5,
+        3
+      ],
+      "saved_bbox": [
+        1293,
+        238,
+        5,
+        3
+      ],
+      "rendered_pixels": 10,
+      "saved_pixels": 10,
+      "rendered_vs_csv_bbox_iou": 0.3125,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 811,
+      "stem": "0000163159_000811",
+      "opp_id": 2,
+      "gt_z_mm": 450254.32436826674,
+      "csv_bbox": [
+        1540,
+        233,
+        9,
+        6
+      ],
+      "rendered_bbox_unclipped": [
+        1541,
+        235,
+        6,
+        2
+      ],
+      "saved_bbox": [
+        1541,
+        235,
+        6,
+        2
+      ],
+      "rendered_pixels": 12,
+      "saved_pixels": 12,
+      "rendered_vs_csv_bbox_iou": 0.2222222222222222,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 902,
+      "stem": "0000173991_000902",
+      "opp_id": 2,
+      "gt_z_mm": 62757.91658260431,
+      "csv_bbox": [
+        1780,
+        93,
+        105,
+        33
+      ],
+      "rendered_bbox_unclipped": [
+        1785,
+        98,
+        92,
+        24
+      ],
+      "saved_bbox": [
+        1785,
+        98,
+        92,
+        24
+      ],
+      "rendered_pixels": 1140,
+      "saved_pixels": 1140,
+      "rendered_vs_csv_bbox_iou": 0.6372294372294373,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1022,
+      "stem": "0000188564_001022",
+      "opp_id": 2,
+      "gt_z_mm": 368785.4708930315,
+      "csv_bbox": [
+        150,
+        205,
+        20,
+        6
+      ],
+      "rendered_bbox_unclipped": [
+        150,
+        206,
+        18,
+        3
+      ],
+      "saved_bbox": [
+        150,
+        206,
+        18,
+        3
+      ],
+      "rendered_pixels": 36,
+      "saved_pixels": 36,
+      "rendered_vs_csv_bbox_iou": 0.45,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1042,
+      "stem": "0000190998_001042",
+      "opp_id": 2,
+      "gt_z_mm": 443651.98911150475,
+      "csv_bbox": [
+        1721,
+        127,
+        17,
+        6
+      ],
+      "rendered_bbox_unclipped": [
+        1722,
+        129,
+        12,
+        2
+      ],
+      "saved_bbox": [
+        1722,
+        129,
+        12,
+        2
+      ],
+      "rendered_pixels": 22,
+      "saved_pixels": 22,
+      "rendered_vs_csv_bbox_iou": 0.23529411764705882,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1184,
+      "stem": "0000207970_001184",
+      "opp_id": 2,
+      "gt_z_mm": 542996.8763826462,
+      "csv_bbox": [
+        1734,
+        283,
+        14,
+        5
+      ],
+      "rendered_bbox_unclipped": [
+        1737,
+        284,
+        9,
+        3
+      ],
+      "saved_bbox": [
+        1737,
+        284,
+        9,
+        3
+      ],
+      "rendered_pixels": 12,
+      "saved_pixels": 12,
+      "rendered_vs_csv_bbox_iou": 0.38571428571428573,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1234,
+      "stem": "0000214358_001234",
+      "opp_id": 2,
+      "gt_z_mm": 630903.0910746476,
+      "csv_bbox": [
+        1255,
+        300,
+        11,
+        4
+      ],
+      "rendered_bbox_unclipped": [
+        1257,
+        301,
+        6,
+        2
+      ],
+      "saved_bbox": [
+        1257,
+        301,
+        6,
+        2
+      ],
+      "rendered_pixels": 10,
+      "saved_pixels": 10,
+      "rendered_vs_csv_bbox_iou": 0.2727272727272727,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1298,
+      "stem": "0000222167_001298",
+      "opp_id": 2,
+      "gt_z_mm": 583857.5619129753,
+      "csv_bbox": [
+        1156,
+        156,
+        9,
+        6
+      ],
+      "rendered_bbox_unclipped": [
+        1157,
+        158,
+        6,
+        2
+      ],
+      "saved_bbox": [
+        1157,
+        158,
+        6,
+        2
+      ],
+      "rendered_pixels": 8,
+      "saved_pixels": 8,
+      "rendered_vs_csv_bbox_iou": 0.2222222222222222,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1318,
+      "stem": "0000224539_001318",
+      "opp_id": 2,
+      "gt_z_mm": 603797.2393356941,
+      "csv_bbox": [
+        706,
+        146,
+        10,
+        5
+      ],
+      "rendered_bbox_unclipped": [
+        707,
+        147,
+        7,
+        2
+      ],
+      "saved_bbox": [
+        707,
+        147,
+        7,
+        2
+      ],
+      "rendered_pixels": 11,
+      "saved_pixels": 11,
+      "rendered_vs_csv_bbox_iou": 0.28,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1338,
+      "stem": "0000226911_001338",
+      "opp_id": 2,
+      "gt_z_mm": 633745.1303829382,
+      "csv_bbox": [
+        792,
+        140,
+        11,
+        4
+      ],
+      "rendered_bbox_unclipped": [
+        794,
+        141,
+        7,
+        1
+      ],
+      "saved_bbox": [
+        794,
+        141,
+        7,
+        1
+      ],
+      "rendered_pixels": 6,
+      "saved_pixels": 6,
+      "rendered_vs_csv_bbox_iou": 0.1590909090909091,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1612,
+      "stem": "0000259910_001612",
+      "opp_id": 2,
+      "gt_z_mm": 286896.60779424396,
+      "csv_bbox": [
+        1358,
+        215,
+        22,
+        7
+      ],
+      "rendered_bbox_unclipped": [
+        1360,
+        216,
+        18,
+        4
+      ],
+      "saved_bbox": [
+        1360,
+        216,
+        18,
+        4
+      ],
+      "rendered_pixels": 48,
+      "saved_pixels": 48,
+      "rendered_vs_csv_bbox_iou": 0.4675324675324675,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1632,
+      "stem": "0000262429_001632",
+      "opp_id": 2,
+      "gt_z_mm": 270271.61217629083,
+      "csv_bbox": [
+        47,
+        176,
+        30,
+        9
+      ],
+      "rendered_bbox_unclipped": [
+        49,
+        178,
+        25,
+        5
+      ],
+      "saved_bbox": [
+        49,
+        178,
+        25,
+        5
+      ],
+      "rendered_pixels": 67,
+      "saved_pixels": 67,
+      "rendered_vs_csv_bbox_iou": 0.46296296296296297,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1709,
+      "stem": "0000271657_001709",
+      "opp_id": 2,
+      "gt_z_mm": 383228.82849553623,
+      "csv_bbox": [
+        1535,
+        124,
+        10,
+        6
+      ],
+      "rendered_bbox_unclipped": [
+        1536,
+        125,
+        7,
+        4
+      ],
+      "saved_bbox": [
+        1536,
+        125,
+        7,
+        4
+      ],
+      "rendered_pixels": 14,
+      "saved_pixels": 14,
+      "rendered_vs_csv_bbox_iou": 0.4666666666666667,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1758,
+      "stem": "0000277650_001758",
+      "opp_id": 2,
+      "gt_z_mm": 507369.83761800017,
+      "csv_bbox": [
+        1944,
+        173,
+        15,
+        5
+      ],
+      "rendered_bbox_unclipped": [
+        1945,
+        174,
+        12,
+        2
+      ],
+      "saved_bbox": [
+        1945,
+        174,
+        12,
+        2
+      ],
+      "rendered_pixels": 12,
+      "saved_pixels": 12,
+      "rendered_vs_csv_bbox_iou": 0.32,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 1981,
+      "stem": "0000304272_001981",
+      "opp_id": 2,
+      "gt_z_mm": 747185.9574448776,
+      "csv_bbox": [
+        1371,
+        231,
+        10,
+        4
+      ],
+      "rendered_bbox_unclipped": [
+        1372,
+        232,
+        7,
+        1
+      ],
+      "saved_bbox": [
+        1372,
+        232,
+        7,
+        1
+      ],
+      "rendered_pixels": 7,
+      "saved_pixels": 7,
+      "rendered_vs_csv_bbox_iou": 0.175,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2001,
+      "stem": "0000306674_002001",
+      "opp_id": 2,
+      "gt_z_mm": 878093.0714767019,
+      "csv_bbox": [
+        1296,
+        190,
+        8,
+        3
+      ],
+      "rendered_bbox_unclipped": [
+        1300,
+        190,
+        2,
+        2
+      ],
+      "saved_bbox": [
+        1300,
+        190,
+        2,
+        2
+      ],
+      "rendered_pixels": 3,
+      "saved_pixels": 3,
+      "rendered_vs_csv_bbox_iou": 0.16666666666666666,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2021,
+      "stem": "0000309049_002021",
+      "opp_id": 2,
+      "gt_z_mm": 775376.8074722766,
+      "csv_bbox": [
+        1818,
+        200,
+        11,
+        4
+      ],
+      "rendered_bbox_unclipped": [
+        1819,
+        201,
+        8,
+        1
+      ],
+      "saved_bbox": [
+        1819,
+        201,
+        8,
+        1
+      ],
+      "rendered_pixels": 8,
+      "saved_pixels": 8,
+      "rendered_vs_csv_bbox_iou": 0.18181818181818182,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2314,
+      "stem": "0000344259_002314",
+      "opp_id": 2,
+      "gt_z_mm": 503656.1320232222,
+      "csv_bbox": [
+        996,
+        194,
+        9,
+        5
+      ],
+      "rendered_bbox_unclipped": [
+        997,
+        195,
+        6,
+        2
+      ],
+      "saved_bbox": [
+        997,
+        195,
+        6,
+        2
+      ],
+      "rendered_pixels": 8,
+      "saved_pixels": 8,
+      "rendered_vs_csv_bbox_iou": 0.26666666666666666,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2334,
+      "stem": "0000346778_002334",
+      "opp_id": 2,
+      "gt_z_mm": 655494.1143184557,
+      "csv_bbox": [
+        735,
+        187,
+        11,
+        4
+      ],
+      "rendered_bbox_unclipped": [
+        736,
+        187,
+        8,
+        2
+      ],
+      "saved_bbox": [
+        736,
+        187,
+        8,
+        2
+      ],
+      "rendered_pixels": 9,
+      "saved_pixels": 9,
+      "rendered_vs_csv_bbox_iou": 0.36363636363636365,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2354,
+      "stem": "0000349107_002354",
+      "opp_id": 2,
+      "gt_z_mm": 743391.4520402026,
+      "csv_bbox": [
+        650,
+        185,
+        9,
+        4
+      ],
+      "rendered_bbox_unclipped": [
+        653,
+        186,
+        4,
+        2
+      ],
+      "saved_bbox": [
+        653,
+        186,
+        4,
+        2
+      ],
+      "rendered_pixels": 8,
+      "saved_pixels": 8,
+      "rendered_vs_csv_bbox_iou": 0.2222222222222222,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2374,
+      "stem": "0000351423_002374",
+      "opp_id": 2,
+      "gt_z_mm": 807160.8492179369,
+      "csv_bbox": [
+        1296,
+        172,
+        8,
+        4
+      ],
+      "rendered_bbox_unclipped": [
+        1297,
+        173,
+        5,
+        1
+      ],
+      "saved_bbox": [
+        1297,
+        173,
+        5,
+        1
+      ],
+      "rendered_pixels": 5,
+      "saved_pixels": 5,
+      "rendered_vs_csv_bbox_iou": 0.15625,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2558,
+      "stem": "0000373027_002558",
+      "opp_id": 1,
+      "gt_z_mm": 5264.313809238634,
+      "csv_bbox": [
+        0,
+        146,
+        487,
+        254
+      ],
+      "rendered_bbox_unclipped": [
+        0,
+        184,
+        472,
+        216
+      ],
+      "saved_bbox": [
+        0,
+        184,
+        472,
+        216
+      ],
+      "rendered_pixels": 62369,
+      "saved_pixels": 62369,
+      "rendered_vs_csv_bbox_iou": 0.8242008763278307,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2578,
+      "stem": "0000375448_002578",
+      "opp_id": 1,
+      "gt_z_mm": 19451.80278821944,
+      "csv_bbox": [
+        1115,
+        223,
+        117,
+        99
+      ],
+      "rendered_bbox_unclipped": [
+        1122,
+        233,
+        105,
+        78
+      ],
+      "saved_bbox": [
+        1122,
+        233,
+        105,
+        78
+      ],
+      "rendered_pixels": 4995,
+      "saved_pixels": 4995,
+      "rendered_vs_csv_bbox_iou": 0.7070707070707071,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2598,
+      "stem": "0000377922_002598",
+      "opp_id": 1,
+      "gt_z_mm": 25526.27406897483,
+      "csv_bbox": [
+        1338,
+        166,
+        94,
+        72
+      ],
+      "rendered_bbox_unclipped": [
+        1342,
+        173,
+        86,
+        57
+      ],
+      "saved_bbox": [
+        1342,
+        173,
+        86,
+        57
+      ],
+      "rendered_pixels": 3098,
+      "saved_pixels": 3098,
+      "rendered_vs_csv_bbox_iou": 0.724290780141844,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2618,
+      "stem": "0000380227_002618",
+      "opp_id": 1,
+      "gt_z_mm": 38447.8466161945,
+      "csv_bbox": [
+        1118,
+        210,
+        58,
+        43
+      ],
+      "rendered_bbox_unclipped": [
+        1121,
+        213,
+        51,
+        36
+      ],
+      "saved_bbox": [
+        1121,
+        213,
+        51,
+        36
+      ],
+      "rendered_pixels": 1189,
+      "saved_pixels": 1189,
+      "rendered_vs_csv_bbox_iou": 0.7361668003207699,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2638,
+      "stem": "0000382504_002638",
+      "opp_id": 1,
+      "gt_z_mm": 31194.487301078683,
+      "csv_bbox": [
+        543,
+        206,
+        87,
+        52
+      ],
+      "rendered_bbox_unclipped": [
+        547,
+        210,
+        77,
+        43
+      ],
+      "saved_bbox": [
+        547,
+        210,
+        77,
+        43
+      ],
+      "rendered_pixels": 2019,
+      "saved_pixels": 2019,
+      "rendered_vs_csv_bbox_iou": 0.7318744473916887,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2658,
+      "stem": "0000384650_002658",
+      "opp_id": 1,
+      "gt_z_mm": 40270.042240986644,
+      "csv_bbox": [
+        853,
+        228,
+        61,
+        40
+      ],
+      "rendered_bbox_unclipped": [
+        856,
+        231,
+        53,
+        33
+      ],
+      "saved_bbox": [
+        856,
+        231,
+        53,
+        33
+      ],
+      "rendered_pixels": 1075,
+      "saved_pixels": 1075,
+      "rendered_vs_csv_bbox_iou": 0.7168032786885246,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2658,
+      "stem": "0000384650_002658",
+      "opp_id": 2,
+      "gt_z_mm": 265362.14321614854,
+      "csv_bbox": [
+        1630,
+        269,
+        24,
+        8
+      ],
+      "rendered_bbox_unclipped": [
+        1632,
+        270,
+        19,
+        5
+      ],
+      "saved_bbox": [
+        1632,
+        270,
+        19,
+        5
+      ],
+      "rendered_pixels": 51,
+      "saved_pixels": 51,
+      "rendered_vs_csv_bbox_iou": 0.4947916666666667,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2678,
+      "stem": "0000386893_002678",
+      "opp_id": 1,
+      "gt_z_mm": 42263.20367009702,
+      "csv_bbox": [
+        1093,
+        233,
+        48,
+        38
+      ],
+      "rendered_bbox_unclipped": [
+        1094,
+        236,
+        45,
+        32
+      ],
+      "saved_bbox": [
+        1094,
+        236,
+        45,
+        32
+      ],
+      "rendered_pixels": 913,
+      "saved_pixels": 913,
+      "rendered_vs_csv_bbox_iou": 0.7894736842105263,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2678,
+      "stem": "0000386893_002678",
+      "opp_id": 2,
+      "gt_z_mm": 448898.8521828111,
+      "csv_bbox": [
+        1521,
+        217,
+        7,
+        5
+      ],
+      "rendered_bbox_unclipped": [
+        1522,
+        218,
+        4,
+        2
+      ],
+      "saved_bbox": [
+        1522,
+        218,
+        4,
+        2
+      ],
+      "rendered_pixels": 6,
+      "saved_pixels": 6,
+      "rendered_vs_csv_bbox_iou": 0.22857142857142856,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2698,
+      "stem": "0000389082_002698",
+      "opp_id": 1,
+      "gt_z_mm": 16927.384201924113,
+      "csv_bbox": [
+        1849,
+        278,
+        186,
+        105
+      ],
+      "rendered_bbox_unclipped": [
+        1854,
+        285,
+        174,
+        88
+      ],
+      "saved_bbox": [
+        1854,
+        285,
+        174,
+        88
+      ],
+      "rendered_pixels": 8741,
+      "saved_pixels": 8741,
+      "rendered_vs_csv_bbox_iou": 0.7840245775729646,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2722,
+      "stem": "0000391892_002722",
+      "opp_id": 1,
+      "gt_z_mm": 36814.31958344367,
+      "csv_bbox": [
+        1167,
+        233,
+        72,
+        43
+      ],
+      "rendered_bbox_unclipped": [
+        1169,
+        235,
+        66,
+        37
+      ],
+      "saved_bbox": [
+        1169,
+        235,
+        66,
+        37
+      ],
+      "rendered_pixels": 1386,
+      "saved_pixels": 1386,
+      "rendered_vs_csv_bbox_iou": 0.7887596899224806,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2742,
+      "stem": "0000394223_002742",
+      "opp_id": 1,
+      "gt_z_mm": 62076.27126001627,
+      "csv_bbox": [
+        1011,
+        216,
+        33,
+        25
+      ],
+      "rendered_bbox_unclipped": [
+        1012,
+        218,
+        30,
+        21
+      ],
+      "saved_bbox": [
+        1012,
+        218,
+        30,
+        21
+      ],
+      "rendered_pixels": 400,
+      "saved_pixels": 400,
+      "rendered_vs_csv_bbox_iou": 0.7636363636363637,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2762,
+      "stem": "0000396569_002762",
+      "opp_id": 1,
+      "gt_z_mm": 80808.18272331668,
+      "csv_bbox": [
+        1058,
+        188,
+        25,
+        20
+      ],
+      "rendered_bbox_unclipped": [
+        1058,
+        190,
+        23,
+        16
+      ],
+      "saved_bbox": [
+        1058,
+        190,
+        23,
+        16
+      ],
+      "rendered_pixels": 228,
+      "saved_pixels": 228,
+      "rendered_vs_csv_bbox_iou": 0.736,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2782,
+      "stem": "0000398756_002782",
+      "opp_id": 1,
+      "gt_z_mm": 93685.61847709985,
+      "csv_bbox": [
+        1109,
+        209,
+        24,
+        18
+      ],
+      "rendered_bbox_unclipped": [
+        1111,
+        210,
+        20,
+        15
+      ],
+      "saved_bbox": [
+        1111,
+        210,
+        20,
+        15
+      ],
+      "rendered_pixels": 180,
+      "saved_pixels": 180,
+      "rendered_vs_csv_bbox_iou": 0.6944444444444444,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2802,
+      "stem": "0000400952_002802",
+      "opp_id": 1,
+      "gt_z_mm": 93741.9262850123,
+      "csv_bbox": [
+        1157,
+        224,
+        26,
+        18
+      ],
+      "rendered_bbox_unclipped": [
+        1159,
+        226,
+        22,
+        14
+      ],
+      "saved_bbox": [
+        1159,
+        226,
+        22,
+        14
+      ],
+      "rendered_pixels": 187,
+      "saved_pixels": 187,
+      "rendered_vs_csv_bbox_iou": 0.6581196581196581,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2822,
+      "stem": "0000403218_002822",
+      "opp_id": 1,
+      "gt_z_mm": 94013.45928392121,
+      "csv_bbox": [
+        1131,
+        227,
+        27,
+        17
+      ],
+      "rendered_bbox_unclipped": [
+        1133,
+        228,
+        23,
+        14
+      ],
+      "saved_bbox": [
+        1133,
+        228,
+        23,
+        14
+      ],
+      "rendered_pixels": 197,
+      "saved_pixels": 197,
+      "rendered_vs_csv_bbox_iou": 0.7015250544662309,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2842,
+      "stem": "0000405533_002842",
+      "opp_id": 1,
+      "gt_z_mm": 43567.856473691005,
+      "csv_bbox": [
+        1624,
+        197,
+        74,
+        36
+      ],
+      "rendered_bbox_unclipped": [
+        1627,
+        199,
+        66,
+        31
+      ],
+      "saved_bbox": [
+        1627,
+        199,
+        66,
+        31
+      ],
+      "rendered_pixels": 1147,
+      "saved_pixels": 1147,
+      "rendered_vs_csv_bbox_iou": 0.7680180180180181,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2881,
+      "stem": "0000410678_002881",
+      "opp_id": 1,
+      "gt_z_mm": 66625.44315145414,
+      "csv_bbox": [
+        1125,
+        225,
+        57,
+        24
+      ],
+      "rendered_bbox_unclipped": [
+        1129,
+        226,
+        48,
+        20
+      ],
+      "saved_bbox": [
+        1129,
+        226,
+        48,
+        20
+      ],
+      "rendered_pixels": 516,
+      "saved_pixels": 516,
+      "rendered_vs_csv_bbox_iou": 0.7017543859649122,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2901,
+      "stem": "0000413193_002901",
+      "opp_id": 1,
+      "gt_z_mm": 85245.5428223797,
+      "csv_bbox": [
+        705,
+        223,
+        34,
+        19
+      ],
+      "rendered_bbox_unclipped": [
+        707,
+        224,
+        29,
+        16
+      ],
+      "saved_bbox": [
+        707,
+        224,
+        29,
+        16
+      ],
+      "rendered_pixels": 267,
+      "saved_pixels": 267,
+      "rendered_vs_csv_bbox_iou": 0.718266253869969,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2921,
+      "stem": "0000415712_002921",
+      "opp_id": 1,
+      "gt_z_mm": 50204.09729972453,
+      "csv_bbox": [
+        139,
+        194,
+        104,
+        31
+      ],
+      "rendered_bbox_unclipped": [
+        146,
+        196,
+        91,
+        26
+      ],
+      "saved_bbox": [
+        146,
+        196,
+        91,
+        26
+      ],
+      "rendered_pixels": 1292,
+      "saved_pixels": 1292,
+      "rendered_vs_csv_bbox_iou": 0.7338709677419355,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2941,
+      "stem": "0000418342_002941",
+      "opp_id": 1,
+      "gt_z_mm": 96889.43789246435,
+      "csv_bbox": [
+        986,
+        215,
+        32,
+        16
+      ],
+      "rendered_bbox_unclipped": [
+        988,
+        216,
+        26,
+        13
+      ],
+      "saved_bbox": [
+        988,
+        216,
+        26,
+        13
+      ],
+      "rendered_pixels": 198,
+      "saved_pixels": 198,
+      "rendered_vs_csv_bbox_iou": 0.66015625,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2961,
+      "stem": "0000420920_002961",
+      "opp_id": 1,
+      "gt_z_mm": 94242.63140772823,
+      "csv_bbox": [
+        300,
+        201,
+        36,
+        16
+      ],
+      "rendered_bbox_unclipped": [
+        302,
+        202,
+        31,
+        14
+      ],
+      "saved_bbox": [
+        302,
+        202,
+        31,
+        14
+      ],
+      "rendered_pixels": 252,
+      "saved_pixels": 252,
+      "rendered_vs_csv_bbox_iou": 0.7534722222222222,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 2981,
+      "stem": "0000423455_002981",
+      "opp_id": 1,
+      "gt_z_mm": 117720.44673826009,
+      "csv_bbox": [
+        720,
+        213,
+        36,
+        14
+      ],
+      "rendered_bbox_unclipped": [
+        722,
+        214,
+        31,
+        11
+      ],
+      "saved_bbox": [
+        722,
+        214,
+        31,
+        11
+      ],
+      "rendered_pixels": 181,
+      "saved_pixels": 181,
+      "rendered_vs_csv_bbox_iou": 0.6765873015873016,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3001,
+      "stem": "0000425772_003001",
+      "opp_id": 1,
+      "gt_z_mm": 152231.9839889107,
+      "csv_bbox": [
+        866,
+        202,
+        19,
+        11
+      ],
+      "rendered_bbox_unclipped": [
+        867,
+        204,
+        15,
+        7
+      ],
+      "saved_bbox": [
+        867,
+        204,
+        15,
+        7
+      ],
+      "rendered_pixels": 75,
+      "saved_pixels": 75,
+      "rendered_vs_csv_bbox_iou": 0.5023923444976076,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3001,
+      "stem": "0000425772_003001",
+      "opp_id": 2,
+      "gt_z_mm": 481929.858380295,
+      "csv_bbox": [
+        1578,
+        135,
+        12,
+        6
+      ],
+      "rendered_bbox_unclipped": [
+        1580,
+        136,
+        8,
+        3
+      ],
+      "saved_bbox": [
+        1580,
+        136,
+        8,
+        3
+      ],
+      "rendered_pixels": 12,
+      "saved_pixels": 12,
+      "rendered_vs_csv_bbox_iou": 0.3333333333333333,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3021,
+      "stem": "0000428158_003021",
+      "opp_id": 1,
+      "gt_z_mm": 157056.8787401773,
+      "csv_bbox": [
+        1049,
+        214,
+        16,
+        10
+      ],
+      "rendered_bbox_unclipped": [
+        1050,
+        215,
+        13,
+        8
+      ],
+      "saved_bbox": [
+        1050,
+        215,
+        13,
+        8
+      ],
+      "rendered_pixels": 68,
+      "saved_pixels": 68,
+      "rendered_vs_csv_bbox_iou": 0.65,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3021,
+      "stem": "0000428158_003021",
+      "opp_id": 2,
+      "gt_z_mm": 710798.5758570264,
+      "csv_bbox": [
+        1365,
+        162,
+        11,
+        6
+      ],
+      "rendered_bbox_unclipped": [
+        1369,
+        163,
+        5,
+        2
+      ],
+      "saved_bbox": [
+        1369,
+        163,
+        5,
+        2
+      ],
+      "rendered_pixels": 7,
+      "saved_pixels": 7,
+      "rendered_vs_csv_bbox_iou": 0.15151515151515152,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3052,
+      "stem": "0000431868_003052",
+      "opp_id": 1,
+      "gt_z_mm": 68250.90072243595,
+      "csv_bbox": [
+        1927,
+        115,
+        97,
+        28
+      ],
+      "rendered_bbox_unclipped": [
+        1931,
+        119,
+        85,
+        21
+      ],
+      "saved_bbox": [
+        1931,
+        119,
+        85,
+        21
+      ],
+      "rendered_pixels": 910,
+      "saved_pixels": 910,
+      "rendered_vs_csv_bbox_iou": 0.6572164948453608,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3072,
+      "stem": "0000433968_003072",
+      "opp_id": 1,
+      "gt_z_mm": 127928.51518923554,
+      "csv_bbox": [
+        1182,
+        203,
+        32,
+        14
+      ],
+      "rendered_bbox_unclipped": [
+        1184,
+        204,
+        26,
+        11
+      ],
+      "saved_bbox": [
+        1184,
+        204,
+        26,
+        11
+      ],
+      "rendered_pixels": 147,
+      "saved_pixels": 147,
+      "rendered_vs_csv_bbox_iou": 0.6383928571428571,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3092,
+      "stem": "0000436255_003092",
+      "opp_id": 1,
+      "gt_z_mm": 169016.94466275082,
+      "csv_bbox": [
+        1002,
+        218,
+        13,
+        10
+      ],
+      "rendered_bbox_unclipped": [
+        1003,
+        220,
+        11,
+        6
+      ],
+      "saved_bbox": [
+        1003,
+        220,
+        11,
+        6
+      ],
+      "rendered_pixels": 52,
+      "saved_pixels": 52,
+      "rendered_vs_csv_bbox_iou": 0.5076923076923077,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3112,
+      "stem": "0000438423_003112",
+      "opp_id": 1,
+      "gt_z_mm": 147268.72409010748,
+      "csv_bbox": [
+        1733,
+        183,
+        19,
+        11
+      ],
+      "rendered_bbox_unclipped": [
+        1734,
+        184,
+        16,
+        8
+      ],
+      "saved_bbox": [
+        1734,
+        184,
+        16,
+        8
+      ],
+      "rendered_pixels": 87,
+      "saved_pixels": 87,
+      "rendered_vs_csv_bbox_iou": 0.6124401913875598,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3132,
+      "stem": "0000440741_003132",
+      "opp_id": 1,
+      "gt_z_mm": 138596.7142235314,
+      "csv_bbox": [
+        1611,
+        112,
+        42,
+        13
+      ],
+      "rendered_bbox_unclipped": [
+        1614,
+        113,
+        34,
+        10
+      ],
+      "saved_bbox": [
+        1614,
+        113,
+        34,
+        10
+      ],
+      "rendered_pixels": 192,
+      "saved_pixels": 192,
+      "rendered_vs_csv_bbox_iou": 0.6227106227106227,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3152,
+      "stem": "0000443014_003152",
+      "opp_id": 1,
+      "gt_z_mm": 197995.58056942205,
+      "csv_bbox": [
+        1194,
+        227,
+        18,
+        11
+      ],
+      "rendered_bbox_unclipped": [
+        1195,
+        229,
+        15,
+        7
+      ],
+      "saved_bbox": [
+        1195,
+        229,
+        15,
+        7
+      ],
+      "rendered_pixels": 58,
+      "saved_pixels": 58,
+      "rendered_vs_csv_bbox_iou": 0.5303030303030303,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3172,
+      "stem": "0000445256_003172",
+      "opp_id": 1,
+      "gt_z_mm": 212970.9665067149,
+      "csv_bbox": [
+        923,
+        232,
+        12,
+        9
+      ],
+      "rendered_bbox_unclipped": [
+        924,
+        234,
+        9,
+        5
+      ],
+      "saved_bbox": [
+        924,
+        234,
+        9,
+        5
+      ],
+      "rendered_pixels": 38,
+      "saved_pixels": 38,
+      "rendered_vs_csv_bbox_iou": 0.4166666666666667,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3192,
+      "stem": "0000447587_003192",
+      "opp_id": 1,
+      "gt_z_mm": 165596.21662424656,
+      "csv_bbox": [
+        1348,
+        298,
+        18,
+        11
+      ],
+      "rendered_bbox_unclipped": [
+        1349,
+        299,
+        15,
+        8
+      ],
+      "saved_bbox": [
+        1349,
+        299,
+        15,
+        8
+      ],
+      "rendered_pixels": 73,
+      "saved_pixels": 73,
+      "rendered_vs_csv_bbox_iou": 0.6060606060606061,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3225,
+      "stem": "0000451522_003225",
+      "opp_id": 1,
+      "gt_z_mm": 84381.11211201103,
+      "csv_bbox": [
+        290,
+        134,
+        69,
+        28
+      ],
+      "rendered_bbox_unclipped": [
+        294,
+        141,
+        58,
+        18
+      ],
+      "saved_bbox": [
+        294,
+        141,
+        58,
+        18
+      ],
+      "rendered_pixels": 494,
+      "saved_pixels": 494,
+      "rendered_vs_csv_bbox_iou": 0.5403726708074534,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3245,
+      "stem": "0000453887_003245",
+      "opp_id": 1,
+      "gt_z_mm": 151486.813092188,
+      "csv_bbox": [
+        1232,
+        191,
+        37,
+        12
+      ],
+      "rendered_bbox_unclipped": [
+        1235,
+        192,
+        31,
+        9
+      ],
+      "saved_bbox": [
+        1235,
+        192,
+        31,
+        9
+      ],
+      "rendered_pixels": 149,
+      "saved_pixels": 149,
+      "rendered_vs_csv_bbox_iou": 0.6283783783783784,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3292,
+      "stem": "0000459350_003292",
+      "opp_id": 1,
+      "gt_z_mm": 221866.95618027324,
+      "csv_bbox": [
+        935,
+        204,
+        25,
+        10
+      ],
+      "rendered_bbox_unclipped": [
+        937,
+        205,
+        20,
+        7
+      ],
+      "saved_bbox": [
+        937,
+        205,
+        20,
+        7
+      ],
+      "rendered_pixels": 69,
+      "saved_pixels": 69,
+      "rendered_vs_csv_bbox_iou": 0.56,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3332,
+      "stem": "0000464073_003332",
+      "opp_id": 1,
+      "gt_z_mm": 214291.48671219678,
+      "csv_bbox": [
+        818,
+        187,
+        27,
+        9
+      ],
+      "rendered_bbox_unclipped": [
+        820,
+        188,
+        22,
+        6
+      ],
+      "saved_bbox": [
+        820,
+        188,
+        22,
+        6
+      ],
+      "rendered_pixels": 79,
+      "saved_pixels": 79,
+      "rendered_vs_csv_bbox_iou": 0.5432098765432098,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3380,
+      "stem": "0000469874_003380",
+      "opp_id": 1,
+      "gt_z_mm": 65796.8332647567,
+      "csv_bbox": [
+        1983,
+        196,
+        81,
+        23
+      ],
+      "rendered_bbox_unclipped": [
+        1988,
+        197,
+        76,
+        20
+      ],
+      "saved_bbox": [
+        1988,
+        197,
+        76,
+        20
+      ],
+      "rendered_pixels": 835,
+      "saved_pixels": 835,
+      "rendered_vs_csv_bbox_iou": 0.8158883521202361,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3400,
+      "stem": "0000472244_003400",
+      "opp_id": 1,
+      "gt_z_mm": 177694.6772788611,
+      "csv_bbox": [
+        1107,
+        199,
+        31,
+        10
+      ],
+      "rendered_bbox_unclipped": [
+        1109,
+        200,
+        25,
+        7
+      ],
+      "saved_bbox": [
+        1109,
+        200,
+        25,
+        7
+      ],
+      "rendered_pixels": 103,
+      "saved_pixels": 103,
+      "rendered_vs_csv_bbox_iou": 0.5645161290322581,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3420,
+      "stem": "0000474793_003420",
+      "opp_id": 1,
+      "gt_z_mm": 253116.129124241,
+      "csv_bbox": [
+        1096,
+        163,
+        10,
+        8
+      ],
+      "rendered_bbox_unclipped": [
+        1097,
+        165,
+        7,
+        4
+      ],
+      "saved_bbox": [
+        1097,
+        165,
+        7,
+        4
+      ],
+      "rendered_pixels": 25,
+      "saved_pixels": 25,
+      "rendered_vs_csv_bbox_iou": 0.35,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3440,
+      "stem": "0000477121_003440",
+      "opp_id": 1,
+      "gt_z_mm": 289314.64737177076,
+      "csv_bbox": [
+        1211,
+        229,
+        10,
+        7
+      ],
+      "rendered_bbox_unclipped": [
+        1212,
+        230,
+        7,
+        4
+      ],
+      "saved_bbox": [
+        1212,
+        230,
+        7,
+        4
+      ],
+      "rendered_pixels": 22,
+      "saved_pixels": 22,
+      "rendered_vs_csv_bbox_iou": 0.4,
+      "rendered_vs_saved_mask_iou": 1.0
+    },
+    {
+      "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK",
+      "camera_id": "rear",
+      "frame": 3460,
+      "stem": "0000479312_003460",
+      "opp_id": 1,
+      "gt_z_mm": 300163.29509171256,
+      "csv_bbox": [
+        1355,
+        259,
+        12,
+        7
+      ],
+      "rendered_bbox_unclipped": [
+        1356,
+        260,
+        9,
+        4
+      ],
+      "saved_bbox": [
+        1356,
+        260,
+        9,
+        4
+      ],
+      "rendered_pixels": 24,
+      "saved_pixels": 24,
+      "rendered_vs_csv_bbox_iou": 0.42857142857142855,
+      "rendered_vs_saved_mask_iou": 1.0
+    }
+  ]
+}
