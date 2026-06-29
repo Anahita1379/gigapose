@@ -24,6 +24,10 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import trimesh
+from bop_toolkit_lib import pycoco_utils
+
+from fine_tuning.ac_geometry import InstanceRenderer, bbox_from_mask as bbox_from_mask_array
 
 
 def parse_args() -> argparse.Namespace:
@@ -48,6 +52,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", default="test")
     parser.add_argument("--mesh", type=Path, default=None)
     parser.add_argument("--max-mesh-points", type=int, default=5000)
+    parser.add_argument(
+        "--rendered-iou",
+        action="store_true",
+        help="Render predicted CAD masks and report rendered bbox IoU / mask IoU.",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -91,7 +100,11 @@ def shard_path_for_key(split_dir: Path, key: str) -> Path:
     return split_dir / f"shard-{int(mapping[key]):06d}.tar"
 
 
-def load_gt(dataset_dir: Path, split: str) -> tuple[dict[tuple[int, int], list[dict[str, Any]]], dict[tuple[int, int], np.ndarray]]:
+def load_gt(
+    dataset_dir: Path,
+    split: str,
+    load_masks: bool = False,
+) -> tuple[dict[tuple[int, int], list[dict[str, Any]]], dict[tuple[int, int], np.ndarray]]:
     split_dir = dataset_dir / split
     key_to_shard = json.loads((split_dir / "key_to_shard.json").read_text())
     shard_to_keys: dict[int, list[str]] = defaultdict(list)
@@ -108,17 +121,27 @@ def load_gt(dataset_dir: Path, split: str) -> tuple[dict[tuple[int, int], list[d
                 gt = json.loads(tar.extractfile(f"{key}.gt.json").read())
                 gt_info = json.loads(tar.extractfile(f"{key}.gt_info.json").read())
                 camera = json.loads(tar.extractfile(f"{key}.camera.json").read())
+                mask_visib = {}
+                if load_masks:
+                    mask_visib = json.loads(tar.extractfile(f"{key}.mask_visib.json").read())
                 items = []
                 for local_idx, (pose, info) in enumerate(zip(gt, gt_info)):
+                    item = {
+                        "scene_id": scene_id,
+                        "im_id": im_id,
+                        "gt_index": local_idx,
+                        "obj_id": int(pose["obj_id"]),
+                        "R": np.asarray(pose["cam_R_m2c"], dtype=float).reshape(3, 3),
+                        "t_mm": np.asarray(pose["cam_t_m2c"], dtype=float).reshape(3),
+                        "bbox_visib": list(map(float, info["bbox_visib"])),
+                        "bbox_obj": list(map(float, info["bbox_obj"])),
+                    }
+                    if load_masks and str(local_idx) in mask_visib:
+                        item["mask_visib"] = pycoco_utils.rle_to_binary_mask(
+                            mask_visib[str(local_idx)]
+                        ).astype(bool)
                     items.append(
-                        {
-                            "gt_index": local_idx,
-                            "obj_id": int(pose["obj_id"]),
-                            "R": np.asarray(pose["cam_R_m2c"], dtype=float).reshape(3, 3),
-                            "t_mm": np.asarray(pose["cam_t_m2c"], dtype=float).reshape(3),
-                            "bbox_visib": list(map(float, info["bbox_visib"])),
-                            "bbox_obj": list(map(float, info["bbox_obj"])),
-                        }
+                        item
                     )
                 gt_by_image[(scene_id, im_id)] = items
                 K_by_image[(scene_id, im_id)] = np.asarray(
@@ -239,6 +262,35 @@ def add_error_mm(pred: dict[str, Any], gt: dict[str, Any], vertices_mm: np.ndarr
     return float(np.linalg.norm(pred_points - gt_points, axis=1).mean())
 
 
+def render_pose_mask_and_bbox(
+    renderer: InstanceRenderer,
+    pose_R: np.ndarray,
+    pose_t_mm: np.ndarray,
+    K: np.ndarray,
+    width: int,
+    height: int,
+) -> tuple[np.ndarray, list[int]]:
+    pose_m = np.eye(4, dtype=float)
+    pose_m[:3, :3] = pose_R
+    pose_m[:3, 3] = pose_t_mm * 0.001
+    segmentation, _ = renderer.render([pose_m], K, width, height)
+    mask = segmentation == 1
+    return mask, bbox_from_mask_array(mask)
+
+
+def mask_iou(first: np.ndarray, second: np.ndarray) -> float:
+    intersection = np.logical_and(first, second).sum()
+    union = np.logical_or(first, second).sum()
+    return float(intersection / union) if union else float("nan")
+
+
+def load_render_mesh(mesh_path: Path) -> trimesh.Trimesh:
+    mesh = trimesh.load(mesh_path, force="mesh")
+    if not isinstance(mesh, trimesh.Trimesh) or mesh.is_empty:
+        raise ValueError(f"Could not load mesh: {mesh_path}")
+    return mesh
+
+
 def assign_predictions_without_instance_ids(
     predictions: list[dict[str, Any]],
     gt_items: list[dict[str, Any]],
@@ -300,6 +352,7 @@ def evaluate_method(
     K_by_image: dict[tuple[int, int], np.ndarray],
     instance_map: dict[int, tuple[int, int, int]],
     vertices_mm: np.ndarray | None,
+    renderer: InstanceRenderer | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     rows = load_prediction_rows(prediction_path)
     t_scale = infer_prediction_translation_scale(rows)
@@ -325,34 +378,43 @@ def evaluate_method(
         K = K_by_image[image_key]
         pred_center = project_origin(pred["t_mm"], K)
         gt_center = project_origin(gt["t_mm"], K)
-        metrics.append(
-            {
-                "method": name,
-                "scene_id": pred["scene_id"],
-                "im_id": pred["im_id"],
-                "instance_id": pred.get("instance_id", ""),
-                "gt_index": gt["gt_index"],
-                "score": pred["score"],
-                "translation_error_mm": float(np.linalg.norm(pred["t_mm"] - gt["t_mm"])),
-                "depth_error_mm": float(abs(pred["t_mm"][2] - gt["t_mm"][2])),
-                "rotation_error_deg": rotation_error_deg(pred["R"], gt["R"]),
-                "center_error_px": float(np.linalg.norm(pred_center - gt_center)),
-                "gt_bbox_center_error_px": float(
-                    np.linalg.norm(pred_center - bbox_xywh_center(gt["bbox_visib"]))
-                ),
-                "add_mm": add_error_mm(pred, gt, vertices_mm),
-                "pred_z_mm": float(pred["t_mm"][2]),
-                "gt_z_mm": float(gt["t_mm"][2]),
-                "translation_scale_to_mm": t_scale,
-            }
-        )
+        metric = {
+            "method": name,
+            "scene_id": pred["scene_id"],
+            "im_id": pred["im_id"],
+            "instance_id": pred.get("instance_id", ""),
+            "gt_index": gt["gt_index"],
+            "score": pred["score"],
+            "translation_error_mm": float(np.linalg.norm(pred["t_mm"] - gt["t_mm"])),
+            "depth_error_mm": float(abs(pred["t_mm"][2] - gt["t_mm"][2])),
+            "rotation_error_deg": rotation_error_deg(pred["R"], gt["R"]),
+            "center_error_px": float(np.linalg.norm(pred_center - gt_center)),
+            "gt_bbox_center_error_px": float(
+                np.linalg.norm(pred_center - bbox_xywh_center(gt["bbox_visib"]))
+            ),
+            "add_mm": add_error_mm(pred, gt, vertices_mm),
+            "pred_z_mm": float(pred["t_mm"][2]),
+            "gt_z_mm": float(gt["t_mm"][2]),
+            "translation_scale_to_mm": t_scale,
+        }
+        if renderer is not None and "mask_visib" in gt:
+            height, width = gt["mask_visib"].shape
+            pred_mask, pred_bbox = render_pose_mask_and_bbox(
+                renderer, pred["R"], pred["t_mm"], K, width, height
+            )
+            metric["pred_bbox_iou"] = bbox_iou(
+                [float(v) for v in pred_bbox],
+                [float(v) for v in gt["bbox_visib"]],
+            )
+            metric["pred_mask_iou"] = mask_iou(pred_mask, gt["mask_visib"])
+        metrics.append(metric)
 
     summary = summarize(name, metrics, len(rows), t_scale)
     return metrics, summary
 
 
 def finite_values(rows: list[dict[str, Any]], key: str) -> np.ndarray:
-    values = np.asarray([row[key] for row in rows], dtype=float)
+    values = np.asarray([row.get(key, float("nan")) for row in rows], dtype=float)
     return values[np.isfinite(values)]
 
 
@@ -371,6 +433,8 @@ def summarize(name: str, rows: list[dict[str, Any]], prediction_rows: int, t_sca
         "center_error_px",
         "gt_bbox_center_error_px",
         "add_mm",
+        "pred_bbox_iou",
+        "pred_mask_iou",
     ]
     for key in metric_keys:
         values = finite_values(rows, key)
@@ -386,6 +450,11 @@ def summarize(name: str, rows: list[dict[str, Any]], prediction_rows: int, t_sca
         for threshold in (5, 10, 20, 45, 90):
             values = finite_values(rows, "rotation_error_deg")
             summary[f"rotation_recall_{threshold}deg"] = float((values <= threshold).mean())
+        for threshold in (0.25, 0.5, 0.75):
+            for key in ("pred_bbox_iou", "pred_mask_iou"):
+                values = finite_values(rows, key)
+                if values.size:
+                    summary[f"{key}_recall_{threshold:g}"] = float((values >= threshold).mean())
     return summary
 
 
@@ -394,8 +463,12 @@ def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         path.write_text("")
         return
     fieldnames = list(rows[0].keys())
+    for row in rows[1:]:
+        for key in row.keys():
+            if key not in fieldnames:
+                fieldnames.append(key)
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -416,6 +489,8 @@ def make_paired_rows(
         "center_error_px",
         "gt_bbox_center_error_px",
         "add_mm",
+        "pred_bbox_iou",
+        "pred_mask_iou",
     ]
     paired = []
     for (scene_id, im_id, gt_index), methods in sorted(by_key.items()):
@@ -441,6 +516,8 @@ def make_paired_rows(
             # For score, positive improvement means fine-tuned score is higher.
             if metric == "score":
                 out[f"{metric}_improvement"] = tuned_value - base_value
+            elif metric.endswith("_iou"):
+                out[f"{metric}_improvement"] = tuned_value - base_value
             else:
                 out[f"{metric}_improvement"] = base_value - tuned_value
         paired.append(out)
@@ -458,6 +535,8 @@ def paired_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "center_error_px",
         "gt_bbox_center_error_px",
         "add_mm",
+        "pred_bbox_iou",
+        "pred_mask_iou",
         "score",
     ]:
         key = f"{metric}_improvement"
@@ -479,23 +558,31 @@ def main() -> None:
     instance_map = global_instance_map(args.dataset_dir)
     mesh_path = args.mesh or args.dataset_dir / "models" / "obj_000001.ply"
     vertices_mm = read_ply_vertices(mesh_path, args.max_mesh_points)
+    renderer = InstanceRenderer(load_render_mesh(mesh_path)) if args.rendered_iou else None
 
     all_rows = []
     summaries = []
-    for name, path in (
-        (args.baseline_name, args.baseline_predictions),
-        (args.finetuned_name, args.finetuned_predictions),
-    ):
-        rows, summary = evaluate_method(
-            name=name,
-            prediction_path=path,
-            gt_by_image=gt_by_image,
-            K_by_image=K_by_image,
-            instance_map=instance_map,
-            vertices_mm=vertices_mm,
-        )
-        all_rows.extend(rows)
-        summaries.append(summary)
+    try:
+        if args.rendered_iou:
+            gt_by_image, K_by_image = load_gt(args.dataset_dir, args.split, load_masks=True)
+        for name, path in (
+            (args.baseline_name, args.baseline_predictions),
+            (args.finetuned_name, args.finetuned_predictions),
+        ):
+            rows, summary = evaluate_method(
+                name=name,
+                prediction_path=path,
+                gt_by_image=gt_by_image,
+                K_by_image=K_by_image,
+                instance_map=instance_map,
+                vertices_mm=vertices_mm,
+                renderer=renderer,
+            )
+            all_rows.extend(rows)
+            summaries.append(summary)
+    finally:
+        if renderer is not None:
+            renderer.close()
 
     write_csv(args.output_dir / "per_instance_metrics.csv", all_rows)
     write_csv(args.output_dir / "summary_metrics.csv", summaries)

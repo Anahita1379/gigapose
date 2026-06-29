@@ -20,6 +20,8 @@ PLOT_SPECS = [
     ("center_error_px", "Projected center error", "px", (0, 1000)),
     ("gt_bbox_center_error_px", "GT bbox center error", "px", (0, 1000)),
     ("add_mm", "ADD", "mm", (0, 50000)),
+    ("pred_bbox_iou", "Rendered bbox IoU", "IoU", (0, 1)),
+    ("pred_mask_iou", "Rendered mask IoU", "IoU", (0, 1)),
     ("score", "Prediction score", "score", None),
 ]
 
