@@ -242,6 +242,29 @@ python -m Assetto_data_prep.prepare_training \
   --overwrite
 ```
 
+
+
+to validate the generated masks before training: 
+```bash
+python -m Assetto_data_prep.validate_generated_masks \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_rain_2opp_noMask_6Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_clear_2opp_noMask_fixedSkin_6Laps  \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_haze_2opp_noMask_6Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_cloudyThunder_2opp_fixedSkin_noMask_6Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_4opp_noMask_2Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_2opp_noMask_6Laps \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_5opp_fixedskin \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_fog_5opp_fixedskin \
+  --source-root  /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_putnam_fog_5opp_fixedskin \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --cameras all \
+  --frame-stride 20 \
+  --mask-dir-name generated_masks \
+  --output-json fine_tuning/generated_mask_validation_report.json
+```
+
 Generate masks using the same sessions, cameras, stride, and per-session cap.
 The cap prevents the 45,686-frame Laguna session from overwhelming the other
 weather/track conditions.
