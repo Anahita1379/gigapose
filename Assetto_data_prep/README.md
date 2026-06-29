@@ -43,10 +43,18 @@ Then generate every camera:
 /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_2opp_noMask_6Laps (DONE)
 
 /media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_5opp_fixedskin  (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_fog_5opp_fixedskin (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_putnam_fog_5opp_fixedskin (DONE)
+
+/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK 
 -->
 ```bash
 python -m Assetto_data_prep.generate_masks \
-  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK   \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
   --visible-mask-dir-name="" \
   --cameras all
@@ -81,13 +89,13 @@ Use a held-out session:
 
 ```bash
 VAL_SESSION=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps
-
+BENCHMARK=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK 
 
 python -m Assetto_data_prep.prepare_inference \
-  --source-root "$VAL_SESSION" \
+  --source-root "$BENCHMARK" \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --dataset-name assettocorsa_inference \
-  --cameras front,rear \
+  --dataset-name assettocorsa_benchmark \
+  --cameras all \
   --frame-stride 5 \
   --overwrite
 
@@ -111,16 +119,16 @@ for testing the fine tuned model:
 ```bash
 python test.py \
   test_dataset_name=assettocorsa_inference \
-  model.checkpoint_path=/home/anahita/gigapose/gigaPose_datasets/results/assettocorsa_ist_only_run_corrected/checkpoints/last.ckpt \
-  run_id=assettocorsa_assettocorsa_inference_corrected \
-  name_exp=large_assettocorsa_finetuned_corrected
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_newdata/checkpoints/epoch=14-step=18000.ckpt'" \
+  run_id=assettocorsa_IST_only_inference_corrected \
+  name_exp=large_assettocorsa_IST_only_inference_corrected
 
 
 python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/large_assettocorsa_finetuned_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_correctedMultiHypothesis.csv \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_inference_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_IST_only_inference_correctedMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
   --split test \
-  --output-dir fine_tuning/prediction_overlays_finetuned_corrected \
+  --output-dir fine_tuning/prediction_overlays_IST_only_inference_corrected \
   --min-score 0.01
 ```
 
@@ -147,13 +155,16 @@ python -m Assetto_data_prep.prepare_training \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_4opp_noMask_2Laps \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_laguna2026_clear_2opp_noMask_6Laps \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260622_putnam_clear_2opponent_noMask \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_5opp_fixedskin \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_fog_5opp_fixedskin \
+  --source-root  /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_putnam_fog_5opp_fixedskin \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
   --dataset-name assettocorsa_all \
   --cameras all \
   --frame-stride 3 \
-  --max-frames-per-session 10000 \
+  --max-frames-per-session 15000 \
   --mask-dir-name generated_masks \
-  --validation-sessions 1 \
+  --validation-sessions 2 \
   --overwrite
 ```
 
@@ -165,40 +176,42 @@ Validate, render templates, and start with IST-only fine-tuning:
 
 ```bash
 python -m fine_tuning.validate_training_data \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_all
 
 python -m src.scripts.render_custom_templates \
-  custom_dataset_name=assettocorsa \
+  custom_dataset_name=assettocorsa_all \
   machine.num_workers=1
+
+AE and IST training:
 
 python -m fine_tuning.train \
   --dataset-name assettocorsa \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train all \
-  --ist-lr 5e-6 \
-  --ae-lr 5e-8 \
+  --ist-lr 1e-5 \
+  --ae-lr 1e-6 \
   --ae-train-mode block-offsets \
   --ae-train-block-offsets 2,1 \
   --batch-size 32 \
-  --max-steps 10000 \
+  --max-steps 20000 \
   --validation-interval 150 \
-  --run-name assettocorsa_ist_penultimate_last_ae  \
+  --run-name assettocorsa_ist_penultimate_last_ae_corrected_run2  \
   --logger wandb \
   --print-loss-every 50 \
   --devices all \
-  --match-sim-threshold 0.1
+  --match-sim-threshold 0.2
 
 IST only training: 
 
   python -m fine_tuning.train \
-  --dataset-name assettocorsa \
+  --dataset-name assettocorsa_all \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train ist \
-  --ist-lr 1e-5 \
+  --ist-lr 1e-4 \
   --batch-size 32 \
-  --max-steps 15000 \
+  --max-steps 20000 \
   --validation-interval 150 \
-  --run-name assettocorsa_ist_only_run_corrected  \
+  --run-name assettocorsa_ist_only_run_newdata  \
   --logger wandb \
   --print-loss-every 50 \
   --devices all \
@@ -277,8 +290,10 @@ python -m fine_tuning.visualize_prediction_gt_comparison \
   --max-images 100
 ```
 
- \
-  --finetuned-predictions 
+green box = GT/reference
+red box = original
+blue box = fine-tuned
+
 ## Consistency rules
 
 - All opponents assigned object ID 1 must have the same geometry. Preparation

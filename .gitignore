@@ -4,6 +4,8 @@ fine_tuning/prediction_overlays
 fine_tuning/prediction_overlays_finetuned
 fine_tuning/prediction_overlays_finetuned_corrected
 fine_tuning/prediction_gt_comparison
+fine_tuning/prediction_overlays_AE_IST_finetuned_corrected
+fine_tuning/prediction_overlays_IST_only_inference_corrected
 Assetto_data_prep/README.md
 slurm_logs/
 results*
@@ -185,3 +187,4 @@ datasets/
 gigaPose_datasets/
 gigaPose_datasets/results/assettocorsa_ist_penultimate_ae/wandb/run-20260625_172123-aknp2vr0/run-aknp2vr0.wandb
 gigaPose_datasets/results/assettocorsa_ist_penultimate_ae/wandb/run-20260625_172123-aknp2vr0/run-aknp2vr0.wandb
+gigaPose_datasets/results/assettocorsa_ist_only_run/validation_images/val_gt_step004200_batch0000_rank1.png
