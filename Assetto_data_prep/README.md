@@ -434,6 +434,11 @@ If you want custom paths:
 python -m fine_tuning.plot_prediction_comparison \
   --input-csv fine_tuning/prediction_gt_comparison/per_instance_metrics.csv \
   --output-dir fine_tuning/prediction_gt_comparison/plots
+
+  python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/final_results/metrics/all_models/all_instance_metrics.csv   --comparison-dir gigaPose_datasets/results/final_results/metrics/all_models   --output-dir gigaPose_datasets/results/final_results/metrics/all_models/plots
+
+  python -m fine_tuning.plot_model_summary \
+  --metrics-dir gigaPose_datasets/results/final_results/metrics/all_models
 ```
 
 ```bash

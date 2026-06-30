@@ -516,7 +516,7 @@ python -m fine_tuning.evaluate_gigapose_models \
 
 
 
-for only one model:
+for only two models:
 ```bash
 python -m fine_tuning.evaluate_gigapose_models \
   --model original=gigaPose_datasets/results/large_assettocorsa_original_benchmark_with_max_depthenchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_original_benchmark_with_max_depthenchmarkMultiHypothesis.csv \
