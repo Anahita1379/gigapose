@@ -31,6 +31,37 @@ src="https://img.shields.io/badge/-SuppMat-blue.svg?colorA=333&logo=drive" heigh
 
 **TL;DR**: GigaPose is a "hybrid" template-patch correspondence approach to estimate 6D pose of novel objects in RGB images: GigaPose first uses templates, rendered images of the CAD models, to recover the out-of-plane rotation (2DoF) and then uses patch correspondences to estimate the remaining 4DoF. 
 
+## Local project notes and runbooks
+
+The upstream README below is mostly the original GigaPose documentation. For
+the Assetto Corsa / racecar work in this checkout, these local notes are the
+most useful entry points:
+
+| File | What it is for | Main topics |
+|---|---|---|
+| [instruction.md](instruction.md) | Custom racecar/GigaPose runbook | environment, racecar dataset prep, template rendering, test/refine, prediction visualization |
+| [Assetto_data_prep/README.md](Assetto_data_prep/README.md) | Assetto Corsa data preparation workflow | mask generation, inference dataset prep, fine-tuning dataset prep, validation commands |
+| [metric.md](metric.md) | Benchmark/evaluation guide | inference outputs, camera splitting, overlays, model comparison metrics, IoU/RMSE, reporting |
+| [fine_tuning/fine_tuning_instruction.md](fine_tuning/fine_tuning_instruction.md) | Older fine-tuning notes | coordinate checks, training data, template rendering, validation/debugging |
+
+### Common local command groups
+
+| Goal | Script/module |
+|---|---|
+| Generate pose-derived instance masks | `python -m Assetto_data_prep.generate_masks` |
+| Validate saved generated masks | `python -m Assetto_data_prep.validate_generated_masks` |
+| Validate camera geometry by camera | `python -m Assetto_data_prep.validate_camera_geometry` |
+| Prepare Assetto inference/benchmark data | `python -m Assetto_data_prep.prepare_inference` |
+| Prepare Assetto fine-tuning data | `python -m Assetto_data_prep.prepare_training` |
+| Fine-tune GigaPose | `python -m fine_tuning.train` |
+| Run GigaPose inference | `python test.py ...` |
+| Split prediction CSV/NPZ by camera | `python -m fine_tuning.split_predictions_by_camera` |
+| Overlay predictions on images | `python -m fine_tuning.overlay_gigapose_predictions` |
+| Compare two prediction CSVs | `python -m fine_tuning.compare_gigapose_predictions` |
+| Compare many models | `python -m fine_tuning.evaluate_gigapose_models` |
+| Plot comparison outputs | `python -m fine_tuning.plot_prediction_comparison` |
+| Visualize multiple models per car | `python -m fine_tuning.visualize_multi_model_per_car` |
+
 
 
 ### News 📣

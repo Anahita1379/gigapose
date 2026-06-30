@@ -17,6 +17,60 @@ The short version:
 7. `fine_tuning.visualize_prediction_gt_comparison` draws GT, baseline, and
    fine-tuned boxes together for qualitative comparison.
 
+## Quick metric workflow
+
+| Goal | Command/module | Main output |
+|---|---|---|
+| Run one model on the benchmark dataset | `python test.py ...` | Prediction `.npz`, CSV, and `MultiHypothesis.csv` files |
+| Split predictions by camera | `python -m fine_tuning.split_predictions_by_camera` | `predictions/by_camera/<camera>/` folders |
+| Make CAD overlays for visual checking | `python -m fine_tuning.overlay_gigapose_predictions` | Overlay images + `prediction_overlay_report.json` |
+| Compare two models numerically | `python -m fine_tuning.compare_gigapose_predictions` | Per-instance CSV, summary JSON/CSV, plots-ready outputs |
+| Compare many models numerically | `python -m fine_tuning.evaluate_gigapose_models` | Aggregate, camera, pairwise, and best-model tables |
+| Plot numeric metric outputs | `python -m fine_tuning.plot_prediction_comparison` | Histograms, recall curves, model-improvement plots |
+| Visualize GT vs two models | `python -m fine_tuning.visualize_prediction_gt_comparison` | Images with GT/baseline/fine-tuned boxes together |
+| Visualize many models per GT car | `python -m fine_tuning.visualize_multi_model_per_car` | Side-by-side panels, one panel per car instance |
+
+## Metric output files
+
+When evaluating multiple models, the most useful files are:
+
+| File | What it tells you |
+|---|---|
+| `overall_summary.csv` / `overall_summary.json` | Overall model ranking across the benchmark split |
+| `camera_summary.csv` / `camera_summary.json` | Same metrics grouped by camera, e.g. front vs rear |
+| `all_instance_metrics.csv` | One row per matched GT/model prediction instance |
+| `pairwise_instance_comparison.csv` | Per-instance model-vs-model deltas |
+| `best_model_per_instance.csv` | Which model wins each instance under the chosen metric |
+| `plots/` | Histogram/recall/comparison figures from `plot_prediction_comparison` |
+| `side_by_side_visuals/` | Qualitative multi-model images from `visualize_multi_model_per_car` |
+| `prediction_overlay_report.json` | Overlay render/debug stats such as visible pose counts and rendered pixels |
+
+## Metric groups at a glance
+
+| Metric family | Examples | Lower or higher is better | What it checks |
+|---|---|---|---|
+| GigaPose confidence | `score`, score mean/median | Higher | Model confidence, not direct geometric correctness |
+| Translation/depth | translation error, depth error, RMSE | Lower | Whether the estimated car location is close to Assetto-derived GT |
+| Rotation | angular error in degrees | Lower | Whether the car orientation is correct |
+| Image-plane alignment | center error, bbox IoU | Center error lower; IoU higher | Whether the projected prediction lands on the correct car in the image |
+| Rendered silhouette overlap | rendered mask IoU | Higher | Whether the CAD silhouette projected from the predicted pose overlaps the GT/rendered mask |
+| ADD-style geometry | ADD / ADD-S-style distance if available | Lower | 3D model-point alignment under the estimated pose |
+| Camera-specific summary | per-camera mean/median metrics | Depends on metric | Finds problems isolated to `front`, `rear`, stereo, etc. |
+
+## Recommended comparison table for reports
+
+For a clean report, make one table per benchmark run with columns like:
+
+| Model | Evaluated instances | Mean score | Median translation error | Median rotation error | Mean bbox IoU | Mean mask IoU | Notes |
+|---|---:|---:|---:|---:|---:|---:|---|
+| original |  |  |  |  |  |  | baseline pretrained GigaPose |
+| finetune |  |  |  |  |  |  | IST-only, AE+IST, or other training notes |
+| finetune2 |  |  |  |  |  |  | second checkpoint/config |
+
+Then include a camera-by-camera version using `camera_summary.csv`, because the
+rear camera can behave very differently from the front/stereo cameras when
+objects are far away or tiny.
+
 ## What inference already does
 
 When you run:

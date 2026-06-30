@@ -4,6 +4,46 @@ This note summarizes how this repo is currently being used for the custom
 `racecar` object: what to run first, what gets saved where, and which options
 you can change when preparing/running a subset of images.
 
+## Quick navigation
+
+| Section | Purpose |
+|---|---|
+| [1. Big Picture](#1-big-picture) | Inputs GigaPose expects for a custom object |
+| [2. Environment Setup](#2-environment-setup) | Conda/pip setup and dataset root |
+| [3. Download Pretrained Models](#3-download-pretrained-models) | GigaPose/MegaPose checkpoints |
+| [4. Prepare the Racecar Dataset](#4-prepare-the-racecar-dataset) | Build the custom `racecar` WebDataset |
+| [5. Use Only Selected Images](#5-use-only-selected-images) | Run on chosen source frames only |
+| [6. What Gets Saved by Dataset Preparation](#6-what-gets-saved-by-dataset-preparation) | Output folders/files from prep |
+| [7. Render Racecar Templates](#7-render-racecar-templates) | Render CAD templates needed by GigaPose |
+| [8. Run Pose Estimation](#8-run-pose-estimation) | Run `test.py` and understand outputs |
+| [9. Run Refinement](#9-run-refinement) | Optional MegaPose-style refinement |
+| [10. Visualize Racecar Predictions](#10-visualize-racecar-predictions) | Overlay predicted poses |
+| [11. Important Input Options You Can Change](#11-important-input-options-you-can-change) | Common script/config options |
+| [12. If There Is No Car in an Image](#12-if-there-is-no-car-in-an-image) | How false/no detections should be handled |
+| [13. Main Workflow Checklist](#13-main-workflow-checklist) | End-to-end checklist |
+
+## Quick command table
+
+| Goal | Command/module | Typical output |
+|---|---|---|
+| Prepare racecar WebDataset | `python3 -m src.scripts.prepare_racecar_dataset` | `gigaPose_datasets/datasets/racecar/` |
+| Render racecar templates | `python3 -m src.scripts.render_custom_templates custom_dataset_name=racecar` | `gigaPose_datasets/datasets/templates/racecar/` |
+| Run coarse pose estimation | `python3 test.py test_dataset_name=racecar run_id=racecar_test` | `gigaPose_datasets/results/large_racecar_test/predictions/` |
+| Run refinement | `python3 refine.py test_dataset_name=racecar run_id=racecar_test` | `refined_predictions/` or `refined_multiple_predictions/` |
+| Visualize predictions | `python3 -m src.scripts.visualize_racecar_predictions` | overlay images under a result folder |
+
+## Important paths at a glance
+
+| Path | Meaning |
+|---|---|
+| `gigaPose_datasets/pretrained/gigaPose_v1.ckpt` | Main GigaPose checkpoint |
+| `gigaPose_datasets/pretrained/megapose-models/` | MegaPose/refinement models |
+| `gigaPose_datasets/datasets/racecar/models/` | Custom racecar CAD/model metadata |
+| `gigaPose_datasets/datasets/racecar/test/` | Racecar WebDataset test shards |
+| `gigaPose_datasets/datasets/cnos-fastsam/cnos-fastsam_racecar-test.json` | Detection/mask JSON used by test loader |
+| `gigaPose_datasets/datasets/templates/racecar/` | Rendered templates |
+| `gigaPose_datasets/results/large_racecar_test/predictions/` | Per-batch `.npz` and final prediction CSVs |
+
 ## 1. Big Picture
 
 GigaPose does not start from only a raw image. For each test image it expects:

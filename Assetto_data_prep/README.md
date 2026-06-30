@@ -8,6 +8,55 @@ The shared geometry code reads `T_camera_opponent_visual`, converts AC's
 X-right/Y-up/Z-forward camera frame to OpenCV, and uses the same centered model
 and pose convention for mask generation, inference, and training.
 
+## Quick workflow map
+
+| Stage | Command/module | Main inputs | Main outputs |
+|---|---|---|---|
+| Generate simulator-derived masks | `python -m Assetto_data_prep.generate_masks` | Raw Assetto session folders, CAD mesh | `<session>/generated_masks/`, optional `<session>/generated_masks_visib/` |
+| Validate generated masks | `python -m Assetto_data_prep.validate_generated_masks` | Raw sessions + generated masks | JSON report with rendered-vs-saved mask IoU |
+| Validate camera geometry | `python -m Assetto_data_prep.validate_camera_geometry` | Raw sessions, CAD mesh, masks | JSON report grouped by camera |
+| Prepare benchmark/inference dataset | `python -m Assetto_data_prep.prepare_inference` | Raw sessions, CAD mesh, masks | `gigaPose_datasets/datasets/<dataset_name>/test/` and CNOS/FastSAM detections JSON |
+| Render templates | `python -m src.scripts.render_custom_templates` | Prepared dataset CAD/model metadata | `gigaPose_datasets/datasets/templates/<dataset_name>/` |
+| Run inference | `python test.py ...` | Prepared dataset + templates + checkpoint | `gigaPose_datasets/results/<experiment>/predictions/` |
+| Split predictions by camera | `python -m fine_tuning.split_predictions_by_camera` | Prediction CSV/NPZ + dataset `frame_map.json` | `predictions/by_camera/<camera>/` |
+| Overlay predictions | `python -m fine_tuning.overlay_gigapose_predictions` | Prediction CSV + prepared dataset | CAD-overlay debug images + `prediction_overlay_report.json` |
+| Prepare fine-tuning dataset | `python -m Assetto_data_prep.prepare_training` | Raw sessions, CAD mesh, masks | `gigaPose_datasets/datasets/<dataset_name>/train_pbr_web/` and `val_pbr_web/` |
+| Validate fine-tuning dataset | `python -m fine_tuning.validate_training_data` | Prepared fine-tuning dataset | Training-data sanity report/errors |
+| Fine-tune GigaPose | `python -m fine_tuning.train` | Prepared fine-tuning dataset + checkpoint | `gigaPose_datasets/results/<run_name>/checkpoints/`, TensorBoard/W&B logs |
+| Evaluate models | `python -m fine_tuning.evaluate_gigapose_models` | One or more prediction CSVs + benchmark dataset | Overall/camera summaries, per-instance metrics, pairwise comparisons |
+
+## Important folders
+
+| Folder/path pattern | What it contains |
+|---|---|
+| `/media/hdd2/ARCL_multicar_bags/camera_dataset/<session>/` | Raw Assetto Corsa session folders |
+| `<session>/csv/camera_frames.csv` | Frame/image metadata from Assetto |
+| `<session>/csv/transforms.csv` | Camera/object transform metadata from Assetto |
+| `<session>/images/{front,rear,stereo_left,stereo_right}/` | Source RGB frames |
+| `<session>/generated_masks/<camera>/` | Packed RGB instance masks; pixel value encodes opponent id |
+| `<session>/generated_masks_visib/<camera>/` | Optional binary visible-mask PNGs, one per opponent |
+| `gigaPose_datasets/datasets/<dataset_name>/test/` | Prepared inference/benchmark WebDataset split |
+| `gigaPose_datasets/datasets/<dataset_name>/train_pbr_web/` | Prepared fine-tuning train split |
+| `gigaPose_datasets/datasets/<dataset_name>/val_pbr_web/` | Prepared fine-tuning validation split |
+| `gigaPose_datasets/datasets/cnos-fastsam/` | Detection JSON files consumed by GigaPose test loader |
+| `gigaPose_datasets/datasets/templates/<dataset_name>/` | Rendered CAD templates |
+| `gigaPose_datasets/results/<experiment>/predictions/` | GigaPose `.npz`, CSV, and MultiHypothesis CSV prediction outputs |
+| `gigaPose_datasets/results/final_results/` | Final benchmark result folders and metric summaries |
+
+## Common preparation options
+
+| Option | Used by | Meaning / when to change it |
+|---|---|---|
+| `--cameras` | mask generation, inference prep, training prep | Choose cameras, e.g. `front,stereo`, `front,rear`, or `all`. |
+| `--frame-stride` | inference prep, training prep | Subsample frames. Lower values give more data but more compute and temporal redundancy. |
+| `--max-frames-per-session` | mask generation, training prep | Cap frames per source session. Useful for debugging or balancing large sessions. |
+| `--mask-dir-name` | inference prep, training prep | Folder containing saved instance masks, e.g. `generated_masks`. |
+| `--visible-mask-dir-name` | mask generation | Optional folder for per-opponent visible binary masks; pass empty string to disable. |
+| `--min-mask-pixels` | inference prep, training prep | Drop very tiny detections/instances. |
+| `--max-depth-m` | inference prep, training prep | Drop instances farther than this depth, useful for rear/tiny far-away cars. |
+| `--cad-axis-convention` | mask generation, inference prep, training prep | Keep consistent across all prep steps; current successful default is `x-forward-z-up`. |
+| `--fit-aabb` | mask generation, inference prep, training prep | Keep consistent across all prep steps; current successful default is `nonuniform`. |
+
 ## 1. Generate masks
 
 First test a few frames:
