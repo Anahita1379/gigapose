@@ -26,6 +26,7 @@ The short version:
 | Make CAD overlays for visual checking | `python -m fine_tuning.overlay_gigapose_predictions` | Overlay images + `prediction_overlay_report.json` |
 | Compare two models numerically | `python -m fine_tuning.compare_gigapose_predictions` | Per-instance CSV, summary JSON/CSV, plots-ready outputs |
 | Compare many models numerically | `python -m fine_tuning.evaluate_gigapose_models` | Aggregate, camera, pairwise, and best-model tables |
+| Plot multi-model summary tables | `python -m fine_tuning.plot_model_summary` | Overall and camera-by-camera bar charts from `overall_summary.csv` and `camera_summary.csv` |
 | Plot numeric metric outputs | `python -m fine_tuning.plot_prediction_comparison` | Histograms, recall curves, model-improvement plots |
 | Visualize GT vs two models | `python -m fine_tuning.visualize_prediction_gt_comparison` | Images with GT/baseline/fine-tuned boxes together |
 | Visualize many models per GT car | `python -m fine_tuning.visualize_multi_model_per_car` | Side-by-side panels, one panel per car instance |

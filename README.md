@@ -60,6 +60,7 @@ most useful entry points:
 | Compare two prediction CSVs | `python -m fine_tuning.compare_gigapose_predictions` |
 | Compare many models | `python -m fine_tuning.evaluate_gigapose_models` |
 | Plot comparison outputs | `python -m fine_tuning.plot_prediction_comparison` |
+| Plot multi-model summary tables | `python -m fine_tuning.plot_model_summary` |
 | Visualize multiple models per car | `python -m fine_tuning.visualize_multi_model_per_car` |
 
 
