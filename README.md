@@ -42,6 +42,7 @@ most useful entry points:
 | [instruction.md](instruction.md) | Custom racecar/GigaPose runbook | environment, racecar dataset prep, template rendering, test/refine, prediction visualization |
 | [Assetto_data_prep/README.md](Assetto_data_prep/README.md) | Assetto Corsa data preparation workflow | mask generation, inference dataset prep, fine-tuning dataset prep, validation commands |
 | [metric.md](metric.md) | Benchmark/evaluation guide | inference outputs, camera splitting, overlays, model comparison metrics, IoU/RMSE, reporting |
+| [gigapose_real.md](gigapose_real.md) | Real-world GigaPose label pipeline | real bag sessions, EPnPv2 label comparison, candidate selection, extrinsic optimization |
 | [fine_tuning/fine_tuning_instruction.md](fine_tuning/fine_tuning_instruction.md) | Older fine-tuning notes | coordinate checks, training data, template rendering, validation/debugging |
 
 ### Common local command groups
@@ -62,6 +63,8 @@ most useful entry points:
 | Plot comparison outputs | `python -m fine_tuning.plot_prediction_comparison` |
 | Plot multi-model summary tables | `python -m fine_tuning.plot_model_summary` |
 | Visualize multiple models per car | `python -m fine_tuning.visualize_multi_model_per_car` |
+| Select real-world GigaPose/EPnPv2 label candidates | `python -m fine_tuning.select_real_label_candidates` |
+| Optimize real-world map-camera extrinsics | `python -m fine_tuning.optimize_camera_map_extrinsics` |
 
 
 
