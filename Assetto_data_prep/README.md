@@ -94,18 +94,19 @@ BENCHMARK=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clea
 python -m Assetto_data_prep.prepare_inference \
   --source-root "$BENCHMARK" \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --dataset-name assettocorsa_benchmark \
+  --dataset-name assettocorsa_benchmark_with_max_depth \
   --cameras all \
   --frame-stride 5 \
+  --max-depth-m 120 \
   --overwrite
 
 python -m src.scripts.render_custom_templates \
-  custom_dataset_name=assettocorsa_benchmark \
+  custom_dataset_name=assettocorsa_benchmark_with_max_depth \
   machine.num_workers=1
 
 python test.py \
-  test_dataset_name=assettocorsa_benchmark \
-  run_id=assettocorsa_original_benchmark_run
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  run_id=assettocorsa_original_benchmark_with_max_depthenchmark
 
   python -m fine_tuning.overlay_gigapose_predictions \
   --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
@@ -125,10 +126,10 @@ python test.py \
 
 for older finetuned model:---------------------------
 python test.py \
-  test_dataset_name=assettocorsa_benchmark \
-  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_corrected_good/checkpoints/epoch=17-step=14000.ckpt'" \
-  run_id=assettocorsa_older_corrected_IST_only_benchmark \
-  name_exp=large_assettocorsa_older_corrected_IST_only_benchmark
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/final_results/assettocorsa_ist_only_run_corrected_good/checkpoints/epoch=17-step=14000.ckpt'" \
+  run_id=assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth \
+  name_exp=large_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth
 
 
 python test.py \
@@ -236,9 +237,11 @@ python -m Assetto_data_prep.prepare_training \
   --dataset-name assettocorsa_all_no_rear \
   --cameras front,stereo_left,stereo_right \
   --frame-stride 2 \
-  --max-frames-per-session 15000 \
+  --max-frames-per-session 10000 \
   --mask-dir-name generated_masks \
   --validation-sessions 2 \
+  --min-mask-pixels 250 \
+  --max-depth-m 120 \
   --overwrite
 ```
 

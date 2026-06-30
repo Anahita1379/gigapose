@@ -459,6 +459,20 @@ python -m fine_tuning.evaluate_gigapose_models \
   --output-dir gigaPose_datasets/results/final_results/metrics/all_models
 ```
 
+
+
+for only one model:
+```bash
+python -m fine_tuning.evaluate_gigapose_models \
+  --model original=gigaPose_datasets/results/large_assettocorsa_original_benchmark_with_max_depthenchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_original_benchmark_with_max_depthenchmarkMultiHypothesis.csv \
+  --model finetune=gigaPose_datasets/results/large_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepthMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
+  --split test \
+  --rendered-iou \
+  --output-dir gigaPose_datasets/results/final_results/metrics/2_models_maxdepth
+```
+
+
 Outputs:
 
 ```text
