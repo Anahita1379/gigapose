@@ -62,6 +62,7 @@ most useful entry points:
 | Compare many models | `python -m fine_tuning.evaluate_gigapose_models` |
 | Plot comparison outputs | `python -m fine_tuning.plot_prediction_comparison` |
 | Plot multi-model summary tables | `python -m fine_tuning.plot_model_summary` |
+| Recommend best model overall/per camera | `python -m fine_tuning.recommend_model_by_task` |
 | Visualize multiple models per car | `python -m fine_tuning.visualize_multi_model_per_car` |
 | Select real-world GigaPose/EPnPv2 label candidates | `python -m fine_tuning.select_real_label_candidates` |
 | Optimize real-world map-camera extrinsics | `python -m fine_tuning.optimize_camera_map_extrinsics` |

@@ -26,6 +26,7 @@ The short version:
 | Make CAD overlays for visual checking | `python -m fine_tuning.overlay_gigapose_predictions` | Overlay images + `prediction_overlay_report.json` |
 | Compare two models numerically | `python -m fine_tuning.compare_gigapose_predictions` | Per-instance CSV, summary JSON/CSV, plots-ready outputs |
 | Compare many models numerically | `python -m fine_tuning.evaluate_gigapose_models` | Aggregate, camera, pairwise, and best-model tables |
+| Recommend the best model for pose/depth use | `python -m fine_tuning.recommend_model_by_task` | Overall and per-camera model rankings using weighted task scores |
 | Plot multi-model summary tables | `python -m fine_tuning.plot_model_summary` | Overall and camera-by-camera bar charts from `overall_summary.csv` and `camera_summary.csv` |
 | Plot numeric metric outputs | `python -m fine_tuning.plot_prediction_comparison` | Histograms, recall curves, model-improvement plots |
 | Visualize GT vs two models | `python -m fine_tuning.visualize_prediction_gt_comparison` | Images with GT/baseline/fine-tuned boxes together |
@@ -71,6 +72,30 @@ For a clean report, make one table per benchmark run with columns like:
 Then include a camera-by-camera version using `camera_summary.csv`, because the
 rear camera can behave very differently from the front/stereo cameras when
 objects are far away or tiny.
+
+To turn those summaries into a direct model choice for pose + altitude/depth
+estimation, run:
+
+```bash
+python -m fine_tuning.recommend_model_by_task \
+  --metrics-dir gigaPose_datasets/results/final_results/metrics/all_models \
+  --plot
+```
+
+This writes:
+
+```text
+model_recommendation/model_recommendations_overall.csv
+model_recommendation/model_recommendations_by_camera.csv
+model_recommendation/model_recommendation.json
+model_recommendation/model_recommendation_report.md
+model_recommendation/plots/
+```
+
+The default scoring uses median translation error, median depth error, median
+rotation error, projected-center error, ADD, bbox IoU, and mask IoU. Here,
+`depth_error_mm_median` is used as the altitude/depth proxy; if you later add a
+true altitude metric, pass custom weights with `--weight`.
 
 ## What inference already does
 
