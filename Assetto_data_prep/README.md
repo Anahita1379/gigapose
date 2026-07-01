@@ -173,6 +173,21 @@ python test.py \
   run_id=assettocorsa_IST_only_benchmark \
   name_exp=large_assettocorsa_IST_only_benchmark
 
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_noRear/checkpoints/epoch=10-step=7000.ckpt'" \
+  run_id=assettocorsa_new_IST_only_benchmark_with_max_depth \
+  name_exp=large_assettocorsa_new_IST_only_benchmark_with_max_depth
+
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_noRear/checkpoints/epoch=28-step=20000.ckpt'" \
+  run_id=assettocorsa_IST_AE_benchmark_with_max_depth \
+  name_exp=large_assettocorsa_IST_AE_benchmark_with_max_depth
+
+
+
+
 for older finetuned model:---------------------------
 python test.py \
   test_dataset_name=assettocorsa_benchmark_with_max_depth \
@@ -334,42 +349,44 @@ Validate, render templates, and start with IST-only fine-tuning:
 
 ```bash
 python -m fine_tuning.validate_training_data \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_all
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_all_no_rear
 
 python -m src.scripts.render_custom_templates \
-  custom_dataset_name=assettocorsa_all \
+  custom_dataset_name=assettocorsa_all_no_rear \
   machine.num_workers=1
 
 AE and IST training:
 
 python -m fine_tuning.train \
-  --dataset-name assettocorsa \
+  --dataset-name assettocorsa_all_no_rear \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train all \
-  --ist-lr 1e-5 \
-  --ae-lr 1e-6 \
+  --ist-lr 5e-6 \
+  --ae-lr 5e-8 \
   --ae-train-mode block-offsets \
   --ae-train-block-offsets 2,1 \
   --batch-size 32 \
   --max-steps 20000 \
-  --validation-interval 150 \
-  --run-name assettocorsa_ist_penultimate_last_ae_corrected_run2  \
+  --validation-interval 250 \
+  --run-name assettocorsa_ist_penultimate_last_ae_noRear  \
   --logger wandb \
   --print-loss-every 50 \
   --devices all \
   --match-sim-threshold 0.2
 
 IST only training: 
-
+# assettocorsa_ist_only_run_corrected
+# assettocorsa_ist_only_run_newdata
+# assettocorsa_ist_only_run_noRear
   python -m fine_tuning.train \
-  --dataset-name assettocorsa_all \
+  --dataset-name assettocorsa_all_no_rear \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train ist \
-  --ist-lr 1e-4 \
+  --ist-lr 1e-5 \
   --batch-size 32 \
   --max-steps 20000 \
-  --validation-interval 150 \
-  --run-name assettocorsa_ist_only_run_newdata  \
+  --validation-interval 250 \
+  --run-name assettocorsa_ist_only_run_noRear \
   --logger wandb \
   --print-loss-every 50 \
   --devices all \
@@ -435,10 +452,10 @@ python -m fine_tuning.plot_prediction_comparison \
   --input-csv fine_tuning/prediction_gt_comparison/per_instance_metrics.csv \
   --output-dir fine_tuning/prediction_gt_comparison/plots
 
-  python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/final_results/metrics/all_models/all_instance_metrics.csv   --comparison-dir gigaPose_datasets/results/final_results/metrics/all_models   --output-dir gigaPose_datasets/results/final_results/metrics/all_models/plots
+  python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/final_results/metrics/top4_models/all_instance_metrics.csv   --comparison-dir gigaPose_datasets/results/final_results/metrics/top4_models   --output-dir gigaPose_datasets/results/final_results/metrics/top4_models/plots
 
   python -m fine_tuning.plot_model_summary \
-  --metrics-dir gigaPose_datasets/results/final_results/metrics/all_models
+  --metrics-dir gigaPose_datasets/results/final_results/metrics/top4_models
 ```
 
 ```bash

@@ -527,17 +527,48 @@ one run:
 # gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv
 
 # gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_original_benchmark_runMultiHypothesis.csv
+
 ```bash
 python -m fine_tuning.evaluate_gigapose_models \
   --model original=gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_original_benchmark_runMultiHypothesis.csv \
-  --model finetune=gigaPose_datasets/results/final_results/large_assettocorsa_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
-  --model finetune2=gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv \
-  --model finetune3=gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --model IST_only_new=gigaPose_datasets/results/final_results/large_assettocorsa_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --model IST_only_old=gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv \
+  --model IST_AE=gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
   --split test \
   --rendered-iou \
   --output-dir gigaPose_datasets/results/final_results/metrics/all_models
 ```
+
+
+New: 
+```bash
+python -m fine_tuning.evaluate_gigapose_models \
+--model original=gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_original_benchmark_runMultiHypothesis.csv \
+  --model IST_only_withRear=gigaPose_datasets/results/final_results/large_assettocorsa_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --model IST_only_withoutRear=gigaPose_datasets/results/large_assettocorsa_new_IST_only_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_new_IST_only_benchmark_with_max_depthMultiHypothesis.csv \
+  --model IST_only_old_withRear=gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv \
+  --model IST_AE_withRear=gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv \
+  --model IST_AE_withoutRear=gigaPose_datasets/results/large_assettocorsa_IST_AE_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_benchmark_with_max_depthMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
+  --split test \
+  --rendered-iou \
+  --output-dir gigaPose_datasets/results/final_results/metrics/all_models_new
+```
+
+
+```bash
+python -m fine_tuning.evaluate_gigapose_models \
+  --model IST_only_withoutRear=gigaPose_datasets/results/large_assettocorsa_new_IST_only_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_new_IST_only_benchmark_with_max_depthMultiHypothesis.csv \
+  --model IST_only_old_withRear=gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv \
+  --model IST_AE_withRear=gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv \
+  --model IST_AE_withoutRear=gigaPose_datasets/results/large_assettocorsa_IST_AE_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_benchmark_with_max_depthMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
+  --split test \
+  --rendered-iou \
+  --output-dir gigaPose_datasets/results/final_results/metrics/top4_models
+```
+
 
 
 
@@ -545,11 +576,11 @@ for only two models:
 ```bash
 python -m fine_tuning.evaluate_gigapose_models \
   --model original=gigaPose_datasets/results/large_assettocorsa_original_benchmark_with_max_depthenchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_original_benchmark_with_max_depthenchmarkMultiHypothesis.csv \
-  --model finetune=gigaPose_datasets/results/large_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepthMultiHypothesis.csv \
+  --model new_IST_only=gigaPose_datasets/results/large_assettocorsa_new_IST_only_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_new_IST_only_benchmark_with_max_depthMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
   --split test \
   --rendered-iou \
-  --output-dir gigaPose_datasets/results/final_results/metrics/2_models_maxdepth
+  --output-dir gigaPose_datasets/results/final_results/metrics/2_models_maxdepth_new
 ```
 
 
@@ -597,17 +628,49 @@ pred_mask_iou_recall_0.5
 Use `fine_tuning.visualize_multi_model_per_car` when you have more than two
 models and want one image per frame, with one panel per car:
 
+
+<!-- 
+original: gigaPose_datasets/results/large_assettocorsa_original_benchmark_with_max_depthenchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_original_benchmark_with_max_depthenchmarkMultiHypothesis.csv
+
+---------------- these two were trained without rear images ------------
+gigaPose_datasets/results/assettocorsa_ist_only_run_noRear/checkpoints/epoch=10-step=7000.ckpt
+=> gigaPose_datasets/results/large_assettocorsa_new_IST_only_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_new_IST_only_benchmark_with_max_depthMultiHypothesis.csv
+
+gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_noRear/checkpoints/epoch=28-step=20000.ckpt 
+=> gigaPose_datasets/results/large_assettocorsa_IST_AE_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_benchmark_with_max_depthMultiHypothesis.csv
+
+--------------------------------------------------------------------
+
+---- trained with rear images ------------
+gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv
+
+gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv
+
+gigaPose_datasets/results/final_results/large_assettocorsa_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv
+
+-->
 ```bash
 python -m fine_tuning.visualize_multi_model_per_car \
-  --model original=gigaPose_datasets/results/<original_run>/predictions/<original>MultiHypothesis.csv \
-  --model finetune=gigaPose_datasets/results/<finetune_run>/predictions/<finetune>MultiHypothesis.csv \
-  --model finetune2=gigaPose_datasets/results/<finetune2_run>/predictions/<finetune2>MultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --model IST_only_withoutRear=gigaPose_datasets/results/large_assettocorsa_new_IST_only_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_new_IST_only_benchmark_with_max_depthMultiHypothesis.csv \
+  --model IST_only_old_withRear=gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv \
+  --model IST_AE_withRear=gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv \
+  --model IST_AE_withoutRear=gigaPose_datasets/results/large_assettocorsa_IST_AE_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_benchmark_with_max_depthMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
   --split test \
-  --output-dir fine_tuning/metrics/all_models/side_by_side_visuals \
-  --max-images 100
+  --output-dir gigaPose_datasets/results/final_results/metrics/top4_models/side_by_side_visuals \
+  --max-images 300
 ```
 
+```bash
+python -m fine_tuning.visualize_multi_model_per_car \
+--model IST_AE_withoutRear=gigaPose_datasets/results/large_assettocorsa_IST_AE_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_benchmark_with_max_depthMultiHypothesis.csv \
+  --model IST_only_old_withRear=gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_corrected_IST_only_benchmarkMultiHypothesis.csv \
+  --model IST_only_withoutRear=gigaPose_datasets/results/large_assettocorsa_new_IST_only_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_new_IST_only_benchmark_with_max_depthMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
+  --split test \
+  --output-dir gigaPose_datasets/results/final_results/metrics/top3_models/side_by_side_visuals \
+  --max-images 300
+```
 <!-- finetune2: t=842mm R=18.3deg c=42px
 translation is off by 842 mm
 rotation is off by 18.3 degrees
