@@ -176,8 +176,8 @@ python test.py \
   python test.py \
   test_dataset_name=assettocorsa_benchmark_with_max_depth \
   "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_noRear/checkpoints/epoch=10-step=7000.ckpt'" \
-  run_id=assettocorsa_new_IST_only_benchmark_with_max_depth \
-  name_exp=large_assettocorsa_new_IST_only_benchmark_with_max_depth
+  run_id=assettocorsa_IST_only_noRear_benchmark_with_max_depth \
+  name_exp=large_assettocorsa_IST_only_noRear_benchmark_with_max_depth
 
   python test.py \
   test_dataset_name=assettocorsa_benchmark_with_max_depth \
@@ -185,6 +185,12 @@ python test.py \
   run_id=assettocorsa_IST_AE_benchmark_with_max_depth \
   name_exp=large_assettocorsa_IST_AE_benchmark_with_max_depth
 
+
+python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/last_picks/assettocorsa_ist_penultimate_last_ae_noRear_again/checkpoints/epoch=33-step=23000.ckpt'" \
+  run_id=assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth \
+  name_exp=large_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth
 
 
 
@@ -361,14 +367,14 @@ python -m fine_tuning.train \
   --dataset-name assettocorsa_all_no_rear \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train all \
-  --ist-lr 5e-6 \
+  --ist-lr 1e-5 \
   --ae-lr 5e-8 \
   --ae-train-mode block-offsets \
   --ae-train-block-offsets 2,1 \
   --batch-size 32 \
-  --max-steps 20000 \
-  --validation-interval 250 \
-  --run-name assettocorsa_ist_penultimate_last_ae_noRear  \
+  --max-steps 30000 \
+  --validation-interval 500 \
+  --run-name assettocorsa_ist_penultimate_last_ae_noRear_again  \
   --logger wandb \
   --print-loss-every 50 \
   --devices all \
@@ -452,10 +458,10 @@ python -m fine_tuning.plot_prediction_comparison \
   --input-csv fine_tuning/prediction_gt_comparison/per_instance_metrics.csv \
   --output-dir fine_tuning/prediction_gt_comparison/plots
 
-  python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/final_results/metrics/top4_models/all_instance_metrics.csv   --comparison-dir gigaPose_datasets/results/final_results/metrics/top4_models   --output-dir gigaPose_datasets/results/final_results/metrics/top4_models/plots
+  python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/last_picks/metrics/all_models/all_instance_metrics.csv   --comparison-dir gigaPose_datasets/results/last_picks/metrics/all_models   --output-dir gigaPose_datasets/results/last_picks/metrics/all_models/plots
 
   python -m fine_tuning.plot_model_summary \
-  --metrics-dir gigaPose_datasets/results/final_results/metrics/top4_models
+  --metrics-dir gigaPose_datasets/results/last_picks/metrics/all_models
 ```
 
 ```bash

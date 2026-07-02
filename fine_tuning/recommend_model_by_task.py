@@ -42,12 +42,12 @@ os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
 
 DEFAULT_WEIGHTS = {
     "translation_error_mm_median": 0.30,
-    "depth_error_mm_median": 0.25,
-    "rotation_error_deg_median": 0.20,
+    "depth_error_mm_median": 0.30,
+    "rotation_error_deg_median": 0.30,
     "center_error_px_median": 0.10,
-    "add_mm_median": 0.10,
-    "pred_bbox_iou_median": 0.025,
-    "pred_mask_iou_median": 0.025,
+    "add_mm_median": 0.00,
+    "pred_bbox_iou_median": 0.00,
+    "pred_mask_iou_median": 0.00,
 }
 
 LOWER_IS_BETTER_PREFIXES = (
