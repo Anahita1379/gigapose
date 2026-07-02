@@ -1,4 +1,4 @@
-"""Evaluate and compare any number of GigaPose prediction CSVs.
+"""Evaluate one or more GigaPose prediction CSVs.
 
 Example:
 
@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
         action="append",
         type=parse_model,
         required=True,
-        help="Repeat as name=/path/to/predictions.csv",
+        help="Use name=/path/to/predictions.csv. Repeat to compare multiple models.",
     )
     parser.add_argument(
         "--dataset-dir",
@@ -211,8 +211,6 @@ def make_best_model_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    if len(args.model) < 2:
-        raise ValueError("Pass at least two --model entries to compare models.")
 
     mesh_path = args.mesh or args.dataset_dir / "models" / "obj_000001.ply"
     vertices_mm = read_ply_vertices(mesh_path, args.max_mesh_points)
