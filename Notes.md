@@ -223,3 +223,37 @@ python -m fine_tuning.evaluate_gigapose_models \
   --output-dir gigaPose_datasets/results/final_results/metrics/large_final_AC_gigapose_IST_only_benchmark_withMaxDepth
 
 ```
+
+If you want plots too
+```bash
+python -m fine_tuning.plot_model_summary \
+  --metrics-dir gigaPose_datasets/results/large_final_AC_gigapose_IST_only_benchmark_withMaxDepth/metrics/large_final_AC_gigapose_IST_only_benchmark_withMaxDepth
+```
+
+
+if time allowed, try assettocorsa_ist_penultimate_last_ae_corrected_run2 as well. 
+gigaPose_datasets/results/large_assettocorsa_ist_penultimate_last_ae_corrected_run2/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_ist_penultimate_last_ae_corrected_run2MultiHypothesis.csv
+
+compare this one with the last ckt:
+```bash
+python -m fine_tuning.evaluate_gigapose_models \
+--model IST_AE_run2=gigaPose_datasets/results/large_assettocorsa_ist_penultimate_last_ae_corrected_run2/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_ist_penultimate_last_ae_corrected_run2MultiHypothesis.csv \
+--model IST_only_old_withRear_last=gigaPose_datasets/results/last_picks/large_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth_lastckt/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth_lastcktMultiHypothesis.csv \
+--dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
+--split test \
+--rendered-iou \
+--output-dir gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last
+
+
+  python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last/all_instance_metrics.csv   --comparison-dir gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last  --output-dir gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last/plots
+
+  python -m fine_tuning.plot_model_summary \
+  --metrics-dir gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last
+
+
+  python -m fine_tuning.recommend_model_by_task \
+  --metrics-dir gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last \
+  --plot
+
+
+```

@@ -207,6 +207,13 @@ python test.py \
   "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_corrected_good/checkpoints/last.ckpt'" \
   run_id=assettocorsa_older_ist_2layerAE_benchmark \
   name_exp=large_assettocorsa_older_ist_2layerAE_benchmark
+
+python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_corrected_run2/checkpoints/last.ckpt'" \
+  run_id=assettocorsa_ist_penultimate_last_ae_corrected_run2 \
+  name_exp=large_assettocorsa_ist_penultimate_last_ae_corrected_run2
+
 -----------------------------------------------------
 
 Now this command can split both .csv and .npz files:
