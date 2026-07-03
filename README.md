@@ -53,6 +53,7 @@ most useful entry points:
 | Validate saved generated masks | `python -m Assetto_data_prep.validate_generated_masks` |
 | Validate camera geometry by camera | `python -m Assetto_data_prep.validate_camera_geometry` |
 | Prepare Assetto inference/benchmark data | `python -m Assetto_data_prep.prepare_inference` |
+| Prepare real Grounded-SAM inference data | `python -m Assetto_data_prep.prepare_grounded_sam_inference` |
 | Prepare Assetto fine-tuning data | `python -m Assetto_data_prep.prepare_training` |
 | Fine-tune GigaPose | `python -m fine_tuning.train` |
 | Run GigaPose inference | `python test.py ...` |

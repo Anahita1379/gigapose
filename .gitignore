@@ -3,6 +3,7 @@ configs/user/nguyen.yaml
 fine_tuning/prediction_overlays
 fine_tuning/prediction_overlays_finetuned
 fine_tuning/prediction_overlays_finetuned_corrected
+fine_tuning/overlays
 fine_tuning/prediction_gt_comparison
 fine_tuning/prediction_overlays_AE_IST_finetuned_corrected
 fine_tuning/prediction_overlays_IST_only_inference_corrected

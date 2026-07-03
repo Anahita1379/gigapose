@@ -55,6 +55,82 @@ detections/masks. If you do not already have car masks, run Grounded-SAM2 or
 another detector/segmenter first and convert its masks into the detection format
 used by the GigaPose test loader.
 
+### Prepare a Grounded-SAM v4 folder for GigaPose
+
+For folders with this layout:
+
+```text
+.../frames/<session>/<camera>/
+  images/
+  images_jpg_new/
+  metadata/
+  Grounded_Sam_v4/
+    metadata.json
+    masks_png/
+    masks_npy/
+```
+
+use:
+
+```bash
+python -m Assetto_data_prep.prepare_grounded_sam_inference \
+  --source-root /mnt/ssd2tb/.local_share_backup/Steam/steamapps/common/assettocorsa/apps/lua/multi_cam_obs/frames/2026-05-26-12-19-49/front \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name real_20260526_front_gsam_v4 \
+  --grounded-sam-dir Grounded_Sam_v4 \
+  --overwrite
+```
+
+This creates:
+
+```text
+gigaPose_datasets/datasets/real_20260526_front_gsam_v4/test/
+gigaPose_datasets/datasets/real_20260526_front_gsam_v4/models/
+gigaPose_datasets/datasets/real_20260526_front_gsam_v4/test_targets_bop19.json
+gigaPose_datasets/datasets/real_20260526_front_gsam_v4/frame_map.json
+gigaPose_datasets/datasets/cnos-fastsam/cnos-fastsam_real_20260526_front_gsam_v4-test.json
+```
+
+The preparer reads camera intrinsics from the per-frame YAML files under
+`metadata/`. If those are missing, pass a fallback:
+
+```bash
+--camera-k fx,fy,cx,cy
+```
+
+For a quick test, add:
+
+```bash
+--max-frames-per-session 20
+```
+
+Then render templates for the new dataset name:
+
+```bash
+python -m src.scripts.render_custom_templates \
+  custom_dataset_name=real_20260526_front_gsam_v4 \
+  machine.num_workers=1
+```
+
+Then run GigaPose:
+
+```bash
+python test.py \
+  test_dataset_name=real_20260526_front_gsam_v4 \
+  run_id=real_20260526_front_gsam_v4_original \
+  name_exp=large_real_20260526_front_gsam_v4_original
+```
+
+For a fine-tuned checkpoint:
+
+```bash
+python test.py \
+  test_dataset_name=real_20260526_front_gsam_v4 \
+  "model.checkpoint_path='gigaPose_datasets/results/<train_run>/checkpoints/last.ckpt'" \
+  run_id=real_20260526_front_gsam_v4_finetuned \
+  name_exp=large_real_20260526_front_gsam_v4_finetuned
+```
+
 For this step, the practical goal is to produce a normal GigaPose prediction
 CSV, such as:
 

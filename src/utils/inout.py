@@ -382,6 +382,8 @@ def load_test_list_and_cnos_detections(
         cnos_dets_name = cnos_detections[dataset_name]
     elif dataset_name.startswith("assettocorsa"):
         cnos_dets_name = cnos_detections["assettocorsa"]
+    elif (root_dir / "cnos-fastsam" / f"cnos-fastsam_{dataset_name}-test.json").is_file():
+        cnos_dets_name = f"cnos-fastsam_{dataset_name}-test.json"
     else:
         cnos_dets_name = cnos_detections[dataset_name]
     cnos_dets_path = root_dir / "cnos-fastsam" / cnos_dets_name
