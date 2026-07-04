@@ -257,3 +257,131 @@ python -m fine_tuning.evaluate_gigapose_models \
 
 
 ```
+
+
+
+Now it is time for real world stuff: 
+
+
+<!--
+/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-26-12-19-49/ Done
+ /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/ Done
+ /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0 Done
+ /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2 Done
+  /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1 Done
+   /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4 not started
+  -->
+
+Full prep command:
+```bash
+CUDA_VISIBLE_DEVICES=1  python -m Assetto_data_prep.prepare_grounded_sam_inference \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name real_20260518v2v4_front_gsam_v4 \
+  --grounded-sam-dir Grounded_Sam_v4 \
+  --overwrite
+
+ CUDA_VISIBLE_DEVICES=1  python -m Assetto_data_prep.prepare_grounded_sam_inference \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/rear \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name real_20260518v2v4_rear_gsam_v4 \
+  --grounded-sam-dir Grounded_Sam_v4 \
+  --overwrite
+
+
+  CUDA_VISIBLE_DEVICES=1  python -m Assetto_data_prep.prepare_grounded_sam_inference \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name real_20260518v2v4_stereo_left_gsam_v4 \
+  --grounded-sam-dir Grounded_Sam_v4 \
+  --overwrite
+
+  ```
+
+Then render templates:
+```bash
+CUDA_VISIBLE_DEVICES=1 python -m src.scripts.render_custom_templates \
+  custom_dataset_name=real_20260518v2v4_front_gsam_v4 \
+  machine.num_workers=1
+
+
+CUDA_VISIBLE_DEVICES=1 python -m src.scripts.render_custom_templates \
+  custom_dataset_name=real_20260518v2v4_rear_gsam_v4 \
+  machine.num_workers=1
+
+
+  CUDA_VISIBLE_DEVICES=1 python -m src.scripts.render_custom_templates \
+  custom_dataset_name=real_20260518v2v4_stereo_left_gsam_v4 \
+  machine.num_workers=1
+  ```
+Then run inference:
+```bash
+CUDA_VISIBLE_DEVICES=1 python test.py \
+  test_dataset_name=real_20260526_front_gsam_v4 \
+  run_id=real_20260526_front_gsam_v4_original \
+  name_exp=large_real_20260526_front_gsam_v4_original
+
+  ```
+  With a fine-tuned checkpoint:
+
+```bash
+ CUDA_VISIBLE_DEVICES=1 python test.py \
+  test_dataset_name=real_20260518v2v4_front_gsam_v4 \
+  "model.checkpoint_path='gigaPose_datasets/results/final_results/assettocorsa_ist_only_run_corrected_good/checkpoints/last.ckpt'" \
+  run_id=real_20260518v2v4_front_gsam_v4_finetuned \
+  name_exp=large_real_20260518v2v4_front_gsam_v4_finetuned
+
+ CUDA_VISIBLE_DEVICES=1 python test.py \
+  test_dataset_name=real_20260518v2v4_rear_gsam_v4 \
+  "model.checkpoint_path='gigaPose_datasets/results/final_results/assettocorsa_ist_only_run_corrected_good/checkpoints/last.ckpt'" \
+  run_id=real_20260518v2v4_rear_gsam_v4_finetuned \
+  name_exp=large_real_20260518v2v4_rear_gsam_v4_finetuned
+
+
+ CUDA_VISIBLE_DEVICES=1 python test.py \
+  test_dataset_name=real_20260518v2v4_stereo_left_gsam_v4 \
+  "model.checkpoint_path='gigaPose_datasets/results/final_results/assettocorsa_ist_only_run_corrected_good/checkpoints/last.ckpt'" \
+  run_id=real_20260518v2v4_stereo_left_gsam_v4_finetuned \
+  name_exp=large_real_20260518v2v4_stereo_left_gsam_v4_finetuned
+  ```
+
+  we can also visualize it useing: 
+  ```bash
+  python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/real_world_data/large_real_20260526_front_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260526_front_gsam_v4-test_real_20260526_front_gsam_v4_finetunedMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260526_front_gsam_v4 \
+  --split test \
+  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260526_front_gsam_v4_finetuned/pred_overlays \
+  --min-score 0.01
+
+  python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/real_world_data/large_real_20260526_rear_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260526_rear_gsam_v4-test_real_20260526_rear_gsam_v4_finetunedMultiHypothesis.csv\
+  --dataset-dir gigaPose_datasets/datasets/real_20260526_rear_gsam_v4 \
+  --split test \
+  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260526_rear_gsam_v4_finetuned/pred_overlays \
+  --min-score 0.01
+
+
+python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/real_world_data/large_real_20260526_stereo_left_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260526_stereo_left_gsam_v4-test_real_20260526_stereo_left_gsam_v4_finetunedMultiHypothesis.csv\
+  --dataset-dir gigaPose_datasets/datasets/real_20260526_stereo_left_gsam_v4 \
+  --split test \
+  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260526_stereo_left_gsam_v4_finetuned/pred_overlays \
+  --min-score 0.01
+
+
+# 20260505v1 done
+# 20260505v2 done 
+# 20260518v0 done
+# 20260518v1v4 done
+# 20260526
+# 20260518v2v4   ????
+
+
+
+  ```
+
+gigaPose_datasets/datasets/real_20260526_front_gsam_v4/test/
+gigaPose_datasets/datasets/real_20260526_front_gsam_v4/models/
+gigaPose_datasets/datasets/real_20260526_front_gsam_v4/frame_map.json
+gigaPose_datasets/datasets/cnos-fastsam/cnos-fastsam_real_20260526_front_gsam_v4-test.json
