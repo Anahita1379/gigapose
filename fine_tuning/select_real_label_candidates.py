@@ -147,6 +147,34 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-translation-error-mm", type=float, default=2000.0)
     parser.add_argument("--max-rotation-error-deg", type=float, default=30.0)
     parser.add_argument(
+        "--frame-transform-refine-iterations",
+        type=int,
+        default=0,
+        help=(
+            "Optionally re-estimate the frame/object transform using only inlier "
+            "one-to-one pairs after an initial estimate. This is useful when some "
+            "GigaPose/EPnP pairs are wrong or 180-degree flipped."
+        ),
+    )
+    parser.add_argument(
+        "--frame-transform-inlier-translation-mm",
+        type=float,
+        default=None,
+        help=(
+            "Translation threshold for transform-refinement inliers. Defaults to "
+            "--max-translation-error-mm when refinement is enabled."
+        ),
+    )
+    parser.add_argument(
+        "--frame-transform-inlier-rotation-deg",
+        type=float,
+        default=None,
+        help=(
+            "Rotation threshold for transform-refinement inliers. Defaults to "
+            "--max-rotation-error-deg when refinement is enabled."
+        ),
+    )
+    parser.add_argument(
         "--max-candidates-per-key",
         type=int,
         default=20,
@@ -589,6 +617,74 @@ def estimate_frame_transform(
     return X
 
 
+def apply_frame_transform(T_gigapose: np.ndarray, X: np.ndarray, side: str) -> np.ndarray:
+    if side == "left":
+        return X @ T_gigapose
+    if side == "right":
+        return T_gigapose @ X
+    raise ValueError(f"Unknown frame transform side: {side}")
+
+
+def transform_pair_errors(
+    pairs: list[tuple[np.ndarray, np.ndarray]],
+    X: np.ndarray,
+    side: str,
+) -> list[tuple[float, float]]:
+    errors = []
+    for T_giga, T_epnp in pairs:
+        T_aligned = apply_frame_transform(T_giga, X, side)
+        errors.append(
+            (
+                float(np.linalg.norm(T_aligned[:3, 3] - T_epnp[:3, 3])),
+                rotation_error_deg(T_aligned[:3, :3], T_epnp[:3, :3]),
+            )
+        )
+    return errors
+
+
+def refine_frame_transform(
+    pairs: list[tuple[np.ndarray, np.ndarray]],
+    side: str,
+    initial_X: np.ndarray,
+    iterations: int,
+    max_translation_error_mm: float,
+    max_rotation_error_deg: float,
+) -> tuple[np.ndarray, list[dict[str, Any]]]:
+    """Iteratively re-estimate X from inlier one-to-one pairs."""
+    X = initial_X
+    history = []
+    if iterations <= 0 or not pairs:
+        return X, history
+
+    current_pairs = pairs
+    for iteration in range(iterations):
+        errors = transform_pair_errors(pairs, X, side)
+        inlier_indices = [
+            idx
+            for idx, (t_err, r_err) in enumerate(errors)
+            if t_err <= max_translation_error_mm and r_err <= max_rotation_error_deg
+        ]
+        history.append(
+            {
+                "iteration": iteration,
+                "input_pairs": len(pairs),
+                "inlier_pairs": len(inlier_indices),
+                "inlier_translation_threshold_mm": max_translation_error_mm,
+                "inlier_rotation_threshold_deg": max_rotation_error_deg,
+            }
+        )
+        if len(inlier_indices) < 3:
+            break
+        refined_pairs = [pairs[idx] for idx in inlier_indices]
+        if len(refined_pairs) == len(current_pairs):
+            current_pairs = refined_pairs
+            X = estimate_frame_transform(current_pairs, side)
+            break
+        current_pairs = refined_pairs
+        X = estimate_frame_transform(current_pairs, side)
+    return X, history
+
+
 def initial_one_to_one_pairs(
     preds_by_key: dict[str, list[dict[str, Any]]],
     epnp_by_key: dict[str, list[dict[str, Any]]],
@@ -648,12 +744,9 @@ def make_candidate_rows(
         ]
         labels = epnp_by_key[key][:max_candidates_per_key]
         for pred in preds:
-            if frame_transform_side == "left":
-                T_pred_aligned = X_epnp_gigapose @ pred["T_gigapose"]
-            elif frame_transform_side == "right":
-                T_pred_aligned = pred["T_gigapose"] @ X_epnp_gigapose
-            else:
-                raise ValueError(f"Unknown frame transform side: {frame_transform_side}")
+            T_pred_aligned = apply_frame_transform(
+                pred["T_gigapose"], X_epnp_gigapose, frame_transform_side
+            )
             for label in labels:
                 T_epnp = label["T_epnp"]
                 rows.append(
@@ -758,10 +851,29 @@ def main() -> None:
     if args.frame_transform_json:
         X = load_frame_transform(args.frame_transform_json)
         estimated_pairs = 0
+        refinement_history = []
     else:
         one_to_one = initial_one_to_one_pairs(preds_by_key, epnp_by_key)
         X = estimate_frame_transform(one_to_one, args.frame_transform_side)
         estimated_pairs = len(one_to_one)
+        inlier_t = (
+            args.frame_transform_inlier_translation_mm
+            if args.frame_transform_inlier_translation_mm is not None
+            else args.max_translation_error_mm
+        )
+        inlier_r = (
+            args.frame_transform_inlier_rotation_deg
+            if args.frame_transform_inlier_rotation_deg is not None
+            else args.max_rotation_error_deg
+        )
+        X, refinement_history = refine_frame_transform(
+            one_to_one,
+            args.frame_transform_side,
+            X,
+            args.frame_transform_refine_iterations,
+            inlier_t,
+            inlier_r,
+        )
     save_frame_transform(
         args.output_dir / "frame_transform_gigapose_to_epnp.json",
         X,
@@ -795,6 +907,8 @@ def main() -> None:
         "gigapose_predictions": str(args.gigapose_predictions),
         "frame_transform_side": args.frame_transform_side,
         "frame_transform_estimated_from_one_to_one_pairs": estimated_pairs,
+        "frame_transform_refine_iterations": args.frame_transform_refine_iterations,
+        "frame_transform_refinement_history": refinement_history,
         "min_score": args.min_score,
         "max_translation_error_mm": args.max_translation_error_mm,
         "max_rotation_error_deg": args.max_rotation_error_deg,
