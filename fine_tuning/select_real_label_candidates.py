@@ -127,6 +127,17 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--frame-transform-side",
+        choices=("left", "right"),
+        default="left",
+        help=(
+            "How to apply the GigaPose-to-EPnP alignment. "
+            "'left' assumes T_epnp ~= X @ T_gigapose (camera-frame correction). "
+            "'right' assumes T_epnp ~= T_gigapose @ X (object/CAD-frame correction). "
+            "For EPnPv2 T_camera_object_centered labels, 'right' is usually the better diagnostic."
+        ),
+    )
+    parser.add_argument(
         "--epnp-translation-unit",
         choices=("auto", "m", "mm"),
         default="auto",
@@ -559,11 +570,19 @@ def load_gigapose_predictions(
     return output
 
 
-def estimate_frame_transform(pairs: list[tuple[np.ndarray, np.ndarray]]) -> np.ndarray:
-    """Estimate X such that T_epnp ≈ X @ T_gigapose."""
+def estimate_frame_transform(
+    pairs: list[tuple[np.ndarray, np.ndarray]],
+    side: str,
+) -> np.ndarray:
+    """Estimate X such that T_epnp ≈ X @ T_gigapose or T_gigapose @ X."""
     if not pairs:
         return np.eye(4)
-    transforms = [T_epnp @ np.linalg.inv(T_giga) for T_giga, T_epnp in pairs]
+    if side == "left":
+        transforms = [T_epnp @ np.linalg.inv(T_giga) for T_giga, T_epnp in pairs]
+    elif side == "right":
+        transforms = [np.linalg.inv(T_giga) @ T_epnp for T_giga, T_epnp in pairs]
+    else:
+        raise ValueError(f"Unknown frame transform side: {side}")
     X = np.eye(4, dtype=float)
     X[:3, :3] = average_rotations([T[:3, :3] for T in transforms])
     X[:3, 3] = np.median(np.asarray([T[:3, 3] for T in transforms]), axis=0)
@@ -591,11 +610,21 @@ def load_frame_transform(path: Path) -> np.ndarray:
     raise ValueError(f"{path} does not contain a 4x4 transform")
 
 
-def save_frame_transform(path: Path, X: np.ndarray, estimated_from_pairs: int) -> None:
+def save_frame_transform(path: Path, X: np.ndarray, estimated_from_pairs: int, side: str) -> None:
+    if side == "left":
+        description = "Frame transform X such that T_epnp ≈ X @ T_gigapose."
+        key = "T_epnp_gigapose_left"
+    elif side == "right":
+        description = "Object/CAD-frame transform X such that T_epnp ≈ T_gigapose @ X."
+        key = "T_epnp_gigapose_right"
+    else:
+        raise ValueError(f"Unknown frame transform side: {side}")
     path.write_text(
         json.dumps(
             {
-                "description": "Frame transform X such that T_epnp ≈ X @ T_gigapose.",
+                "description": description,
+                "frame_transform_side": side,
+                key: np.asarray(X).reshape(4, 4).tolist(),
                 "T_epnp_gigapose": np.asarray(X).reshape(4, 4).tolist(),
                 "estimated_from_pairs": estimated_from_pairs,
                 "translation_unit": "mm",
@@ -610,6 +639,7 @@ def make_candidate_rows(
     epnp_by_key: dict[str, list[dict[str, Any]]],
     X_epnp_gigapose: np.ndarray,
     max_candidates_per_key: int,
+    frame_transform_side: str,
 ) -> list[dict[str, Any]]:
     rows = []
     for key in sorted(set(preds_by_key) & set(epnp_by_key)):
@@ -618,7 +648,12 @@ def make_candidate_rows(
         ]
         labels = epnp_by_key[key][:max_candidates_per_key]
         for pred in preds:
-            T_pred_aligned = X_epnp_gigapose @ pred["T_gigapose"]
+            if frame_transform_side == "left":
+                T_pred_aligned = X_epnp_gigapose @ pred["T_gigapose"]
+            elif frame_transform_side == "right":
+                T_pred_aligned = pred["T_gigapose"] @ X_epnp_gigapose
+            else:
+                raise ValueError(f"Unknown frame transform side: {frame_transform_side}")
             for label in labels:
                 T_epnp = label["T_epnp"]
                 rows.append(
@@ -725,15 +760,21 @@ def main() -> None:
         estimated_pairs = 0
     else:
         one_to_one = initial_one_to_one_pairs(preds_by_key, epnp_by_key)
-        X = estimate_frame_transform(one_to_one)
+        X = estimate_frame_transform(one_to_one, args.frame_transform_side)
         estimated_pairs = len(one_to_one)
-    save_frame_transform(args.output_dir / "frame_transform_gigapose_to_epnp.json", X, estimated_pairs)
+    save_frame_transform(
+        args.output_dir / "frame_transform_gigapose_to_epnp.json",
+        X,
+        estimated_pairs,
+        args.frame_transform_side,
+    )
 
     all_candidates = make_candidate_rows(
         preds_by_key,
         epnp_by_key,
         X,
         args.max_candidates_per_key,
+        args.frame_transform_side,
     )
     best_candidates = best_rows_per_label(all_candidates)
     selected = [
@@ -752,6 +793,7 @@ def main() -> None:
         "dates": dates,
         "epnp_roots": [str(path) for path in epnp_roots],
         "gigapose_predictions": str(args.gigapose_predictions),
+        "frame_transform_side": args.frame_transform_side,
         "frame_transform_estimated_from_one_to_one_pairs": estimated_pairs,
         "min_score": args.min_score,
         "max_translation_error_mm": args.max_translation_error_mm,
