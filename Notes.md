@@ -374,7 +374,7 @@ python -m fine_tuning.overlay_gigapose_predictions \
 # 20260505v2 done 
 # 20260518v0 done
 # 20260518v1v4 done
-# 20260526
+# 20260526 Done
 # 20260518v2v4   ????
 
 
