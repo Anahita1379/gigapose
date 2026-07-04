@@ -17,6 +17,12 @@ files when they contain one of these pose forms:
 
 If your EPnPv2 files use different names, pass ``--epnp-key-field`` and/or add
 the names in ``pose_from_mapping`` below.
+
+For the Assetto/ARCL folders where labels are named like
+``3900034190304_0.json`` and GigaPose frame_map image stems are named like
+``image_3900034190304``, use:
+
+``--epnp-strip-trailing-instance-id --epnp-key-prefix image_ --match-key image_stem``
 """
 
 from __future__ import annotations
@@ -90,6 +96,22 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--epnp-key-prefix",
+        default="",
+        help=(
+            "Optional prefix to add to EPnPv2 match keys after normalization. "
+            "Useful when EPnP files are named 3900..._0.json but frame_map uses image_3900..."
+        ),
+    )
+    parser.add_argument(
+        "--epnp-strip-trailing-instance-id",
+        action="store_true",
+        help=(
+            "Strip a trailing _<integer> from EPnPv2 keys derived from label filenames, "
+            "e.g. 3900034190304_0 -> 3900034190304."
+        ),
+    )
+    parser.add_argument(
         "--match-key",
         choices=("auto", "scene_im", "image_stem", "image_name", "frame_id", "sim_time_ms"),
         default="auto",
@@ -143,6 +165,18 @@ def make_transform(R: np.ndarray, t_mm: np.ndarray) -> np.ndarray:
     T[:3, :3] = np.asarray(R, dtype=float).reshape(3, 3)
     T[:3, 3] = np.asarray(t_mm, dtype=float).reshape(3)
     return T
+
+
+def matrix_3x4_or_4x4_to_transform(value: Any) -> np.ndarray:
+    arr = text_to_matrix(value) if isinstance(value, str) else np.asarray(value, dtype=float)
+    flat = arr.reshape(-1)
+    if flat.size == 16:
+        return flat.reshape(4, 4).copy()
+    if flat.size == 12:
+        T = np.eye(4, dtype=float)
+        T[:3, :] = flat.reshape(3, 4)
+        return T
+    raise ValueError(f"Expected 12 or 16 values for a 3x4/4x4 pose matrix, got {flat.size}")
 
 
 def rotation_error_deg(pred_R: np.ndarray, gt_R: np.ndarray) -> float:
@@ -299,12 +333,13 @@ def pose_from_mapping(row: dict[str, Any], translation_unit: str) -> np.ndarray 
         "T_map_object",
         "T_map_obj",
         "T_camera_object",
+        "T_camera_object_centered",
         "T_cam_obj",
     ]
     for key in matrix_keys:
         if key in row and row[key] not in ("", None):
             try:
-                T = text_to_matrix(row[key]) if isinstance(row[key], str) else np.asarray(row[key], dtype=float).reshape(4, 4)
+                T = matrix_3x4_or_4x4_to_transform(row[key])
                 T[:3, 3] = normalize_translation(T[:3, 3], translation_unit)
                 return T
             except Exception:
@@ -361,9 +396,7 @@ def discover_epnp_roots(source_root: Path, dates: tuple[str, ...], explicit_root
         return [explicit_root]
     roots = []
     for session in discover_sessions(source_root, dates):
-        candidate = session / "EPnPv2_labels"
-        if candidate.is_dir():
-            roots.append(candidate)
+        roots.extend(sorted(path for path in session.rglob("EPnPv2_labels") if path.is_dir()))
     return roots
 
 
@@ -382,6 +415,16 @@ def normalize_key(value: Any) -> str:
         path = Path(text)
         return path.stem
     return Path(text).stem if "." in Path(text).name else text
+
+
+def adjust_epnp_key(key: str, key_prefix: str, strip_trailing_instance_id: bool) -> str:
+    if strip_trailing_instance_id:
+        parts = key.rsplit("_", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            key = parts[0]
+    if key_prefix and not key.startswith(key_prefix):
+        key = f"{key_prefix}{key}"
+    return key
 
 
 def load_json_records(path: Path) -> list[dict[str, Any]]:
@@ -421,6 +464,8 @@ def load_epnp_labels(
     glob_pattern: str,
     key_field: str | None,
     translation_unit: str,
+    key_prefix: str = "",
+    strip_trailing_instance_id: bool = False,
 ) -> list[dict[str, Any]]:
     labels = []
     for root in roots:
@@ -450,6 +495,7 @@ def load_epnp_labels(
                 key = row_key_from_mapping(record, key_field)
                 if key is None:
                     key = normalize_key(path.stem)
+                key = adjust_epnp_key(key, key_prefix, strip_trailing_instance_id)
                 labels.append(
                     {
                         "epnp_label_path": str(path),
@@ -658,6 +704,8 @@ def main() -> None:
         args.epnp_glob,
         args.epnp_key_field,
         args.epnp_translation_unit,
+        args.epnp_key_prefix,
+        args.epnp_strip_trailing_instance_id,
     )
     if not labels:
         raise ValueError(
