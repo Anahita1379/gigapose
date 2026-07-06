@@ -325,3 +325,76 @@ Optimized:
 T_cam_obj = inverse(t_map_lidar @ correction @ t_lidar_camera_prior) @ T_map_object_raw
 
 Then it projects the CAD box into the image using the metadata camera intrinsics.
+
+
+for stereo_left, we hav esome problems. 
+Stereo-left is not fisheye/equidistant here — it is: distortion_model: plumb_bob with pretty strong distortion coefficients.
+
+For stereo-left, some selected labels may be based on uncertain pose, not true transponder ground truth. That can add noise. But since blue center is already close numerically, the visual mismatch is more likely projection distortion than optimization.
+
+So, need to change approach and use a clener selected_samples by checking: 
+metadata source quality
+ground_truth_pose_missing
+export_pose_source
+map-projected center vs GigaPose center
+map-projected depth vs GigaPose depth
+map-projected center vs detector bbox center
+session_lidar_offset z handling
+metadata projection model, including plumb_bob and equidistant
+
+For stereo-left, I’d first run the less strict/depth-based version:
+
+```bash
+python -m fine_tuning.filter_selected_samples_for_optimization \
+  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed \
+  --map-z-mode session_lidar_offset \
+  --projection-model metadata \
+  --max-depth-diff-m 15 \
+  --max-relative-depth-diff 0.25 \
+  --max-center-diff-px 150 \
+  --max-bbox-center-diff-px 120 
+  
+  ```
+
+It writes:
+selected_samples_clean.csv
+rejected_samples.csv
+all_sample_diagnostics.csv
+filter_report.json
+
+
+Then optimize using the clean file:
+```bash
+python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_depth_only/selected_samples_clean.csv \
+  --use-sample-metadata \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit auto \
+  --translation-residual-components xy \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 5 \
+  --image-center-sigma-px 50 \
+  --image-center-map-z-mode session_lidar_offset \
+  --translation-prior-weight 5000 \
+  --rotation-prior-weight 100 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered
+  
+  ```
+
+  If you want to be stricter and use only true GT-style metadata, run:
+  ```bash
+python -m fine_tuning.filter_selected_samples_for_optimization \
+  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_gt_only \
+  --map-z-mode session_lidar_offset \
+  --projection-model metadata \
+  --reject-ground-truth-missing \
+  --allowed-export-pose-source ground_truth_pose \
+  --max-depth-diff-m 10 \
+  --max-relative-depth-diff 0.20 \
+  --max-center-diff-px 80 \
+  --max-bbox-center-diff-px 120
+  ```
