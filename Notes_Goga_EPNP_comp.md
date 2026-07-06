@@ -263,3 +263,16 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
 
 ```
 Important: the candidate selection still uses T_camera_object_centered internally for camera-frame GigaPose-vs-EPnP agreement. But because the selected CSV keeps epnp_label_path, the optimizer can then open the same JSON and read T_map_object_raw
+
+
+python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
+  --use-sample-metadata \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit auto \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --translation-prior-weight 25 \
+  --rotation-prior-weight 1 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata
