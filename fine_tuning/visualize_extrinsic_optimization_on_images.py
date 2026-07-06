@@ -61,6 +61,22 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Draw detector/ROI bbox from metadata when available.",
     )
+    parser.add_argument(
+        "--map-z-mode",
+        choices=("raw", "metadata_lidar", "ground_truth_pose"),
+        default="raw",
+        help=(
+            "How to handle T_map_object_raw z before projecting. 'raw' uses the label z as-is. "
+            "'metadata_lidar' shifts label z into metadata t_map_lidar's z convention. "
+            "'ground_truth_pose' shifts label z into metadata ground_truth_pose z convention. "
+            "This is for visualization only when altitude conventions differ."
+        ),
+    )
+    parser.add_argument(
+        "--write-debug-projections",
+        action="store_true",
+        help="Write projection center/depth diagnostics into overlay_index.csv.",
+    )
     return parser.parse_args()
 
 
@@ -87,7 +103,7 @@ def matrix_3x4_or_4x4(value: Any, unit: str = "m") -> np.ndarray:
         T[:3, :] = flat.reshape(3, 4)
     else:
         raise ValueError(f"Expected 12 or 16 values, got {flat.size}")
-    if unit == "m":
+    if unit == "m" or (unit == "auto" and np.nanmedian(np.abs(T[:3, 3])) < 1000.0):
         T[:3, 3] *= 1000.0
     return T
 
@@ -189,12 +205,36 @@ def load_K(metadata: dict[str, Any]) -> np.ndarray:
     raise KeyError("No camera intrinsics k/K found in metadata")
 
 
-def load_target_map_pose(row: dict[str, str]) -> np.ndarray:
+def load_target_map_pose(row: dict[str, str]) -> tuple[np.ndarray, dict[str, Any]]:
     label_path = Path(row["epnp_label_path"])
     data = json.loads(label_path.read_text())
     if "T_map_object_raw" not in data:
         raise KeyError(f"T_map_object_raw missing from {label_path}")
-    return matrix_3x4_or_4x4(data["T_map_object_raw"], unit="auto")
+    return matrix_3x4_or_4x4(data["T_map_object_raw"], unit="auto"), data
+
+
+def apply_map_z_mode(
+    T_map_obj: np.ndarray,
+    label_data: dict[str, Any],
+    metadata: dict[str, Any],
+    mode: str,
+) -> np.ndarray:
+    if mode == "raw":
+        return T_map_obj
+    out = T_map_obj.copy()
+    if isinstance(label_data.get("map_pose"), dict):
+        label_z_m = float(label_data["map_pose"].get("position", {}).get("z", out[2, 3] * 0.001))
+    else:
+        label_z_m = float(out[2, 3] * 0.001)
+
+    if mode == "metadata_lidar":
+        target_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
+    elif mode == "ground_truth_pose":
+        target_z_m = float(metadata["ground_truth_pose"]["position"]["z"])
+    else:
+        raise ValueError(f"Unknown map z mode: {mode}")
+    out[2, 3] += (target_z_m - label_z_m) * 1000.0
+    return out
 
 
 def project(points_obj_mm: np.ndarray, T_cam_obj: np.ndarray, K: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -203,6 +243,16 @@ def project(points_obj_mm: np.ndarray, T_cam_obj: np.ndarray, K: np.ndarray) -> 
     uvw = (K @ points_cam.T).T
     uv = uvw[:, :2] / np.maximum(uvw[:, 2:3], 1e-9)
     return uv, valid
+
+
+def projection_debug(T_cam_obj: np.ndarray, K: np.ndarray) -> dict[str, Any]:
+    uv, valid = project(np.zeros((1, 3), dtype=float), T_cam_obj, K)
+    return {
+        "center_u": float(uv[0, 0]),
+        "center_v": float(uv[0, 1]),
+        "center_depth_mm": float(T_cam_obj[2, 3]),
+        "center_valid_depth": bool(valid[0]),
+    }
 
 
 def draw_projected_box(
@@ -278,7 +328,8 @@ def main() -> None:
             K = load_K(metadata)
             T_map_lidar = matrix_3x4_or_4x4(metadata["t_map_lidar"], unit="m")
             T_lidar_cam_prior = matrix_3x4_or_4x4(metadata["t_lidar_camera_prior"], unit="m")
-            T_map_obj = load_target_map_pose(row)
+            T_map_obj_raw, label_data = load_target_map_pose(row)
+            T_map_obj = apply_map_z_mode(T_map_obj_raw, label_data, metadata, args.map_z_mode)
             T_map_cam_prior = T_map_lidar @ T_lidar_cam_prior
             T_map_cam_opt = T_map_lidar @ correction @ T_lidar_cam_prior
             T_cam_obj_prior = np.linalg.inv(T_map_cam_prior) @ T_map_obj
@@ -299,16 +350,24 @@ def main() -> None:
         stem = Path(row.get("epnp_label_path", row.get("match_key", "sample"))).stem
         output_path = args.output_dir / f"{stem}_extrinsic_before_after.jpg"
         image.save(output_path, quality=94)
-        index_rows.append(
-            {
-                "match_key": row.get("match_key", ""),
-                "metadata_path": str(metadata_path),
-                "epnp_label_path": row.get("epnp_label_path", ""),
-                "translation_error_mm": row.get("translation_error_mm", ""),
-                "rotation_error_deg": row.get("rotation_error_deg", ""),
-                "output": str(output_path),
-            }
-        )
+        index_row = {
+            "match_key": row.get("match_key", ""),
+            "metadata_path": str(metadata_path),
+            "epnp_label_path": row.get("epnp_label_path", ""),
+            "map_z_mode": args.map_z_mode,
+            "translation_error_mm": row.get("translation_error_mm", ""),
+            "rotation_error_deg": row.get("rotation_error_deg", ""),
+            "output": str(output_path),
+        }
+        if args.write_debug_projections:
+            for prefix, T in (
+                ("original", T_cam_obj_prior),
+                ("optimized", T_cam_obj_opt),
+                ("gigapose", T_gigapose),
+            ):
+                for key, value in projection_debug(T, K).items():
+                    index_row[f"{prefix}_{key}"] = value
+        index_rows.append(index_row)
 
     with (args.output_dir / "overlay_index.csv").open("w", newline="") as handle:
         fieldnames = list(index_rows[0].keys()) if index_rows else [
