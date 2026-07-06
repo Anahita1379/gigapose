@@ -63,12 +63,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--map-z-mode",
-        choices=("raw", "metadata_lidar", "ground_truth_pose"),
+        choices=("raw", "metadata_lidar", "ground_truth_pose", "ego_relative"),
         default="raw",
         help=(
             "How to handle T_map_object_raw z before projecting. 'raw' uses the label z as-is. "
             "'metadata_lidar' shifts label z into metadata t_map_lidar's z convention. "
             "'ground_truth_pose' shifts label z into metadata ground_truth_pose z convention. "
+            "'ego_relative' preserves the label object's height relative to metadata "
+            "ground_truth_pose, but expresses it in metadata t_map_lidar's z convention. "
             "This is for visualization only when altitude conventions differ."
         ),
     )
@@ -231,10 +233,39 @@ def apply_map_z_mode(
         target_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
     elif mode == "ground_truth_pose":
         target_z_m = float(metadata["ground_truth_pose"]["position"]["z"])
+    elif mode == "ego_relative":
+        lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
+        ego_z_m = float(metadata["ground_truth_pose"]["position"]["z"])
+        target_z_m = lidar_z_m + (label_z_m - ego_z_m)
     else:
         raise ValueError(f"Unknown map z mode: {mode}")
     out[2, 3] += (target_z_m - label_z_m) * 1000.0
     return out
+
+
+def map_z_debug(
+    T_map_obj_raw: np.ndarray,
+    T_map_obj_adjusted: np.ndarray,
+    label_data: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, float]:
+    raw_z_m = float(T_map_obj_raw[2, 3] * 0.001)
+    adjusted_z_m = float(T_map_obj_adjusted[2, 3] * 0.001)
+    if isinstance(label_data.get("map_pose"), dict):
+        label_z_m = float(label_data["map_pose"].get("position", {}).get("z", raw_z_m))
+    else:
+        label_z_m = raw_z_m
+    lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
+    ego_z_m = float(metadata.get("ground_truth_pose", {}).get("position", {}).get("z", float("nan")))
+    return {
+        "raw_map_object_z_m": raw_z_m,
+        "label_map_pose_z_m": label_z_m,
+        "adjusted_map_object_z_m": adjusted_z_m,
+        "metadata_lidar_z_m": lidar_z_m,
+        "metadata_ground_truth_pose_z_m": ego_z_m,
+        "object_minus_ego_z_m": label_z_m - ego_z_m if np.isfinite(ego_z_m) else float("nan"),
+        "adjusted_minus_lidar_z_m": adjusted_z_m - lidar_z_m,
+    }
 
 
 def project(points_obj_mm: np.ndarray, T_cam_obj: np.ndarray, K: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -330,6 +361,7 @@ def main() -> None:
             T_lidar_cam_prior = matrix_3x4_or_4x4(metadata["t_lidar_camera_prior"], unit="m")
             T_map_obj_raw, label_data = load_target_map_pose(row)
             T_map_obj = apply_map_z_mode(T_map_obj_raw, label_data, metadata, args.map_z_mode)
+            z_debug = map_z_debug(T_map_obj_raw, T_map_obj, label_data, metadata)
             T_map_cam_prior = T_map_lidar @ T_lidar_cam_prior
             T_map_cam_opt = T_map_lidar @ correction @ T_lidar_cam_prior
             T_cam_obj_prior = np.linalg.inv(T_map_cam_prior) @ T_map_obj
@@ -358,6 +390,7 @@ def main() -> None:
             "translation_error_mm": row.get("translation_error_mm", ""),
             "rotation_error_deg": row.get("rotation_error_deg", ""),
             "output": str(output_path),
+            **z_debug,
         }
         if args.write_debug_projections:
             for prefix, T in (

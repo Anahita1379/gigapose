@@ -217,7 +217,7 @@ so you can trace each row back to the original run.
 
 ---
 
-## 6. Why raw map-z causes problems
+## 6. Why map-z causes problems
 
 The current data has inconsistent `z` conventions.
 
@@ -254,6 +254,35 @@ For the current data, use:
 ```
 
 This optimizes horizontal map position and rotation while ignoring the inconsistent map `z` residual.
+
+There is a second, separate z issue during projection. The earlier
+`metadata_lidar` z mode did this:
+
+```text
+object_z_for_projection = metadata t_map_lidar z
+```
+
+That makes the object sit at the ego/lidar height. It can look acceptable on
+flat road, but it is wrong on hills and downhills because it destroys the
+object's relative height.
+
+The safer projection mode is:
+
+```bash
+--image-center-map-z-mode ego_relative
+```
+
+That uses:
+
+```text
+object_z_for_projection =
+    metadata t_map_lidar z
+    + (EPnP object map z - metadata ground_truth_pose z)
+```
+
+In plain English: keep the target car's height relative to the ego car, but
+express that height in the same z convention as `t_map_lidar`. This is the mode
+to try when boxes are above/below the car on slopes.
 
 ---
 
@@ -296,7 +325,7 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --rotation-sigma-deg 10 \
   --image-center-weight 5 \
   --image-center-sigma-px 50 \
-  --image-center-map-z-mode metadata_lidar \
+  --image-center-map-z-mode ego_relative \
   --translation-prior-weight 5000 \
   --rotation-prior-weight 100 \
   --robust-loss soft_l1 \
@@ -312,7 +341,7 @@ Meaning of the important options:
 | `--translation-residual-components xy` | Ignore broken map-z residual. |
 | `--image-center-weight 5` | Add image-plane guardrail. |
 | `--image-center-sigma-px 50` | Scale image center residual by 50 px. |
-| `--image-center-map-z-mode metadata_lidar` | For image-center residual only, shift label z to metadata lidar z convention. |
+| `--image-center-map-z-mode ego_relative` | For image-center residual only, preserve target-vs-ego height while using metadata lidar z convention. |
 | `--translation-prior-weight 5000` | Strongly discourage moving camera translation. |
 | `--rotation-prior-weight 100` | Discourage large rotation changes. |
 
@@ -375,8 +404,8 @@ python -m fine_tuning.visualize_extrinsic_optimization_on_images \
   --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
   --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_image \
   --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_image/image_overlays_z_metadata_lidar \
-  --map-z-mode metadata_lidar \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_image/image_overlays_z_ego_relative \
+  --map-z-mode ego_relative \
   --draw-gigapose \
   --draw-detection-bbox \
   --write-debug-projections \
@@ -410,6 +439,12 @@ optimized_center_depth_mm
 gigapose_center_u
 gigapose_center_v
 gigapose_center_depth_mm
+raw_map_object_z_m
+adjusted_map_object_z_m
+metadata_lidar_z_m
+metadata_ground_truth_pose_z_m
+object_minus_ego_z_m
+adjusted_minus_lidar_z_m
 ```
 
 Use this to understand why a box is invisible:
@@ -466,8 +501,7 @@ Use:
 ```bash
 --translation-residual-components xy
 --image-center-weight 5
---image-center-map-z-mode metadata_lidar
+--image-center-map-z-mode ego_relative
 ```
 
 Then verify on images. The visual overlay is the deciding sanity check.
-

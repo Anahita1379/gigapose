@@ -152,13 +152,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--image-center-map-z-mode",
-        choices=("raw", "metadata_lidar", "ground_truth_pose"),
+        choices=("raw", "metadata_lidar", "ground_truth_pose", "ego_relative"),
         default="raw",
         help=(
             "Map-object z convention used only for the image-center residual. "
             "'raw' uses T_map_object_raw z. 'metadata_lidar' shifts map object z "
             "into metadata t_map_lidar's z convention. 'ground_truth_pose' shifts "
-            "relative to metadata ground_truth_pose z."
+            "relative to metadata ground_truth_pose z. 'ego_relative' preserves "
+            "the EPnP object's height relative to metadata ground_truth_pose, but "
+            "expresses it in the metadata t_map_lidar z convention."
         ),
     )
     parser.add_argument(
@@ -371,6 +373,10 @@ def apply_map_z_mode(
         target_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
     elif mode == "ground_truth_pose":
         target_z_m = float(metadata["ground_truth_pose"]["position"]["z"])
+    elif mode == "ego_relative":
+        lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
+        ego_z_m = float(metadata["ground_truth_pose"]["position"]["z"])
+        target_z_m = lidar_z_m + (label_z_m - ego_z_m)
     else:
         raise ValueError(f"Unknown image-center map-z mode: {mode}")
     out[2, 3] += (target_z_m - label_z_m) * 1000.0
