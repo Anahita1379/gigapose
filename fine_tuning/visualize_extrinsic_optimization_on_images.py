@@ -63,7 +63,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--map-z-mode",
-        choices=("raw", "metadata_lidar", "ground_truth_pose", "ego_relative", "session_lidar_offset"),
+        choices=(
+            "raw",
+            "metadata_lidar",
+            "ground_truth_pose",
+            "ego_relative",
+            "session_lidar_offset",
+            "session_lidar_affine",
+        ),
         default="raw",
         help=(
             "How to handle T_map_object_raw z before projecting. 'raw' uses the label z as-is. "
@@ -73,7 +80,19 @@ def parse_args() -> argparse.Namespace:
             "ground_truth_pose, but expresses it in metadata t_map_lidar's z convention. "
             "'session_lidar_offset' estimates one median z offset per session and "
             "preserves EPnP z variation while shifting it into metadata lidar z. "
+            "'session_lidar_affine' uses median_lidar_z + session_z_scale * "
+            "(label_z - median_label_z). "
             "This is for visualization only when altitude conventions differ."
+        ),
+    )
+    parser.add_argument(
+        "--session-z-scale",
+        type=float,
+        default=1.0,
+        help=(
+            "Scale for EPnP hill/downhill z variation with --map-z-mode "
+            "session_lidar_affine. 0 flattens to session median lidar z; 1 "
+            "preserves full EPnP variation; negative values invert it."
         ),
     )
     parser.add_argument(
@@ -224,8 +243,10 @@ def metadata_session_key(metadata_path: str | Path) -> str:
     return str(path.parent)
 
 
-def compute_session_lidar_z_offsets(rows: list[dict[str, str]]) -> dict[str, float]:
+def compute_session_lidar_z_stats(rows: list[dict[str, str]]) -> dict[str, dict[str, float]]:
     offsets_by_session: dict[str, list[float]] = {}
+    label_z_by_session: dict[str, list[float]] = {}
+    lidar_z_by_session: dict[str, list[float]] = {}
     for row in rows:
         try:
             metadata_path = metadata_path_from_row(row)
@@ -235,12 +256,18 @@ def compute_session_lidar_z_offsets(rows: list[dict[str, str]]) -> dict[str, flo
             label_z_m = float(T_map_obj_raw[2, 3] * 0.001)
         except Exception:
             continue
-        offsets_by_session.setdefault(metadata_session_key(metadata_path), []).append(lidar_z_m - label_z_m)
-    return {
-        key: float(np.median(np.asarray(values, dtype=float)))
-        for key, values in offsets_by_session.items()
-        if values
-    }
+        session = metadata_session_key(metadata_path)
+        offsets_by_session.setdefault(session, []).append(lidar_z_m - label_z_m)
+        label_z_by_session.setdefault(session, []).append(label_z_m)
+        lidar_z_by_session.setdefault(session, []).append(lidar_z_m)
+    out: dict[str, dict[str, float]] = {}
+    for key in set(offsets_by_session) | set(label_z_by_session) | set(lidar_z_by_session):
+        out[key] = {
+            "offset_m": float(np.median(np.asarray(offsets_by_session.get(key, [0.0]), dtype=float))),
+            "label_z_median": float(np.median(np.asarray(label_z_by_session.get(key, [0.0]), dtype=float))),
+            "lidar_z_median": float(np.median(np.asarray(lidar_z_by_session.get(key, [0.0]), dtype=float))),
+        }
+    return out
 
 
 def apply_map_z_mode(
@@ -249,6 +276,9 @@ def apply_map_z_mode(
     metadata: dict[str, Any],
     mode: str,
     session_z_offset_m: float | None = None,
+    session_label_z_median: float | None = None,
+    session_lidar_z_median: float | None = None,
+    session_z_scale: float = 1.0,
 ) -> np.ndarray:
     if mode == "raw":
         return T_map_obj
@@ -270,6 +300,10 @@ def apply_map_z_mode(
         if session_z_offset_m is None:
             raise ValueError("session_lidar_offset mode requires a precomputed session z offset.")
         target_z_m = label_z_m + session_z_offset_m
+    elif mode == "session_lidar_affine":
+        if session_label_z_median is None or session_lidar_z_median is None:
+            raise ValueError("session_lidar_affine mode requires precomputed session z medians.")
+        target_z_m = session_lidar_z_median + session_z_scale * (label_z_m - session_label_z_median)
     else:
         raise ValueError(f"Unknown map z mode: {mode}")
     out[2, 3] += (target_z_m - label_z_m) * 1000.0
@@ -393,9 +427,9 @@ def main() -> None:
     corners = bbox_corners(read_ply_vertices(args.mesh))
 
     rows = read_csv(args.selected_samples)
-    session_z_offsets = (
-        compute_session_lidar_z_offsets(rows)
-        if args.map_z_mode == "session_lidar_offset"
+    session_z_stats = (
+        compute_session_lidar_z_stats(rows)
+        if args.map_z_mode in ("session_lidar_offset", "session_lidar_affine")
         else {}
     )
     rows.sort(key=lambda row: row_sort_value(row, args.sort_by))
@@ -413,13 +447,16 @@ def main() -> None:
             T_map_lidar = matrix_3x4_or_4x4(metadata["t_map_lidar"], unit="m")
             T_lidar_cam_prior = matrix_3x4_or_4x4(metadata["t_lidar_camera_prior"], unit="m")
             T_map_obj_raw, label_data = load_target_map_pose(row)
-            session_z_offset_m = session_z_offsets.get(metadata_session_key(metadata_path))
+            z_stats = session_z_stats.get(metadata_session_key(metadata_path), {})
             T_map_obj = apply_map_z_mode(
                 T_map_obj_raw,
                 label_data,
                 metadata,
                 args.map_z_mode,
-                session_z_offset_m,
+                z_stats.get("offset_m"),
+                z_stats.get("label_z_median"),
+                z_stats.get("lidar_z_median"),
+                args.session_z_scale,
             )
             z_debug = map_z_debug(T_map_obj_raw, T_map_obj, label_data, metadata)
             T_map_cam_prior = T_map_lidar @ T_lidar_cam_prior

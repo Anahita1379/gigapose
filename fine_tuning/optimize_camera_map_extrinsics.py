@@ -152,7 +152,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--image-center-map-z-mode",
-        choices=("raw", "metadata_lidar", "ground_truth_pose", "ego_relative", "session_lidar_offset"),
+        choices=(
+            "raw",
+            "metadata_lidar",
+            "ground_truth_pose",
+            "ego_relative",
+            "session_lidar_offset",
+            "session_lidar_affine",
+        ),
         default="raw",
         help=(
             "Map-object z convention used only for the image-center residual. "
@@ -163,7 +170,19 @@ def parse_args() -> argparse.Namespace:
             "expresses it in the metadata t_map_lidar z convention. "
             "'session_lidar_offset' estimates one median z offset per session "
             "from selected samples, preserving EPnP z variation while shifting "
-            "it into the metadata lidar z convention."
+            "it into the metadata lidar z convention. 'session_lidar_affine' "
+            "uses median_lidar_z + session_z_scale * (label_z - median_label_z)."
+        ),
+    )
+    parser.add_argument(
+        "--session-z-scale",
+        type=float,
+        default=1.0,
+        help=(
+            "Scale for EPnP hill/downhill z variation when using "
+            "--image-center-map-z-mode session_lidar_affine. 1.0 is equivalent "
+            "to preserving the full selected-label z variation; 0.0 flattens to "
+            "the session median lidar z; negative values invert the variation."
         ),
     )
     parser.add_argument(
@@ -372,6 +391,9 @@ def apply_map_z_mode(
     metadata: dict[str, Any],
     mode: str,
     session_z_offset_m: float | None = None,
+    session_label_z_median: float | None = None,
+    session_lidar_z_median: float | None = None,
+    session_z_scale: float = 1.0,
 ) -> np.ndarray:
     if mode == "raw":
         return T_map_obj
@@ -393,14 +415,20 @@ def apply_map_z_mode(
         if session_z_offset_m is None:
             raise ValueError("session_lidar_offset mode requires a precomputed session z offset.")
         target_z_m = label_z_m + session_z_offset_m
+    elif mode == "session_lidar_affine":
+        if session_label_z_median is None or session_lidar_z_median is None:
+            raise ValueError("session_lidar_affine mode requires precomputed session z medians.")
+        target_z_m = session_lidar_z_median + session_z_scale * (label_z_m - session_label_z_median)
     else:
         raise ValueError(f"Unknown image-center map-z mode: {mode}")
     out[2, 3] += (target_z_m - label_z_m) * 1000.0
     return out
 
 
-def add_session_lidar_z_offsets(samples: list[dict[str, Any]]) -> None:
+def add_session_lidar_z_stats(samples: list[dict[str, Any]]) -> None:
     offsets_by_session: dict[str, list[float]] = {}
+    label_z_by_session: dict[str, list[float]] = {}
+    lidar_z_by_session: dict[str, list[float]] = {}
     for sample in samples:
         metadata = sample.get("metadata")
         metadata_path = sample.get("metadata_path")
@@ -408,18 +436,34 @@ def add_session_lidar_z_offsets(samples: list[dict[str, Any]]) -> None:
             continue
         lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
         label_z_m = float(sample["T_target_obj"][2, 3] * 0.001)
-        offsets_by_session.setdefault(metadata_session_key(metadata_path), []).append(lidar_z_m - label_z_m)
+        session = metadata_session_key(metadata_path)
+        offsets_by_session.setdefault(session, []).append(lidar_z_m - label_z_m)
+        label_z_by_session.setdefault(session, []).append(label_z_m)
+        lidar_z_by_session.setdefault(session, []).append(lidar_z_m)
 
     median_offsets = {
         key: float(np.median(np.asarray(values, dtype=float)))
         for key, values in offsets_by_session.items()
         if values
     }
+    median_label_z = {
+        key: float(np.median(np.asarray(values, dtype=float)))
+        for key, values in label_z_by_session.items()
+        if values
+    }
+    median_lidar_z = {
+        key: float(np.median(np.asarray(values, dtype=float)))
+        for key, values in lidar_z_by_session.items()
+        if values
+    }
     for sample in samples:
         metadata_path = sample.get("metadata_path")
         if not metadata_path:
             continue
-        sample["session_lidar_z_offset_m"] = median_offsets.get(metadata_session_key(metadata_path), 0.0)
+        session = metadata_session_key(metadata_path)
+        sample["session_lidar_z_offset_m"] = median_offsets.get(session, 0.0)
+        sample["session_label_z_median"] = median_label_z.get(session, 0.0)
+        sample["session_lidar_z_median"] = median_lidar_z.get(session, 0.0)
 
 
 def load_sample_metadata_transforms(
@@ -449,6 +493,7 @@ def load_selected_samples(
     use_sample_metadata: bool,
     metadata_path_field: str,
     image_center_map_z_mode: str,
+    session_z_scale: float,
 ) -> list[dict[str, Any]]:
     rows = []
     with path.open(newline="") as f:
@@ -470,7 +515,9 @@ def load_selected_samples(
                     )
                     T_target_image = (
                         apply_map_z_mode(T_target, label_data, metadata, image_center_map_z_mode)
-                        if epnp_map_pose_key and image_center_map_z_mode != "session_lidar_offset"
+                        if epnp_map_pose_key
+                        and image_center_map_z_mode
+                        not in ("session_lidar_offset", "session_lidar_affine")
                         else T_target
                     )
                     metadata_values = {
@@ -501,8 +548,8 @@ def load_selected_samples(
                 f"epnp_label_path exists and contains {epnp_map_pose_key}."
             )
         raise ValueError(f"No valid selected samples found in {path}")
-    if use_sample_metadata and image_center_map_z_mode == "session_lidar_offset":
-        add_session_lidar_z_offsets(rows)
+    if use_sample_metadata and image_center_map_z_mode in ("session_lidar_offset", "session_lidar_affine"):
+        add_session_lidar_z_stats(rows)
         for sample in rows:
             sample["T_target_obj_image"] = apply_map_z_mode(
                 sample["T_target_obj"],
@@ -510,6 +557,9 @@ def load_selected_samples(
                 sample["metadata"],
                 image_center_map_z_mode,
                 sample.get("session_lidar_z_offset_m"),
+                sample.get("session_label_z_median"),
+                sample.get("session_lidar_z_median"),
+                session_z_scale,
             )
     return rows
 
@@ -684,6 +734,7 @@ def main() -> None:
         args.use_sample_metadata,
         args.metadata_path_field,
         args.image_center_map_z_mode,
+        args.session_z_scale,
     )
     if args.use_sample_metadata:
         T_initial = np.eye(4, dtype=float)
@@ -748,6 +799,7 @@ def main() -> None:
         "image_center_weight": args.image_center_weight,
         "image_center_sigma_px": args.image_center_sigma_px,
         "image_center_map_z_mode": args.image_center_map_z_mode,
+        "session_z_scale": args.session_z_scale,
         "note": (
             "Sample-metadata mode: apply T_lidar_camera_optimized = "
             "T_lidar_camera_correction_left_multiply @ t_lidar_camera_prior for each frame, "
@@ -772,6 +824,7 @@ def main() -> None:
         "image_center_weight": args.image_center_weight,
         "image_center_sigma_px": args.image_center_sigma_px,
         "image_center_map_z_mode": args.image_center_map_z_mode,
+        "session_z_scale": args.session_z_scale,
         "translation_prior_weight": args.translation_prior_weight,
         "rotation_prior_weight": args.rotation_prior_weight,
         "correction_translation_norm_mm": float(np.linalg.norm(xi[3:6])),

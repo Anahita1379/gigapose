@@ -467,6 +467,81 @@ python -m fine_tuning.filter_selected_samples_for_optimization \
 
 ---
 
+## 8.6. Tune hill/downhill z behavior
+
+If the optimized box is much better overall but still floats above/below the car
+on hills, the remaining problem is usually the z variation, not the camera
+rotation. `session_lidar_offset` preserves the full EPnP z variation:
+
+```text
+adjusted_z = EPnP_object_z + median(lidar_z - EPnP_object_z)
+```
+
+If that hill/downhill variation is too strong, too weak, or reversed, use:
+
+```bash
+--map-z-mode session_lidar_affine
+--session-z-scale <scale>
+```
+
+The formula is:
+
+```text
+adjusted_z =
+    median_session_lidar_z
+    + session_z_scale * (EPnP_object_z - median_session_EPnP_object_z)
+```
+
+Useful values to test:
+
+| `session_z_scale` | meaning |
+|---:|---|
+| `0.0` | flatten all selected objects to median session lidar z |
+| `0.5` | preserve half of the EPnP hill/downhill variation |
+| `1.0` | preserve full EPnP hill/downhill variation |
+| `1.5` | amplify EPnP hill/downhill variation |
+| `-1.0` | invert EPnP hill/downhill variation |
+
+You can test visually without rerunning optimization:
+
+```bash
+python -m fine_tuning.visualize_extrinsic_optimization_on_images \
+  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed/selected_samples_clean.csv \
+  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_relaxed \
+  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_relaxed/image_overlays_zscale_05 \
+  --map-z-mode session_lidar_affine \
+  --session-z-scale 0.5 \
+  --draw-gigapose \
+  --draw-detection-bbox \
+  --write-debug-projections \
+  --max-images 100
+```
+
+If a scale looks better, rerun filtering and optimization with the same z scale:
+
+```bash
+python -m fine_tuning.filter_selected_samples_for_optimization \
+  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_zscale_05 \
+  --map-z-mode session_lidar_affine \
+  --session-z-scale 0.5 \
+  --projection-model metadata \
+  --max-depth-diff-m 15 \
+  --max-relative-depth-diff 0.25 \
+  --max-center-diff-px 150 \
+  --max-bbox-center-diff-px 120
+```
+
+Then optimize using that filtered CSV and:
+
+```bash
+--image-center-map-z-mode session_lidar_affine
+--session-z-scale 0.5
+```
+
+---
+
 ## 9. Plot numeric optimization results
 
 ```bash
