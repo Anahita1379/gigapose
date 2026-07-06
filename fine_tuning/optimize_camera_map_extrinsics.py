@@ -8,16 +8,21 @@ Expected selected CSV columns:
 
     T_gigapose_cam_obj
     T_epnp_obj
+    epnp_label_path
 
 Interpretation:
 
 - ``T_gigapose_cam_obj`` maps object coordinates into the GigaPose camera frame.
-- ``T_epnp_obj`` maps object coordinates into the EPnPv2/map label frame.
+- ``T_epnp_obj`` maps object coordinates into the EPnPv2 frame used during
+  candidate selection.  For recent real-data runs this is often the EPnPv2
+  camera frame, not the map frame.
 - The initial extrinsic ``T_map_cam`` maps camera coordinates into the map frame.
 
-The optimized model is:
+For true map-to-camera optimization, pass ``--epnp-map-pose-key`` so the script
+loads the map-frame pose, usually ``T_map_object_raw``, from each selected
+sample's ``epnp_label_path``.  Then the optimized model is:
 
-    T_epnp_obj ≈ T_map_cam_optimized @ T_gigapose_cam_obj
+    T_map_object_raw ≈ T_map_cam_optimized @ T_gigapose_cam_obj
     T_map_cam_optimized = exp(delta) @ T_map_cam_initial
 
 The correction has a prior. By default translation correction is penalized more
@@ -59,6 +64,21 @@ def parse_args() -> argparse.Namespace:
         choices=("mm", "m"),
         default="mm",
         help="Translation unit used in the initial extrinsic JSON.",
+    )
+    parser.add_argument(
+        "--epnp-map-pose-key",
+        default=None,
+        help=(
+            "Optional pose key to load from each selected row's epnp_label_path, "
+            "e.g. T_map_object_raw. Use this for map-camera extrinsic optimization. "
+            "If omitted, the script uses selected CSV column T_epnp_obj."
+        ),
+    )
+    parser.add_argument(
+        "--epnp-map-pose-unit",
+        choices=("auto", "m", "mm"),
+        default="auto",
+        help="Translation unit for --epnp-map-pose-key values.",
     )
     parser.add_argument(
         "--output-dir",
@@ -114,6 +134,29 @@ def text_to_matrix(value: str) -> np.ndarray:
     if values.size != 16:
         raise ValueError(f"Expected 16 values for 4x4 matrix, got {values.size}")
     return values.reshape(4, 4)
+
+
+def normalize_translation(t: np.ndarray, unit: str) -> np.ndarray:
+    t = np.asarray(t, dtype=float).reshape(3)
+    if unit == "m":
+        return t * 1000.0
+    if unit == "mm":
+        return t
+    return t * 1000.0 if np.nanmedian(np.abs(t)) < 1000.0 else t
+
+
+def matrix_3x4_or_4x4_to_transform(value: Any, unit: str) -> np.ndarray:
+    arr = text_to_matrix(value) if isinstance(value, str) else np.asarray(value, dtype=float)
+    flat = arr.reshape(-1)
+    if flat.size == 16:
+        T = flat.reshape(4, 4).copy()
+    elif flat.size == 12:
+        T = np.eye(4, dtype=float)
+        T[:3, :] = flat.reshape(3, 4)
+    else:
+        raise ValueError(f"Expected 12 or 16 values for a 3x4/4x4 pose matrix, got {flat.size}")
+    T[:3, 3] = normalize_translation(T[:3, 3], unit)
+    return T
 
 
 def matrix_to_text(T: np.ndarray) -> str:
@@ -183,13 +226,31 @@ def load_initial_extrinsic(path: Path, unit: str) -> np.ndarray:
     )
 
 
-def load_selected_samples(path: Path, max_samples: int | None) -> list[dict[str, Any]]:
+def load_map_pose_from_epnp_label(path: Path, pose_key: str, unit: str) -> np.ndarray:
+    data = json.loads(path.read_text())
+    if pose_key not in data:
+        raise KeyError(f"{pose_key} not found in {path}")
+    return matrix_3x4_or_4x4_to_transform(data[pose_key], unit)
+
+
+def load_selected_samples(
+    path: Path,
+    max_samples: int | None,
+    epnp_map_pose_key: str | None,
+    epnp_map_pose_unit: str,
+) -> list[dict[str, Any]]:
     rows = []
     with path.open(newline="") as f:
         for row in csv.DictReader(f):
             try:
                 T_giga = text_to_matrix(row["T_gigapose_cam_obj"])
-                T_epnp = text_to_matrix(row["T_epnp_obj"])
+                if epnp_map_pose_key:
+                    label_path = Path(row["epnp_label_path"])
+                    T_target = load_map_pose_from_epnp_label(
+                        label_path, epnp_map_pose_key, epnp_map_pose_unit
+                    )
+                else:
+                    T_target = text_to_matrix(row["T_epnp_obj"])
             except Exception as exc:
                 print(f"Skipping malformed selected sample: {exc}")
                 continue
@@ -197,12 +258,17 @@ def load_selected_samples(path: Path, max_samples: int | None) -> list[dict[str,
                 {
                     **row,
                     "T_gigapose_cam_obj": T_giga,
-                    "T_epnp_obj": T_epnp,
+                    "T_target_obj": T_target,
                 }
             )
             if max_samples is not None and len(rows) >= max_samples:
                 break
     if not rows:
+        if epnp_map_pose_key:
+            raise ValueError(
+                f"No valid selected samples found in {path}. Check that each "
+                f"epnp_label_path exists and contains {epnp_map_pose_key}."
+            )
         raise ValueError(f"No valid selected samples found in {path}")
     return rows
 
@@ -223,7 +289,7 @@ def residual_vector(
 
     for sample in samples:
         T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
-        T_gt = sample["T_epnp_obj"]
+        T_gt = sample["T_target_obj"]
         t_res = (T_pred[:3, 3] - T_gt[:3, 3]) / translation_sigma_mm
         r_res = so3_log(T_pred[:3, :3] @ T_gt[:3, :3].T) / rotation_sigma_rad
         residuals.extend(t_res.tolist())
@@ -240,7 +306,7 @@ def compute_sample_errors(T_map_cam: np.ndarray, samples: list[dict[str, Any]]) 
     rows = []
     for sample in samples:
         T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
-        T_gt = sample["T_epnp_obj"]
+        T_gt = sample["T_target_obj"]
         rows.append(
             {
                 "match_key": sample.get("match_key", ""),
@@ -291,7 +357,12 @@ def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    samples = load_selected_samples(args.selected_samples, args.max_samples)
+    samples = load_selected_samples(
+        args.selected_samples,
+        args.max_samples,
+        args.epnp_map_pose_key,
+        args.epnp_map_pose_unit,
+    )
     T_initial = load_initial_extrinsic(args.initial_extrinsic, args.initial_unit)
     before_rows = compute_sample_errors(T_initial, samples)
 
@@ -321,6 +392,7 @@ def main() -> None:
     extrinsics = {
         "description": "Optimized map-to-camera extrinsic correction from selected GigaPose/EPnPv2 samples.",
         "translation_unit": "mm",
+        "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
         "T_map_cam_initial": T_initial.tolist(),
         "T_correction_left_multiply": T_delta.tolist(),
         "T_map_cam_optimized": T_optimized.tolist(),
@@ -336,6 +408,7 @@ def main() -> None:
         "optimizer_message": result.message,
         "optimizer_cost": float(result.cost),
         "robust_loss": args.robust_loss,
+        "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
         "translation_sigma_mm": args.translation_sigma_mm,
         "rotation_sigma_deg": args.rotation_sigma_deg,
         "translation_prior_weight": args.translation_prior_weight,
