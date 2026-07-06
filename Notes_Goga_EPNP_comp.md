@@ -278,12 +278,36 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata
 
 
-
-
-
   After it runs, plot it with:
   ```bash
 python -m fine_tuning.plot_extrinsic_optimization \
   --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy \
   --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv
   ```
+
+
+
+It draws projected CAD boxes on the actual images:
+red = map pose projected using original metadata extrinsic
+blue = map pose projected using optimized extrinsic
+green = selected GigaPose pose, optional
+yellow = detector bbox, optional
+  ```bash
+python -m fine_tuning.visualize_extrinsic_optimization_on_images \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
+  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy \
+  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy/image_overlays \
+  --draw-gigapose \
+  --draw-detection-bbox \
+  --max-images 100
+
+  ```
+What it does for each selected sample:
+Original:
+T_cam_obj = inverse(t_map_lidar @ t_lidar_camera_prior) @ T_map_object_raw
+
+Optimized:
+T_cam_obj = inverse(t_map_lidar @ correction @ t_lidar_camera_prior) @ T_map_object_raw
+
+Then it projects the CAD box into the image using the metadata camera intrinsics.
