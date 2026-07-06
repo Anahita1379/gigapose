@@ -521,13 +521,18 @@ def residual_vector_sample_metadata(
         residuals.extend(t_res.tolist())
         residuals.extend(r_res.tolist())
 
-        if image_center_weight > 0 and sample.get("K") is not None:
-            T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get("T_target_obj_image", T_gt)
-            uv_map, map_valid = project_origin(T_cam_obj_from_map, sample["K"])
-            uv_giga, giga_valid = project_origin(sample["T_gigapose_cam_obj"], sample["K"])
-            if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
-                uv_res = ((uv_map - uv_giga) / image_center_sigma_px) * image_center_weight
-                residuals.extend(uv_res.tolist())
+        if image_center_weight > 0:
+            # least_squares requires the residual vector length to stay fixed
+            # for every optimizer step. A projection can become invalid for a
+            # trial update, so always append exactly two image residual values.
+            uv_res = np.zeros(2, dtype=float)
+            if sample.get("K") is not None:
+                T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get("T_target_obj_image", T_gt)
+                uv_map, map_valid = project_origin(T_cam_obj_from_map, sample["K"])
+                uv_giga, giga_valid = project_origin(sample["T_gigapose_cam_obj"], sample["K"])
+                if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
+                    uv_res = ((uv_map - uv_giga) / image_center_sigma_px) * image_center_weight
+            residuals.extend(uv_res.tolist())
 
     residuals.extend((xi[:3] * rotation_prior_weight).tolist())
     residuals.extend(((xi[3:6] / translation_sigma_mm) * translation_prior_weight).tolist())
