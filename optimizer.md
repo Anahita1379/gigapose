@@ -389,6 +389,84 @@ T_map_camera_optimized =
 
 ---
 
+## 8.5. Filter selected samples before optimizing
+
+If the optimized center looks good but the projected box is the wrong size, the
+issue is often bad or noisy map/depth labels rather than extrinsics. This was
+especially visible for `stereo_left`: some metadata used
+`export_pose_source: uncertain_pose`, and the map-projected depth could disagree
+with GigaPose by 10-20 m.
+
+Use the standalone filter before optimization:
+
+```bash
+python -m fine_tuning.filter_selected_samples_for_optimization \
+  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered \
+  --map-z-mode session_lidar_offset \
+  --projection-model metadata \
+  --reject-ground-truth-missing \
+  --allowed-export-pose-source ground_truth_pose \
+  --max-depth-diff-m 10 \
+  --max-relative-depth-diff 0.20 \
+  --max-center-diff-px 80 \
+  --max-bbox-center-diff-px 120
+```
+
+This writes:
+
+```text
+selected_samples_clean.csv
+rejected_samples.csv
+all_sample_diagnostics.csv
+filter_report.json
+```
+
+Use the clean file for optimization:
+
+```bash
+python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered/selected_samples_clean.csv \
+  --use-sample-metadata \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit auto \
+  --translation-residual-components xy \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 5 \
+  --image-center-sigma-px 50 \
+  --image-center-map-z-mode session_lidar_offset \
+  --translation-prior-weight 5000 \
+  --rotation-prior-weight 100 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered
+```
+
+Notes:
+
+- `--projection-model metadata` uses distortion from the metadata.
+- For `plumb_bob`, it applies radial/tangential distortion.
+- For `equidistant`, it applies fisheye/equidistant distortion.
+- If the filter rejects too many rows, loosen one threshold at a time.
+- If you do not have true transponder labels for a camera, remove
+  `--reject-ground-truth-missing` and use depth/center thresholds instead.
+
+Useful first pass when you do not want to reject uncertain poses yet:
+
+```bash
+python -m fine_tuning.filter_selected_samples_for_optimization \
+  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_depth_only \
+  --map-z-mode session_lidar_offset \
+  --projection-model metadata \
+  --max-depth-diff-m 10 \
+  --max-relative-depth-diff 0.20 \
+  --max-center-diff-px 80 \
+  --max-bbox-center-diff-px 120
+```
+
+---
+
 ## 9. Plot numeric optimization results
 
 ```bash
