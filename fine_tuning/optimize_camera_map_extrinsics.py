@@ -151,6 +151,17 @@ def parse_args() -> argparse.Namespace:
         help="Pixel residual scale for --image-center-weight.",
     )
     parser.add_argument(
+        "--projection-model",
+        choices=("pinhole", "metadata"),
+        default="pinhole",
+        help=(
+            "Projection model for the image-center residual. 'pinhole' preserves "
+            "old behavior. 'metadata' uses metadata distortion_model and "
+            "camera_intrinsics.d when available, including plumb_bob and "
+            "equidistant."
+        ),
+    )
+    parser.add_argument(
         "--image-center-map-z-mode",
         choices=(
             "raw",
@@ -301,11 +312,69 @@ def rotation_error_deg(R_pred: np.ndarray, R_gt: np.ndarray) -> float:
     return float(np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0))))
 
 
-def project_origin(T_cam_obj: np.ndarray, K: np.ndarray) -> tuple[np.ndarray, bool]:
-    t = np.asarray(T_cam_obj[:3, 3], dtype=float).reshape(3)
-    uvw = K @ t
-    uv = uvw[:2] / max(float(uvw[2]), 1e-9)
-    return uv, bool(t[2] > 1e-6)
+def project_points(
+    points_obj_mm: np.ndarray,
+    T_cam_obj: np.ndarray,
+    K: np.ndarray,
+    D: np.ndarray | None = None,
+    distortion_model: str = "pinhole",
+    projection_model: str = "pinhole",
+) -> tuple[np.ndarray, np.ndarray]:
+    points_cam = (T_cam_obj[:3, :3] @ points_obj_mm.T).T + T_cam_obj[:3, 3].reshape(1, 3)
+    z = points_cam[:, 2]
+    valid = z > 1e-6
+    x = points_cam[:, 0] / np.maximum(z, 1e-9)
+    y = points_cam[:, 1] / np.maximum(z, 1e-9)
+    D = np.asarray([] if D is None else D, dtype=float).reshape(-1)
+
+    if projection_model == "metadata" and distortion_model == "plumb_bob" and D.size >= 4:
+        k1, k2, p1, p2 = D[:4]
+        k3 = D[4] if D.size >= 5 else 0.0
+        r2 = x * x + y * y
+        radial = 1.0 + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2
+        xd = x * radial + 2.0 * p1 * x * y + p2 * (r2 + 2.0 * x * x)
+        yd = y * radial + p1 * (r2 + 2.0 * y * y) + 2.0 * p2 * x * y
+    elif projection_model == "metadata" and distortion_model == "equidistant" and D.size >= 4:
+        k1, k2, k3, k4 = D[:4]
+        r = np.sqrt(x * x + y * y)
+        theta = np.arctan(r)
+        theta2 = theta * theta
+        theta_d = theta * (
+            1.0
+            + k1 * theta2
+            + k2 * theta2 * theta2
+            + k3 * theta2 * theta2 * theta2
+            + k4 * theta2 * theta2 * theta2 * theta2
+        )
+        scale = np.divide(theta_d, r, out=np.ones_like(r), where=r > 1e-12)
+        xd = x * scale
+        yd = y * scale
+    else:
+        xd, yd = x, y
+
+    uv = np.empty((points_obj_mm.shape[0], 2), dtype=float)
+    uv[:, 0] = K[0, 0] * xd + K[0, 2]
+    uv[:, 1] = K[1, 1] * yd + K[1, 2]
+    valid &= np.isfinite(uv).all(axis=1)
+    return uv, valid
+
+
+def project_origin(
+    T_cam_obj: np.ndarray,
+    K: np.ndarray,
+    D: np.ndarray | None = None,
+    distortion_model: str = "pinhole",
+    projection_model: str = "pinhole",
+) -> tuple[np.ndarray, bool]:
+    uv, valid = project_points(
+        np.zeros((1, 3), dtype=float),
+        T_cam_obj,
+        K,
+        D,
+        distortion_model,
+        projection_model,
+    )
+    return uv[0], bool(valid[0])
 
 
 def translation_component_indices(components: str) -> list[int]:
@@ -368,12 +437,18 @@ def matrix_from_yaml_key(data: dict[str, Any], key: str, unit: str) -> np.ndarra
     return matrix_3x4_or_4x4_to_transform(data[key], unit)
 
 
-def load_metadata_K(data: dict[str, Any]) -> np.ndarray | None:
+def load_metadata_camera(data: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, str] | None:
     intrinsics = data.get("camera_intrinsics", {})
     if isinstance(intrinsics, dict) and "k" in intrinsics:
-        return np.asarray(intrinsics["k"], dtype=float).reshape(3, 3)
+        K = np.asarray(intrinsics["k"], dtype=float).reshape(3, 3)
+        D = np.asarray(intrinsics.get("d", []), dtype=float).reshape(-1)
+        model = str(intrinsics.get("distortion_model", data.get("distortion_model", "pinhole")))
+        return K, D, model
     if "K" in data:
-        return np.asarray(data["K"], dtype=float).reshape(3, 3)
+        K = np.asarray(data["K"], dtype=float).reshape(3, 3)
+        D = np.asarray(data.get("D", []), dtype=float).reshape(-1)
+        model = str(data.get("distortion_model", "pinhole"))
+        return K, D, model
     return None
 
 
@@ -468,14 +543,14 @@ def add_session_lidar_z_stats(samples: list[dict[str, Any]]) -> None:
 
 def load_sample_metadata_transforms(
     row: dict[str, Any], metadata_path_field: str
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, dict[str, Any], str]:
+) -> tuple[np.ndarray, np.ndarray, tuple[np.ndarray, np.ndarray, str] | None, dict[str, Any], str]:
     path = metadata_path_from_row(row, metadata_path_field)
     data = load_yaml(path)
     # The real-data metadata stores these in meters.
     T_map_lidar = matrix_from_yaml_key(data, "t_map_lidar", "m")
     T_lidar_camera_prior = matrix_from_yaml_key(data, "t_lidar_camera_prior", "m")
-    K = load_metadata_K(data)
-    return T_map_lidar, T_lidar_camera_prior, K, data, str(path)
+    camera = load_metadata_camera(data)
+    return T_map_lidar, T_lidar_camera_prior, camera, data, str(path)
 
 
 def load_map_pose_from_epnp_label(path: Path, pose_key: str, unit: str) -> tuple[np.ndarray, dict[str, Any]]:
@@ -510,9 +585,13 @@ def load_selected_samples(
                     T_target = text_to_matrix(row["T_epnp_obj"])
                 metadata_values = {}
                 if use_sample_metadata:
-                    T_map_lidar, T_lidar_camera_prior, K, metadata, metadata_path = load_sample_metadata_transforms(
+                    T_map_lidar, T_lidar_camera_prior, camera, metadata, metadata_path = load_sample_metadata_transforms(
                         row, metadata_path_field
                     )
+                    if camera is None:
+                        K, D, distortion_model = None, None, "pinhole"
+                    else:
+                        K, D, distortion_model = camera
                     T_target_image = (
                         apply_map_z_mode(T_target, label_data, metadata, image_center_map_z_mode)
                         if epnp_map_pose_key
@@ -524,6 +603,8 @@ def load_selected_samples(
                         "T_map_lidar": T_map_lidar,
                         "T_lidar_camera_prior": T_lidar_camera_prior,
                         "K": K,
+                        "D": D,
+                        "distortion_model": distortion_model,
                         "T_target_obj_image": T_target_image,
                         "metadata": metadata,
                         "metadata_path": metadata_path,
@@ -603,6 +684,7 @@ def residual_vector_sample_metadata(
     rotation_sigma_deg: float,
     image_center_weight: float,
     image_center_sigma_px: float,
+    projection_model: str,
     translation_prior_weight: float,
     rotation_prior_weight: float,
 ) -> np.ndarray:
@@ -628,8 +710,20 @@ def residual_vector_sample_metadata(
             uv_res = np.zeros(2, dtype=float)
             if sample.get("K") is not None:
                 T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get("T_target_obj_image", T_gt)
-                uv_map, map_valid = project_origin(T_cam_obj_from_map, sample["K"])
-                uv_giga, giga_valid = project_origin(sample["T_gigapose_cam_obj"], sample["K"])
+                uv_map, map_valid = project_origin(
+                    T_cam_obj_from_map,
+                    sample["K"],
+                    sample.get("D"),
+                    sample.get("distortion_model", "pinhole"),
+                    projection_model,
+                )
+                uv_giga, giga_valid = project_origin(
+                    sample["T_gigapose_cam_obj"],
+                    sample["K"],
+                    sample.get("D"),
+                    sample.get("distortion_model", "pinhole"),
+                    projection_model,
+                )
                 if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
                     uv_res = ((uv_map - uv_giga) / image_center_sigma_px) * image_center_weight
             residuals.extend(uv_res.tolist())
@@ -658,7 +752,11 @@ def compute_sample_errors(T_map_cam: np.ndarray, samples: list[dict[str, Any]]) 
     return rows
 
 
-def compute_sample_metadata_errors(T_delta: np.ndarray, samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def compute_sample_metadata_errors(
+    T_delta: np.ndarray,
+    samples: list[dict[str, Any]],
+    projection_model: str = "pinhole",
+) -> list[dict[str, Any]]:
     rows = []
     for sample in samples:
         T_lidar_camera = T_delta @ sample["T_lidar_camera_prior"]
@@ -668,8 +766,20 @@ def compute_sample_metadata_errors(T_delta: np.ndarray, samples: list[dict[str, 
         image_center_error_px = float("nan")
         if sample.get("K") is not None:
             T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get("T_target_obj_image", T_gt)
-            uv_map, map_valid = project_origin(T_cam_obj_from_map, sample["K"])
-            uv_giga, giga_valid = project_origin(sample["T_gigapose_cam_obj"], sample["K"])
+            uv_map, map_valid = project_origin(
+                T_cam_obj_from_map,
+                sample["K"],
+                sample.get("D"),
+                sample.get("distortion_model", "pinhole"),
+                projection_model,
+            )
+            uv_giga, giga_valid = project_origin(
+                sample["T_gigapose_cam_obj"],
+                sample["K"],
+                sample.get("D"),
+                sample.get("distortion_model", "pinhole"),
+                projection_model,
+            )
             if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
                 image_center_error_px = float(np.linalg.norm(uv_map - uv_giga))
         rows.append(
@@ -738,7 +848,7 @@ def main() -> None:
     )
     if args.use_sample_metadata:
         T_initial = np.eye(4, dtype=float)
-        before_rows = compute_sample_metadata_errors(T_initial, samples)
+        before_rows = compute_sample_metadata_errors(T_initial, samples, args.projection_model)
         residual_fn = residual_vector_sample_metadata
         residual_args = (
             samples,
@@ -747,6 +857,7 @@ def main() -> None:
             args.rotation_sigma_deg,
             args.image_center_weight,
             args.image_center_sigma_px,
+            args.projection_model,
             args.translation_prior_weight,
             args.rotation_prior_weight,
         )
@@ -778,7 +889,7 @@ def main() -> None:
     T_delta = se3_exp(xi)
     T_optimized = T_delta @ T_initial
     if args.use_sample_metadata:
-        after_rows = compute_sample_metadata_errors(T_delta, samples)
+        after_rows = compute_sample_metadata_errors(T_delta, samples, args.projection_model)
     else:
         after_rows = compute_sample_errors(T_optimized, samples)
 
@@ -800,6 +911,7 @@ def main() -> None:
         "image_center_sigma_px": args.image_center_sigma_px,
         "image_center_map_z_mode": args.image_center_map_z_mode,
         "session_z_scale": args.session_z_scale,
+        "projection_model": args.projection_model,
         "note": (
             "Sample-metadata mode: apply T_lidar_camera_optimized = "
             "T_lidar_camera_correction_left_multiply @ t_lidar_camera_prior for each frame, "
@@ -825,6 +937,7 @@ def main() -> None:
         "image_center_sigma_px": args.image_center_sigma_px,
         "image_center_map_z_mode": args.image_center_map_z_mode,
         "session_z_scale": args.session_z_scale,
+        "projection_model": args.projection_model,
         "translation_prior_weight": args.translation_prior_weight,
         "rotation_prior_weight": args.rotation_prior_weight,
         "correction_translation_norm_mm": float(np.linalg.norm(xi[3:6])),

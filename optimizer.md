@@ -343,6 +343,7 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --image-center-weight 5 \
   --image-center-sigma-px 50 \
   --image-center-map-z-mode session_lidar_offset \
+  --projection-model metadata \
   --translation-prior-weight 5000 \
   --rotation-prior-weight 100 \
   --robust-loss soft_l1 \
@@ -359,6 +360,7 @@ Meaning of the important options:
 | `--image-center-weight 5` | Add image-plane guardrail. |
 | `--image-center-sigma-px 50` | Scale image center residual by 50 px. |
 | `--image-center-map-z-mode session_lidar_offset` | For image-center residual only, preserve EPnP hill/downhill z variation while shifting each session into metadata lidar z convention. |
+| `--projection-model metadata` | Use metadata distortion, including `plumb_bob` and `equidistant`, for image residuals. |
 | `--translation-prior-weight 5000` | Strongly discourage moving camera translation. |
 | `--rotation-prior-weight 100` | Discourage large rotation changes. |
 
@@ -436,6 +438,7 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --image-center-weight 5 \
   --image-center-sigma-px 50 \
   --image-center-map-z-mode session_lidar_offset \
+  --projection-model metadata \
   --translation-prior-weight 5000 \
   --rotation-prior-weight 100 \
   --robust-loss soft_l1 \
@@ -512,6 +515,7 @@ python -m fine_tuning.visualize_extrinsic_optimization_on_images \
   --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_relaxed/image_overlays_zscale_05 \
   --map-z-mode session_lidar_affine \
   --session-z-scale 0.5 \
+  --projection-model metadata \
   --draw-gigapose \
   --draw-detection-bbox \
   --write-debug-projections \
@@ -538,6 +542,7 @@ Then optimize using that filtered CSV and:
 ```bash
 --image-center-map-z-mode session_lidar_affine
 --session-z-scale 0.5
+--projection-model metadata
 ```
 
 ---

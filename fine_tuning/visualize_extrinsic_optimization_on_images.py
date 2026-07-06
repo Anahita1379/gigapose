@@ -100,6 +100,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Write projection center/depth diagnostics into overlay_index.csv.",
     )
+    parser.add_argument(
+        "--projection-model",
+        choices=("pinhole", "metadata"),
+        default="pinhole",
+        help=(
+            "Projection model for drawing. 'pinhole' preserves old behavior. "
+            "'metadata' uses metadata distortion_model and camera_intrinsics.d "
+            "when available, including plumb_bob and equidistant."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -219,12 +229,18 @@ def load_image(metadata: dict[str, Any], metadata_path: Path) -> Image.Image:
     raise FileNotFoundError(f"Could not find image for metadata {metadata_path}")
 
 
-def load_K(metadata: dict[str, Any]) -> np.ndarray:
+def load_camera(metadata: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, str]:
     intrinsics = metadata.get("camera_intrinsics", {})
     if "k" in intrinsics:
-        return np.asarray(intrinsics["k"], dtype=float).reshape(3, 3)
+        K = np.asarray(intrinsics["k"], dtype=float).reshape(3, 3)
+        D = np.asarray(intrinsics.get("d", []), dtype=float).reshape(-1)
+        model = str(intrinsics.get("distortion_model", metadata.get("distortion_model", "pinhole")))
+        return K, D, model
     if "K" in metadata:
-        return np.asarray(metadata["K"], dtype=float).reshape(3, 3)
+        K = np.asarray(metadata["K"], dtype=float).reshape(3, 3)
+        D = np.asarray(metadata.get("D", []), dtype=float).reshape(-1)
+        model = str(metadata.get("distortion_model", "pinhole"))
+        return K, D, model
     raise KeyError("No camera intrinsics k/K found in metadata")
 
 
@@ -335,16 +351,61 @@ def map_z_debug(
     }
 
 
-def project(points_obj_mm: np.ndarray, T_cam_obj: np.ndarray, K: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def project(
+    points_obj_mm: np.ndarray,
+    T_cam_obj: np.ndarray,
+    K: np.ndarray,
+    D: np.ndarray | None = None,
+    distortion_model: str = "pinhole",
+    projection_model: str = "pinhole",
+) -> tuple[np.ndarray, np.ndarray]:
     points_cam = (T_cam_obj[:3, :3] @ points_obj_mm.T).T + T_cam_obj[:3, 3].reshape(1, 3)
-    valid = points_cam[:, 2] > 1e-6
-    uvw = (K @ points_cam.T).T
-    uv = uvw[:, :2] / np.maximum(uvw[:, 2:3], 1e-9)
+    z = points_cam[:, 2]
+    valid = z > 1e-6
+    x = points_cam[:, 0] / np.maximum(z, 1e-9)
+    y = points_cam[:, 1] / np.maximum(z, 1e-9)
+    D = np.asarray([] if D is None else D, dtype=float).reshape(-1)
+
+    if projection_model == "metadata" and distortion_model == "plumb_bob" and D.size >= 4:
+        k1, k2, p1, p2 = D[:4]
+        k3 = D[4] if D.size >= 5 else 0.0
+        r2 = x * x + y * y
+        radial = 1.0 + k1 * r2 + k2 * r2 * r2 + k3 * r2 * r2 * r2
+        xd = x * radial + 2.0 * p1 * x * y + p2 * (r2 + 2.0 * x * x)
+        yd = y * radial + p1 * (r2 + 2.0 * y * y) + 2.0 * p2 * x * y
+    elif projection_model == "metadata" and distortion_model == "equidistant" and D.size >= 4:
+        k1, k2, k3, k4 = D[:4]
+        r = np.sqrt(x * x + y * y)
+        theta = np.arctan(r)
+        theta2 = theta * theta
+        theta_d = theta * (
+            1.0
+            + k1 * theta2
+            + k2 * theta2 * theta2
+            + k3 * theta2 * theta2 * theta2
+            + k4 * theta2 * theta2 * theta2 * theta2
+        )
+        scale = np.divide(theta_d, r, out=np.ones_like(r), where=r > 1e-12)
+        xd = x * scale
+        yd = y * scale
+    else:
+        xd, yd = x, y
+
+    uv = np.empty((points_obj_mm.shape[0], 2), dtype=float)
+    uv[:, 0] = K[0, 0] * xd + K[0, 2]
+    uv[:, 1] = K[1, 1] * yd + K[1, 2]
+    valid &= np.isfinite(uv).all(axis=1)
     return uv, valid
 
 
-def projection_debug(T_cam_obj: np.ndarray, K: np.ndarray) -> dict[str, Any]:
-    uv, valid = project(np.zeros((1, 3), dtype=float), T_cam_obj, K)
+def projection_debug(
+    T_cam_obj: np.ndarray,
+    K: np.ndarray,
+    D: np.ndarray,
+    distortion_model: str,
+    projection_model: str,
+) -> dict[str, Any]:
+    uv, valid = project(np.zeros((1, 3), dtype=float), T_cam_obj, K, D, distortion_model, projection_model)
     return {
         "center_u": float(uv[0, 0]),
         "center_v": float(uv[0, 1]),
@@ -358,13 +419,18 @@ def draw_projected_box(
     corners_mm: np.ndarray,
     T_cam_obj: np.ndarray,
     K: np.ndarray,
+    D: np.ndarray,
+    distortion_model: str,
+    projection_model: str,
     color: tuple[int, int, int],
     label: str,
     label_offset: int,
     width: int = 3,
 ) -> None:
-    uv, valid = project(corners_mm, T_cam_obj, K)
-    center_uv, center_valid = project(np.zeros((1, 3), dtype=float), T_cam_obj, K)
+    uv, valid = project(corners_mm, T_cam_obj, K, D, distortion_model, projection_model)
+    center_uv, center_valid = project(
+        np.zeros((1, 3), dtype=float), T_cam_obj, K, D, distortion_model, projection_model
+    )
     visible_edges = 0
     edges = [
         (0, 1), (1, 2), (2, 3), (3, 0),
@@ -443,7 +509,7 @@ def main() -> None:
             metadata_path = metadata_path_from_row(row)
             metadata = load_yaml(metadata_path)
             image = load_image(metadata, metadata_path)
-            K = load_K(metadata)
+            K, D, distortion_model = load_camera(metadata)
             T_map_lidar = matrix_3x4_or_4x4(metadata["t_map_lidar"], unit="m")
             T_lidar_cam_prior = matrix_3x4_or_4x4(metadata["t_lidar_camera_prior"], unit="m")
             T_map_obj_raw, label_data = load_target_map_pose(row)
@@ -469,10 +535,43 @@ def main() -> None:
             continue
 
         draw = ImageDraw.Draw(image)
-        draw_projected_box(draw, corners, T_cam_obj_prior, K, ORIGINAL_COLOR, "map pose via original extrinsic", 0)
-        draw_projected_box(draw, corners, T_cam_obj_opt, K, OPTIMIZED_COLOR, "map pose via optimized extrinsic", 26)
+        draw_projected_box(
+            draw,
+            corners,
+            T_cam_obj_prior,
+            K,
+            D,
+            distortion_model,
+            args.projection_model,
+            ORIGINAL_COLOR,
+            "map pose via original extrinsic",
+            0,
+        )
+        draw_projected_box(
+            draw,
+            corners,
+            T_cam_obj_opt,
+            K,
+            D,
+            distortion_model,
+            args.projection_model,
+            OPTIMIZED_COLOR,
+            "map pose via optimized extrinsic",
+            26,
+        )
         if args.draw_gigapose:
-            draw_projected_box(draw, corners, T_gigapose, K, GIGAPOSE_COLOR, "selected GigaPose pose", 52)
+            draw_projected_box(
+                draw,
+                corners,
+                T_gigapose,
+                K,
+                D,
+                distortion_model,
+                args.projection_model,
+                GIGAPOSE_COLOR,
+                "selected GigaPose pose",
+                52,
+            )
         if args.draw_detection_bbox:
             draw_bbox(draw, metadata)
 
@@ -488,6 +587,8 @@ def main() -> None:
             "rotation_error_deg": row.get("rotation_error_deg", ""),
             "output": str(output_path),
             **z_debug,
+            "projection_model": args.projection_model,
+            "metadata_distortion_model": distortion_model,
         }
         if args.write_debug_projections:
             for prefix, T in (
@@ -495,7 +596,7 @@ def main() -> None:
                 ("optimized", T_cam_obj_opt),
                 ("gigapose", T_gigapose),
             ):
-                for key, value in projection_debug(T, K).items():
+                for key, value in projection_debug(T, K, D, distortion_model, args.projection_model).items():
                     index_row[f"{prefix}_{key}"] = value
         index_rows.append(index_row)
 
