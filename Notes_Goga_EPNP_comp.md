@@ -294,6 +294,24 @@ python -m fine_tuning.visualize_extrinsic_optimization_on_images \
   --write-debug-projections \
   --max-images 100
 
+
+
+python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
+  --use-sample-metadata \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit auto \
+  --translation-residual-components xy \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 5 \
+  --image-center-sigma-px 50 \
+  --image-center-map-z-mode ego_relative \
+  --translation-prior-weight 5000 \
+  --rotation-prior-weight 100 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_ego_relative
+  
   ```
 What it does for each selected sample:
 Original:
