@@ -276,3 +276,14 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --rotation-prior-weight 1 \
   --robust-loss soft_l1 \
   --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata
+
+
+
+
+
+  After it runs, plot it with:
+  ```bash
+python -m fine_tuning.plot_extrinsic_optimization \
+  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv
+  ```
