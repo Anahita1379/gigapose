@@ -2,38 +2,44 @@ Compare GigaPose predictions to the actual EPnPv2 label files:
 <!-- 
 for each camera seperately and for the predictions:
 # 20260505v1 
-front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_labels
-rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/rear/EPnPv2_labels 
-stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_labels 
+front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
+rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/rear/EPnPv2_gt_mesh_z_hybrid_labels
+stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 
 
 # 20260505v2  
-rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2/rear/EPnPv2_gt_mesh_z_hybrid_labels
+rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2/rear/EPnPv2_gt_mesh_z_hybrid_labels (No need to rerun)
 
 
 # 20260518v0 
-front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/front/EPnPv2_gt_mesh_z_hybrid_labels
-stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/stereo_left/EPnPv2_gt_mesh_z_labels
+front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/front/EPnPv2_gt_mesh_z_hybrid_labels (No need to rerun)
+stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels 
+
 
 # 20260518v1v4 
-front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/front/EPnPv2_gt_mesh_z_labels
-rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_labels
-stereo_left: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/stereo_left/EPnPv2_gt_mesh_z_labels
+front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/front/EPnPv2_gt_mesh_z_hybrid_labels
+rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_hybrid_labels
+stereo_left: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 
 # 20260526 
 None
 
 20260518v2v4
-front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnPv2_gt_mesh_z_labels
-rear: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/rear/EPnPv2_gt_mesh_z_labels NOT AVAILABLE
-stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_labels
+front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnPv2_gt_mesh_z_hybrid_labels
+stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
  -->
  
 ```bash 
+
+
+20260518v2v4
+front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnPv2_gt_mesh_z_hybrid_labels
+stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
+
  python -m fine_tuning.select_real_label_candidates \
   --gigapose-predictions gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_front_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_front_gsam_v4-test_real_20260518v2v4_front_gsam_v4_finetunedMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_front_gsam_v4 \
-  --epnp-root  /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnPv2_gt_mesh_z_labels \
+  --epnp-root  /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnPv2_gt_mesh_z_hybrid_labels \
   --epnp-glob "*.json" \
   --epnp-strip-trailing-instance-id \
   --epnp-key-prefix image_ \
@@ -50,7 +56,7 @@ stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stere
   python -m fine_tuning.select_real_label_candidates \
   --gigapose-predictions gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_rear_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_rear_gsam_v4-test_real_20260518v2v4_rear_gsam_v4_finetunedMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_rear_gsam_v4 \
-  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_labels \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_hybrid_labels \
   --epnp-glob "*.json" \
   --epnp-strip-trailing-instance-id \
   --epnp-key-prefix image_ \
@@ -68,7 +74,7 @@ stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stere
   python -m fine_tuning.select_real_label_candidates \
   --gigapose-predictions gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_stereo_left_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_stereo_left_gsam_v4-test_real_20260518v2v4_stereo_left_gsam_v4_finetunedMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
-  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_labels \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels \
   --epnp-glob "*.json" \
   --epnp-strip-trailing-instance-id \
   --epnp-key-prefix image_ \
@@ -169,3 +175,50 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --max-images 100 \
   --draw-mask-bbox
 ```
+
+
+Now, time for optimizing the camera extrinsics: 
+1. Use selected_samples.csv only as the trusted GigaPose/EPnP matches.
+2. Optimize T_map_cam using the map-frame EPnP pose from each selected label JSON.
+
+First, check that the EPnP labels have a map pose key:
+```bash
+python - <<'PY'
+import csv, json
+
+selected = "gigaPose_datasets/results/real_world_data/large_real_20260505v2_front_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv"
+
+row = next(csv.DictReader(open(selected)))
+label_path = row["epnp_label_path"]
+data = json.load(open(label_path))
+
+print("label:", label_path)
+print("available keys:")
+for k in data.keys():
+    if "T_" in k or "pose" in k.lower() or "map" in k.lower():
+        print(" ", k)
+PY
+```
+
+
+python - <<'PY'
+from pathlib import Path
+import json
+
+roots = [
+    "/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_labels",
+    "/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_labels",
+    "/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels",
+]
+
+for root in roots:
+    root = Path(root)
+    print("\nROOT", root)
+    files = sorted(root.glob("*.json"))[:20]
+    keys = set()
+    for f in files:
+        data = json.load(open(f))
+        keys.update(k for k in data if "T_" in k or "map" in k.lower() or "pose" in k.lower())
+    for k in sorted(keys):
+        print(" ", k)
+PY
