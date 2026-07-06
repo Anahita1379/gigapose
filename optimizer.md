@@ -266,13 +266,28 @@ That makes the object sit at the ego/lidar height. It can look acceptable on
 flat road, but it is wrong on hills and downhills because it destroys the
 object's relative height.
 
-The safer projection mode is:
+For the current mixed real sessions, the safer projection mode is:
 
 ```bash
---image-center-map-z-mode ego_relative
+--image-center-map-z-mode session_lidar_offset
 ```
 
-That uses:
+That estimates one median z offset per session:
+
+```text
+session_z_offset = median(metadata t_map_lidar z - EPnP object map z)
+```
+
+Then it projects each label with:
+
+```text
+object_z_for_projection = EPnP object map z + session_z_offset
+```
+
+This keeps the EPnP z variation from hills/downhills, but shifts the whole
+session into the lidar/camera z convention.
+
+There is also an `ego_relative` mode:
 
 ```text
 object_z_for_projection =
@@ -280,9 +295,11 @@ object_z_for_projection =
     + (EPnP object map z - metadata ground_truth_pose z)
 ```
 
-In plain English: keep the target car's height relative to the ego car, but
-express that height in the same z convention as `t_map_lidar`. This is the mode
-to try when boxes are above/below the car on slopes.
+Use `ego_relative` only if `metadata ground_truth_pose z` is in the same local
+altitude convention as `EPnP object map z`. In the current debug CSV,
+`ground_truth_pose.z` was around `-260 m`, while EPnP object z was around
+`-36 m`, so `ego_relative` produced impossible adjusted z values around
+`+220 m` and made boxes disappear.
 
 ---
 
@@ -325,7 +342,7 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --rotation-sigma-deg 10 \
   --image-center-weight 5 \
   --image-center-sigma-px 50 \
-  --image-center-map-z-mode ego_relative \
+  --image-center-map-z-mode session_lidar_offset \
   --translation-prior-weight 5000 \
   --rotation-prior-weight 100 \
   --robust-loss soft_l1 \
@@ -341,7 +358,7 @@ Meaning of the important options:
 | `--translation-residual-components xy` | Ignore broken map-z residual. |
 | `--image-center-weight 5` | Add image-plane guardrail. |
 | `--image-center-sigma-px 50` | Scale image center residual by 50 px. |
-| `--image-center-map-z-mode ego_relative` | For image-center residual only, preserve target-vs-ego height while using metadata lidar z convention. |
+| `--image-center-map-z-mode session_lidar_offset` | For image-center residual only, preserve EPnP hill/downhill z variation while shifting each session into metadata lidar z convention. |
 | `--translation-prior-weight 5000` | Strongly discourage moving camera translation. |
 | `--rotation-prior-weight 100` | Discourage large rotation changes. |
 
@@ -404,8 +421,8 @@ python -m fine_tuning.visualize_extrinsic_optimization_on_images \
   --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
   --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_image \
   --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_image/image_overlays_z_ego_relative \
-  --map-z-mode ego_relative \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_image/image_overlays_z_session_lidar_offset \
+  --map-z-mode session_lidar_offset \
   --draw-gigapose \
   --draw-detection-bbox \
   --write-debug-projections \
@@ -501,7 +518,7 @@ Use:
 ```bash
 --translation-residual-components xy
 --image-center-weight 5
---image-center-map-z-mode ego_relative
+--image-center-map-z-mode session_lidar_offset
 ```
 
 Then verify on images. The visual overlay is the deciding sanity check.

@@ -152,7 +152,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--image-center-map-z-mode",
-        choices=("raw", "metadata_lidar", "ground_truth_pose", "ego_relative"),
+        choices=("raw", "metadata_lidar", "ground_truth_pose", "ego_relative", "session_lidar_offset"),
         default="raw",
         help=(
             "Map-object z convention used only for the image-center residual. "
@@ -160,7 +160,10 @@ def parse_args() -> argparse.Namespace:
             "into metadata t_map_lidar's z convention. 'ground_truth_pose' shifts "
             "relative to metadata ground_truth_pose z. 'ego_relative' preserves "
             "the EPnP object's height relative to metadata ground_truth_pose, but "
-            "expresses it in the metadata t_map_lidar z convention."
+            "expresses it in the metadata t_map_lidar z convention. "
+            "'session_lidar_offset' estimates one median z offset per session "
+            "from selected samples, preserving EPnP z variation while shifting "
+            "it into the metadata lidar z convention."
         ),
     )
     parser.add_argument(
@@ -355,11 +358,20 @@ def load_metadata_K(data: dict[str, Any]) -> np.ndarray | None:
     return None
 
 
+def metadata_session_key(metadata_path: str | Path) -> str:
+    path = Path(metadata_path)
+    # .../<session>/<camera>/metadata/sample_*.yaml -> .../<session>/<camera>
+    if path.parent.name == "metadata":
+        return str(path.parent.parent)
+    return str(path.parent)
+
+
 def apply_map_z_mode(
     T_map_obj: np.ndarray,
     label_data: dict[str, Any],
     metadata: dict[str, Any],
     mode: str,
+    session_z_offset_m: float | None = None,
 ) -> np.ndarray:
     if mode == "raw":
         return T_map_obj
@@ -377,10 +389,37 @@ def apply_map_z_mode(
         lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
         ego_z_m = float(metadata["ground_truth_pose"]["position"]["z"])
         target_z_m = lidar_z_m + (label_z_m - ego_z_m)
+    elif mode == "session_lidar_offset":
+        if session_z_offset_m is None:
+            raise ValueError("session_lidar_offset mode requires a precomputed session z offset.")
+        target_z_m = label_z_m + session_z_offset_m
     else:
         raise ValueError(f"Unknown image-center map-z mode: {mode}")
     out[2, 3] += (target_z_m - label_z_m) * 1000.0
     return out
+
+
+def add_session_lidar_z_offsets(samples: list[dict[str, Any]]) -> None:
+    offsets_by_session: dict[str, list[float]] = {}
+    for sample in samples:
+        metadata = sample.get("metadata")
+        metadata_path = sample.get("metadata_path")
+        if metadata is None or not metadata_path:
+            continue
+        lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
+        label_z_m = float(sample["T_target_obj"][2, 3] * 0.001)
+        offsets_by_session.setdefault(metadata_session_key(metadata_path), []).append(lidar_z_m - label_z_m)
+
+    median_offsets = {
+        key: float(np.median(np.asarray(values, dtype=float)))
+        for key, values in offsets_by_session.items()
+        if values
+    }
+    for sample in samples:
+        metadata_path = sample.get("metadata_path")
+        if not metadata_path:
+            continue
+        sample["session_lidar_z_offset_m"] = median_offsets.get(metadata_session_key(metadata_path), 0.0)
 
 
 def load_sample_metadata_transforms(
@@ -431,7 +470,7 @@ def load_selected_samples(
                     )
                     T_target_image = (
                         apply_map_z_mode(T_target, label_data, metadata, image_center_map_z_mode)
-                        if epnp_map_pose_key
+                        if epnp_map_pose_key and image_center_map_z_mode != "session_lidar_offset"
                         else T_target
                     )
                     metadata_values = {
@@ -439,6 +478,7 @@ def load_selected_samples(
                         "T_lidar_camera_prior": T_lidar_camera_prior,
                         "K": K,
                         "T_target_obj_image": T_target_image,
+                        "metadata": metadata,
                         "metadata_path": metadata_path,
                     }
             except Exception as exc:
@@ -461,6 +501,16 @@ def load_selected_samples(
                 f"epnp_label_path exists and contains {epnp_map_pose_key}."
             )
         raise ValueError(f"No valid selected samples found in {path}")
+    if use_sample_metadata and image_center_map_z_mode == "session_lidar_offset":
+        add_session_lidar_z_offsets(rows)
+        for sample in rows:
+            sample["T_target_obj_image"] = apply_map_z_mode(
+                sample["T_target_obj"],
+                {},
+                sample["metadata"],
+                image_center_map_z_mode,
+                sample.get("session_lidar_z_offset_m"),
+            )
     return rows
 
 

@@ -63,7 +63,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--map-z-mode",
-        choices=("raw", "metadata_lidar", "ground_truth_pose", "ego_relative"),
+        choices=("raw", "metadata_lidar", "ground_truth_pose", "ego_relative", "session_lidar_offset"),
         default="raw",
         help=(
             "How to handle T_map_object_raw z before projecting. 'raw' uses the label z as-is. "
@@ -71,6 +71,8 @@ def parse_args() -> argparse.Namespace:
             "'ground_truth_pose' shifts label z into metadata ground_truth_pose z convention. "
             "'ego_relative' preserves the label object's height relative to metadata "
             "ground_truth_pose, but expresses it in metadata t_map_lidar's z convention. "
+            "'session_lidar_offset' estimates one median z offset per session and "
+            "preserves EPnP z variation while shifting it into metadata lidar z. "
             "This is for visualization only when altitude conventions differ."
         ),
     )
@@ -215,11 +217,38 @@ def load_target_map_pose(row: dict[str, str]) -> tuple[np.ndarray, dict[str, Any
     return matrix_3x4_or_4x4(data["T_map_object_raw"], unit="auto"), data
 
 
+def metadata_session_key(metadata_path: str | Path) -> str:
+    path = Path(metadata_path)
+    if path.parent.name == "metadata":
+        return str(path.parent.parent)
+    return str(path.parent)
+
+
+def compute_session_lidar_z_offsets(rows: list[dict[str, str]]) -> dict[str, float]:
+    offsets_by_session: dict[str, list[float]] = {}
+    for row in rows:
+        try:
+            metadata_path = metadata_path_from_row(row)
+            metadata = load_yaml(metadata_path)
+            T_map_obj_raw, _ = load_target_map_pose(row)
+            lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
+            label_z_m = float(T_map_obj_raw[2, 3] * 0.001)
+        except Exception:
+            continue
+        offsets_by_session.setdefault(metadata_session_key(metadata_path), []).append(lidar_z_m - label_z_m)
+    return {
+        key: float(np.median(np.asarray(values, dtype=float)))
+        for key, values in offsets_by_session.items()
+        if values
+    }
+
+
 def apply_map_z_mode(
     T_map_obj: np.ndarray,
     label_data: dict[str, Any],
     metadata: dict[str, Any],
     mode: str,
+    session_z_offset_m: float | None = None,
 ) -> np.ndarray:
     if mode == "raw":
         return T_map_obj
@@ -237,6 +266,10 @@ def apply_map_z_mode(
         lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
         ego_z_m = float(metadata["ground_truth_pose"]["position"]["z"])
         target_z_m = lidar_z_m + (label_z_m - ego_z_m)
+    elif mode == "session_lidar_offset":
+        if session_z_offset_m is None:
+            raise ValueError("session_lidar_offset mode requires a precomputed session z offset.")
+        target_z_m = label_z_m + session_z_offset_m
     else:
         raise ValueError(f"Unknown map z mode: {mode}")
     out[2, 3] += (target_z_m - label_z_m) * 1000.0
@@ -297,6 +330,8 @@ def draw_projected_box(
     width: int = 3,
 ) -> None:
     uv, valid = project(corners_mm, T_cam_obj, K)
+    center_uv, center_valid = project(np.zeros((1, 3), dtype=float), T_cam_obj, K)
+    visible_edges = 0
     edges = [
         (0, 1), (1, 2), (2, 3), (3, 0),
         (4, 5), (5, 6), (6, 7), (7, 4),
@@ -305,13 +340,26 @@ def draw_projected_box(
     for i, j in edges:
         if valid[i] and valid[j]:
             draw.line([tuple(uv[i].round()), tuple(uv[j].round())], fill=color, width=width)
-    center_uv, center_valid = project(np.zeros((1, 3), dtype=float), T_cam_obj, K)
+            visible_edges += 1
     if bool(center_valid[0]):
         x, y = center_uv[0]
         r = 5
-        draw.ellipse((x - r, y - r, x + r, y + r), outline=color, width=width)
+        draw.ellipse((x - r, y - r, x + r, y + r), outline=color, width=max(width, 3))
+        draw.line((x - 8, y, x + 8, y), fill=color, width=max(width, 2))
+        draw.line((x, y - 8, x, y + 8), fill=color, width=max(width, 2))
+    else:
+        # If the center is behind the camera, put a small diagnostic marker in
+        # the legend area instead of silently drawing nothing.
+        x = 680
+        y = 19 + label_offset
+        draw.line((x - 7, y - 7, x + 7, y + 7), fill=color, width=max(width, 2))
+        draw.line((x - 7, y + 7, x + 7, y - 7), fill=color, width=max(width, 2))
     draw.rectangle((8, 8 + label_offset, 700, 31 + label_offset), fill=(0, 0, 0))
-    draw.text((12, 12 + label_offset), label, fill=color)
+    depth_m = float(T_cam_obj[2, 3] * 0.001)
+    status = f"{label} | center=({center_uv[0,0]:.0f},{center_uv[0,1]:.0f}) z={depth_m:.1f}m edges={visible_edges}"
+    if not bool(center_valid[0]):
+        status += " BEHIND"
+    draw.text((12, 12 + label_offset), status, fill=color)
 
 
 def draw_bbox(draw: ImageDraw.ImageDraw, metadata: dict[str, Any]) -> None:
@@ -345,6 +393,11 @@ def main() -> None:
     corners = bbox_corners(read_ply_vertices(args.mesh))
 
     rows = read_csv(args.selected_samples)
+    session_z_offsets = (
+        compute_session_lidar_z_offsets(rows)
+        if args.map_z_mode == "session_lidar_offset"
+        else {}
+    )
     rows.sort(key=lambda row: row_sort_value(row, args.sort_by))
     rows = rows[:: max(args.every, 1)]
     if args.max_images is not None:
@@ -360,7 +413,14 @@ def main() -> None:
             T_map_lidar = matrix_3x4_or_4x4(metadata["t_map_lidar"], unit="m")
             T_lidar_cam_prior = matrix_3x4_or_4x4(metadata["t_lidar_camera_prior"], unit="m")
             T_map_obj_raw, label_data = load_target_map_pose(row)
-            T_map_obj = apply_map_z_mode(T_map_obj_raw, label_data, metadata, args.map_z_mode)
+            session_z_offset_m = session_z_offsets.get(metadata_session_key(metadata_path))
+            T_map_obj = apply_map_z_mode(
+                T_map_obj_raw,
+                label_data,
+                metadata,
+                args.map_z_mode,
+                session_z_offset_m,
+            )
             z_debug = map_z_debug(T_map_obj_raw, T_map_obj, label_data, metadata)
             T_map_cam_prior = T_map_lidar @ T_lidar_cam_prior
             T_map_cam_opt = T_map_lidar @ correction @ T_lidar_cam_prior
