@@ -134,6 +134,34 @@ def parse_args() -> argparse.Namespace:
         help="Pose residual scale for object rotation error.",
     )
     parser.add_argument(
+        "--image-center-weight",
+        type=float,
+        default=0.0,
+        help=(
+            "Weight for an image-plane center residual. In --use-sample-metadata "
+            "mode, this projects T_map_object_raw through the current extrinsic "
+            "and keeps it close to the selected GigaPose projected center. "
+            "Set to 0 to disable."
+        ),
+    )
+    parser.add_argument(
+        "--image-center-sigma-px",
+        type=float,
+        default=50.0,
+        help="Pixel residual scale for --image-center-weight.",
+    )
+    parser.add_argument(
+        "--image-center-map-z-mode",
+        choices=("raw", "metadata_lidar", "ground_truth_pose"),
+        default="raw",
+        help=(
+            "Map-object z convention used only for the image-center residual. "
+            "'raw' uses T_map_object_raw z. 'metadata_lidar' shifts map object z "
+            "into metadata t_map_lidar's z convention. 'ground_truth_pose' shifts "
+            "relative to metadata ground_truth_pose z."
+        ),
+    )
+    parser.add_argument(
         "--translation-prior-weight",
         type=float,
         default=10.0,
@@ -249,6 +277,13 @@ def rotation_error_deg(R_pred: np.ndarray, R_gt: np.ndarray) -> float:
     return float(np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0))))
 
 
+def project_origin(T_cam_obj: np.ndarray, K: np.ndarray) -> tuple[np.ndarray, bool]:
+    t = np.asarray(T_cam_obj[:3, 3], dtype=float).reshape(3)
+    uvw = K @ t
+    uv = uvw[:2] / max(float(uvw[2]), 1e-9)
+    return uv, bool(t[2] > 1e-6)
+
+
 def translation_component_indices(components: str) -> list[int]:
     mapping = {"x": 0, "y": 1, "z": 2}
     return [mapping[c] for c in components]
@@ -309,20 +344,56 @@ def matrix_from_yaml_key(data: dict[str, Any], key: str, unit: str) -> np.ndarra
     return matrix_3x4_or_4x4_to_transform(data[key], unit)
 
 
-def load_sample_metadata_transforms(row: dict[str, Any], metadata_path_field: str) -> tuple[np.ndarray, np.ndarray, str]:
+def load_metadata_K(data: dict[str, Any]) -> np.ndarray | None:
+    intrinsics = data.get("camera_intrinsics", {})
+    if isinstance(intrinsics, dict) and "k" in intrinsics:
+        return np.asarray(intrinsics["k"], dtype=float).reshape(3, 3)
+    if "K" in data:
+        return np.asarray(data["K"], dtype=float).reshape(3, 3)
+    return None
+
+
+def apply_map_z_mode(
+    T_map_obj: np.ndarray,
+    label_data: dict[str, Any],
+    metadata: dict[str, Any],
+    mode: str,
+) -> np.ndarray:
+    if mode == "raw":
+        return T_map_obj
+    out = T_map_obj.copy()
+    if isinstance(label_data.get("map_pose"), dict):
+        label_z_m = float(label_data["map_pose"].get("position", {}).get("z", out[2, 3] * 0.001))
+    else:
+        label_z_m = float(out[2, 3] * 0.001)
+
+    if mode == "metadata_lidar":
+        target_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
+    elif mode == "ground_truth_pose":
+        target_z_m = float(metadata["ground_truth_pose"]["position"]["z"])
+    else:
+        raise ValueError(f"Unknown image-center map-z mode: {mode}")
+    out[2, 3] += (target_z_m - label_z_m) * 1000.0
+    return out
+
+
+def load_sample_metadata_transforms(
+    row: dict[str, Any], metadata_path_field: str
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, dict[str, Any], str]:
     path = metadata_path_from_row(row, metadata_path_field)
     data = load_yaml(path)
     # The real-data metadata stores these in meters.
     T_map_lidar = matrix_from_yaml_key(data, "t_map_lidar", "m")
     T_lidar_camera_prior = matrix_from_yaml_key(data, "t_lidar_camera_prior", "m")
-    return T_map_lidar, T_lidar_camera_prior, str(path)
+    K = load_metadata_K(data)
+    return T_map_lidar, T_lidar_camera_prior, K, data, str(path)
 
 
-def load_map_pose_from_epnp_label(path: Path, pose_key: str, unit: str) -> np.ndarray:
+def load_map_pose_from_epnp_label(path: Path, pose_key: str, unit: str) -> tuple[np.ndarray, dict[str, Any]]:
     data = json.loads(path.read_text())
     if pose_key not in data:
         raise KeyError(f"{pose_key} not found in {path}")
-    return matrix_3x4_or_4x4_to_transform(data[pose_key], unit)
+    return matrix_3x4_or_4x4_to_transform(data[pose_key], unit), data
 
 
 def load_selected_samples(
@@ -332,27 +403,36 @@ def load_selected_samples(
     epnp_map_pose_unit: str,
     use_sample_metadata: bool,
     metadata_path_field: str,
+    image_center_map_z_mode: str,
 ) -> list[dict[str, Any]]:
     rows = []
     with path.open(newline="") as f:
         for row in csv.DictReader(f):
             try:
                 T_giga = text_to_matrix(row["T_gigapose_cam_obj"])
+                label_data = {}
                 if epnp_map_pose_key:
                     label_path = Path(row["epnp_label_path"])
-                    T_target = load_map_pose_from_epnp_label(
+                    T_target, label_data = load_map_pose_from_epnp_label(
                         label_path, epnp_map_pose_key, epnp_map_pose_unit
                     )
                 else:
                     T_target = text_to_matrix(row["T_epnp_obj"])
                 metadata_values = {}
                 if use_sample_metadata:
-                    T_map_lidar, T_lidar_camera_prior, metadata_path = load_sample_metadata_transforms(
+                    T_map_lidar, T_lidar_camera_prior, K, metadata, metadata_path = load_sample_metadata_transforms(
                         row, metadata_path_field
+                    )
+                    T_target_image = (
+                        apply_map_z_mode(T_target, label_data, metadata, image_center_map_z_mode)
+                        if epnp_map_pose_key
+                        else T_target
                     )
                     metadata_values = {
                         "T_map_lidar": T_map_lidar,
                         "T_lidar_camera_prior": T_lidar_camera_prior,
+                        "K": K,
+                        "T_target_obj_image": T_target_image,
                         "metadata_path": metadata_path,
                     }
             except Exception as exc:
@@ -415,6 +495,8 @@ def residual_vector_sample_metadata(
     translation_sigma_mm: float,
     translation_residual_components: str,
     rotation_sigma_deg: float,
+    image_center_weight: float,
+    image_center_sigma_px: float,
     translation_prior_weight: float,
     rotation_prior_weight: float,
 ) -> np.ndarray:
@@ -432,6 +514,14 @@ def residual_vector_sample_metadata(
         r_res = so3_log(T_pred[:3, :3] @ T_gt[:3, :3].T) / rotation_sigma_rad
         residuals.extend(t_res.tolist())
         residuals.extend(r_res.tolist())
+
+        if image_center_weight > 0 and sample.get("K") is not None:
+            T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get("T_target_obj_image", T_gt)
+            uv_map, map_valid = project_origin(T_cam_obj_from_map, sample["K"])
+            uv_giga, giga_valid = project_origin(sample["T_gigapose_cam_obj"], sample["K"])
+            if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
+                uv_res = ((uv_map - uv_giga) / image_center_sigma_px) * image_center_weight
+                residuals.extend(uv_res.tolist())
 
     residuals.extend((xi[:3] * rotation_prior_weight).tolist())
     residuals.extend(((xi[3:6] / translation_sigma_mm) * translation_prior_weight).tolist())
@@ -464,6 +554,13 @@ def compute_sample_metadata_errors(T_delta: np.ndarray, samples: list[dict[str, 
         T_map_cam = sample["T_map_lidar"] @ T_lidar_camera
         T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
         T_gt = sample["T_target_obj"]
+        image_center_error_px = float("nan")
+        if sample.get("K") is not None:
+            T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get("T_target_obj_image", T_gt)
+            uv_map, map_valid = project_origin(T_cam_obj_from_map, sample["K"])
+            uv_giga, giga_valid = project_origin(sample["T_gigapose_cam_obj"], sample["K"])
+            if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
+                image_center_error_px = float(np.linalg.norm(uv_map - uv_giga))
         rows.append(
             {
                 "match_key": sample.get("match_key", ""),
@@ -474,6 +571,7 @@ def compute_sample_metadata_errors(T_delta: np.ndarray, samples: list[dict[str, 
                 "metadata_path": sample.get("metadata_path", ""),
                 "translation_error_mm": float(np.linalg.norm(T_pred[:3, 3] - T_gt[:3, 3])),
                 "rotation_error_deg": rotation_error_deg(T_pred[:3, :3], T_gt[:3, :3]),
+                "image_center_error_px": image_center_error_px,
             }
         )
     return rows
@@ -481,7 +579,9 @@ def compute_sample_metadata_errors(T_delta: np.ndarray, samples: list[dict[str, 
 
 def summarize_errors(rows: list[dict[str, Any]], prefix: str) -> dict[str, float]:
     out = {}
-    for key in ("translation_error_mm", "rotation_error_deg"):
+    for key in ("translation_error_mm", "rotation_error_deg", "image_center_error_px"):
+        if not rows or key not in rows[0]:
+            continue
         vals = np.asarray([float(row[key]) for row in rows], dtype=float)
         vals = vals[np.isfinite(vals)]
         if vals.size == 0:
@@ -522,6 +622,7 @@ def main() -> None:
         args.epnp_map_pose_unit,
         args.use_sample_metadata,
         args.metadata_path_field,
+        args.image_center_map_z_mode,
     )
     if args.use_sample_metadata:
         T_initial = np.eye(4, dtype=float)
@@ -532,6 +633,8 @@ def main() -> None:
             args.translation_sigma_mm,
             args.translation_residual_components,
             args.rotation_sigma_deg,
+            args.image_center_weight,
+            args.image_center_sigma_px,
             args.translation_prior_weight,
             args.rotation_prior_weight,
         )
@@ -581,6 +684,9 @@ def main() -> None:
         "T_lidar_camera_correction_left_multiply": T_delta.tolist() if args.use_sample_metadata else None,
         "correction_rotation_rpy_like_vector_rad": xi[:3].tolist(),
         "correction_translation_mm": xi[3:6].tolist(),
+        "image_center_weight": args.image_center_weight,
+        "image_center_sigma_px": args.image_center_sigma_px,
+        "image_center_map_z_mode": args.image_center_map_z_mode,
         "note": (
             "Sample-metadata mode: apply T_lidar_camera_optimized = "
             "T_lidar_camera_correction_left_multiply @ t_lidar_camera_prior for each frame, "
@@ -602,6 +708,9 @@ def main() -> None:
         "translation_sigma_mm": args.translation_sigma_mm,
         "translation_residual_components": args.translation_residual_components,
         "rotation_sigma_deg": args.rotation_sigma_deg,
+        "image_center_weight": args.image_center_weight,
+        "image_center_sigma_px": args.image_center_sigma_px,
+        "image_center_map_z_mode": args.image_center_map_z_mode,
         "translation_prior_weight": args.translation_prior_weight,
         "rotation_prior_weight": args.rotation_prior_weight,
         "correction_translation_norm_mm": float(np.linalg.norm(xi[3:6])),
