@@ -118,6 +118,16 @@ def parse_args() -> argparse.Namespace:
         help="Pose residual scale for object translation error.",
     )
     parser.add_argument(
+        "--translation-residual-components",
+        choices=("xyz", "xy", "xz", "yz", "x", "y", "z"),
+        default="xyz",
+        help=(
+            "Which map-frame translation residual components to include in the "
+            "optimization cost. Use 'xy' when map altitude/z conventions are "
+            "inconsistent but horizontal map position is meaningful."
+        ),
+    )
+    parser.add_argument(
         "--rotation-sigma-deg",
         type=float,
         default=10.0,
@@ -237,6 +247,11 @@ def rotation_error_deg(R_pred: np.ndarray, R_gt: np.ndarray) -> float:
     delta = R_pred @ R_gt.T
     cos_theta = (np.trace(delta) - 1.0) * 0.5
     return float(np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0))))
+
+
+def translation_component_indices(components: str) -> list[int]:
+    mapping = {"x": 0, "y": 1, "z": 2}
+    return [mapping[c] for c in components]
 
 
 def load_initial_extrinsic(path: Path, unit: str) -> np.ndarray:
@@ -368,6 +383,7 @@ def residual_vector(
     T_map_cam_initial: np.ndarray,
     samples: list[dict[str, Any]],
     translation_sigma_mm: float,
+    translation_residual_components: str,
     rotation_sigma_deg: float,
     translation_prior_weight: float,
     rotation_prior_weight: float,
@@ -376,11 +392,12 @@ def residual_vector(
     T_map_cam = T_delta @ T_map_cam_initial
     residuals = []
     rotation_sigma_rad = math.radians(rotation_sigma_deg)
+    t_idx = translation_component_indices(translation_residual_components)
 
     for sample in samples:
         T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
         T_gt = sample["T_target_obj"]
-        t_res = (T_pred[:3, 3] - T_gt[:3, 3]) / translation_sigma_mm
+        t_res = (T_pred[:3, 3] - T_gt[:3, 3])[t_idx] / translation_sigma_mm
         r_res = so3_log(T_pred[:3, :3] @ T_gt[:3, :3].T) / rotation_sigma_rad
         residuals.extend(t_res.tolist())
         residuals.extend(r_res.tolist())
@@ -396,6 +413,7 @@ def residual_vector_sample_metadata(
     xi: np.ndarray,
     samples: list[dict[str, Any]],
     translation_sigma_mm: float,
+    translation_residual_components: str,
     rotation_sigma_deg: float,
     translation_prior_weight: float,
     rotation_prior_weight: float,
@@ -403,13 +421,14 @@ def residual_vector_sample_metadata(
     T_delta = se3_exp(xi)
     residuals = []
     rotation_sigma_rad = math.radians(rotation_sigma_deg)
+    t_idx = translation_component_indices(translation_residual_components)
 
     for sample in samples:
         T_lidar_camera = T_delta @ sample["T_lidar_camera_prior"]
         T_map_cam = sample["T_map_lidar"] @ T_lidar_camera
         T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
         T_gt = sample["T_target_obj"]
-        t_res = (T_pred[:3, 3] - T_gt[:3, 3]) / translation_sigma_mm
+        t_res = (T_pred[:3, 3] - T_gt[:3, 3])[t_idx] / translation_sigma_mm
         r_res = so3_log(T_pred[:3, :3] @ T_gt[:3, :3].T) / rotation_sigma_rad
         residuals.extend(t_res.tolist())
         residuals.extend(r_res.tolist())
@@ -511,6 +530,7 @@ def main() -> None:
         residual_args = (
             samples,
             args.translation_sigma_mm,
+            args.translation_residual_components,
             args.rotation_sigma_deg,
             args.translation_prior_weight,
             args.rotation_prior_weight,
@@ -525,6 +545,7 @@ def main() -> None:
             T_initial,
             samples,
             args.translation_sigma_mm,
+            args.translation_residual_components,
             args.rotation_sigma_deg,
             args.translation_prior_weight,
             args.rotation_prior_weight,
@@ -579,6 +600,7 @@ def main() -> None:
         "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
         "optimization_mode": "sample_metadata_lidar_camera_prior" if args.use_sample_metadata else "static_T_map_cam",
         "translation_sigma_mm": args.translation_sigma_mm,
+        "translation_residual_components": args.translation_residual_components,
         "rotation_sigma_deg": args.rotation_sigma_deg,
         "translation_prior_weight": args.translation_prior_weight,
         "rotation_prior_weight": args.rotation_prior_weight,
