@@ -249,40 +249,30 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
 Then run extrinsic optimization using the map pose key:
 ```bash
 python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
-  --initial-extrinsic path/to/initial_T_map_cam_front.json \
-  --initial-unit m \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --use-sample-metadata \
   --epnp-map-pose-key T_map_object_raw \
   --epnp-map-pose-unit auto \
+  --translation-residual-components xy \
   --translation-sigma-mm 1000 \
   --rotation-sigma-deg 10 \
-  --translation-prior-weight 25 \
-  --rotation-prior-weight 1 \
+  --image-center-weight 10 \
+  --image-center-sigma-px 50 \
+  --image-center-map-z-mode metadata_lidar \
+  --translation-prior-weight 5000 \
+  --rotation-prior-weight 200 \
   --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_metadata_xy_image
 
 ```
 Important: the candidate selection still uses T_camera_object_centered internally for camera-frame GigaPose-vs-EPnP agreement. But because the selected CSV keeps epnp_label_path, the optimizer can then open the same JSON and read T_map_object_raw
 
 
-python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
-  --use-sample-metadata \
-  --epnp-map-pose-key T_map_object_raw \
-  --epnp-map-pose-unit auto \
-  --translation-sigma-mm 1000 \
-  --rotation-sigma-deg 10 \
-  --translation-prior-weight 25 \
-  --rotation-prior-weight 1 \
-  --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata
-
-
   After it runs, plot it with:
   ```bash
 python -m fine_tuning.plot_extrinsic_optimization \
-  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy \
-  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv
+  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_metadata_xy_image \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv
   ```
 
 
@@ -294,12 +284,14 @@ green = selected GigaPose pose, optional
 yellow = detector bbox, optional
   ```bash
 python -m fine_tuning.visualize_extrinsic_optimization_on_images \
-  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
-  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_metadata_xy_image \
   --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy/image_overlays \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_metadata_xy_image/image_overlays_z_metadata_lidar \
+  --map-z-mode metadata_lidar \
   --draw-gigapose \
   --draw-detection-bbox \
+  --write-debug-projections \
   --max-images 100
 
   ```
