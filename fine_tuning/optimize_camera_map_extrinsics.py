@@ -18,12 +18,19 @@ Interpretation:
   camera frame, not the map frame.
 - The initial extrinsic ``T_map_cam`` maps camera coordinates into the map frame.
 
-For true map-to-camera optimization, pass ``--epnp-map-pose-key`` so the script
-loads the map-frame pose, usually ``T_map_object_raw``, from each selected
-sample's ``epnp_label_path``.  Then the optimized model is:
+For true map-to-camera optimization with a static camera, pass
+``--epnp-map-pose-key`` so the script loads the map-frame pose, usually
+``T_map_object_raw``, from each selected sample's ``epnp_label_path``.  Then the
+optimized model is:
 
     T_map_object_raw ≈ T_map_cam_optimized @ T_gigapose_cam_obj
     T_map_cam_optimized = exp(delta) @ T_map_cam_initial
+
+For the ARCL/Assetto real folders, the ego vehicle moves, so each frame has its
+own ``t_map_lidar`` metadata.  In that case use ``--use-sample-metadata`` and
+the optimized model becomes:
+
+    T_map_object_raw ≈ T_map_lidar_i @ (exp(delta) @ T_lidar_camera_prior_i) @ T_gigapose_cam_obj
 
 The correction has a prior. By default translation correction is penalized more
 strongly than rotation correction, because the current translation extrinsics
@@ -36,6 +43,7 @@ import argparse
 import csv
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -53,10 +61,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--initial-extrinsic",
         type=Path,
-        required=True,
+        default=None,
         help=(
             "JSON containing initial T_map_cam as key T_map_cam, matrix, or T. "
-            "Translations are assumed to be in millimeters unless --initial-unit m."
+            "Translations are assumed to be in millimeters unless --initial-unit m. "
+            "Not required with --use-sample-metadata."
         ),
     )
     parser.add_argument(
@@ -72,6 +81,23 @@ def parse_args() -> argparse.Namespace:
             "Optional pose key to load from each selected row's epnp_label_path, "
             "e.g. T_map_object_raw. Use this for map-camera extrinsic optimization. "
             "If omitted, the script uses selected CSV column T_epnp_obj."
+        ),
+    )
+    parser.add_argument(
+        "--use-sample-metadata",
+        action="store_true",
+        help=(
+            "Load per-sample metadata YAML and optimize a fixed correction to "
+            "t_lidar_camera_prior using each sample's t_map_lidar. This is the "
+            "right mode for moving-ego ARCL folders."
+        ),
+    )
+    parser.add_argument(
+        "--metadata-path-field",
+        default="sample_metadata_path",
+        help=(
+            "Optional selected CSV field containing metadata YAML path. If absent, "
+            "the script derives metadata/sample_<timestamp>_<id>.yaml from epnp_label_path."
         ),
     )
     parser.add_argument(
@@ -226,6 +252,57 @@ def load_initial_extrinsic(path: Path, unit: str) -> np.ndarray:
     )
 
 
+def load_yaml(path: Path) -> dict[str, Any]:
+    try:
+        import yaml
+    except ImportError as exc:
+        raise SystemExit(
+            "Reading metadata YAML needs PyYAML. Install it with `pip install pyyaml` "
+            "or `conda install pyyaml`."
+        ) from exc
+    with path.open() as handle:
+        data = yaml.safe_load(handle)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} did not contain a YAML mapping")
+    return data
+
+
+def metadata_path_from_row(row: dict[str, Any], field: str) -> Path:
+    value = row.get(field)
+    if value:
+        path = Path(value)
+        if path.is_file():
+            return path
+
+    label_path_text = row.get("epnp_label_path")
+    if not label_path_text:
+        raise ValueError("Cannot infer metadata path without epnp_label_path")
+    label_path = Path(label_path_text)
+    match = re.match(r"(.+)_([0-9]+)$", label_path.stem)
+    if not match:
+        raise ValueError(f"Cannot infer metadata sample name from {label_path.name}")
+    timestamp, obj_index = match.groups()
+    metadata_path = label_path.parent.parent / "metadata" / f"sample_{timestamp}_{obj_index}.yaml"
+    if metadata_path.is_file():
+        return metadata_path
+    raise FileNotFoundError(f"Could not find metadata YAML for {label_path}: {metadata_path}")
+
+
+def matrix_from_yaml_key(data: dict[str, Any], key: str, unit: str) -> np.ndarray:
+    if key not in data:
+        raise KeyError(f"{key} missing from metadata YAML")
+    return matrix_3x4_or_4x4_to_transform(data[key], unit)
+
+
+def load_sample_metadata_transforms(row: dict[str, Any], metadata_path_field: str) -> tuple[np.ndarray, np.ndarray, str]:
+    path = metadata_path_from_row(row, metadata_path_field)
+    data = load_yaml(path)
+    # The real-data metadata stores these in meters.
+    T_map_lidar = matrix_from_yaml_key(data, "t_map_lidar", "m")
+    T_lidar_camera_prior = matrix_from_yaml_key(data, "t_lidar_camera_prior", "m")
+    return T_map_lidar, T_lidar_camera_prior, str(path)
+
+
 def load_map_pose_from_epnp_label(path: Path, pose_key: str, unit: str) -> np.ndarray:
     data = json.loads(path.read_text())
     if pose_key not in data:
@@ -238,6 +315,8 @@ def load_selected_samples(
     max_samples: int | None,
     epnp_map_pose_key: str | None,
     epnp_map_pose_unit: str,
+    use_sample_metadata: bool,
+    metadata_path_field: str,
 ) -> list[dict[str, Any]]:
     rows = []
     with path.open(newline="") as f:
@@ -251,6 +330,16 @@ def load_selected_samples(
                     )
                 else:
                     T_target = text_to_matrix(row["T_epnp_obj"])
+                metadata_values = {}
+                if use_sample_metadata:
+                    T_map_lidar, T_lidar_camera_prior, metadata_path = load_sample_metadata_transforms(
+                        row, metadata_path_field
+                    )
+                    metadata_values = {
+                        "T_map_lidar": T_map_lidar,
+                        "T_lidar_camera_prior": T_lidar_camera_prior,
+                        "metadata_path": metadata_path,
+                    }
             except Exception as exc:
                 print(f"Skipping malformed selected sample: {exc}")
                 continue
@@ -259,6 +348,7 @@ def load_selected_samples(
                     **row,
                     "T_gigapose_cam_obj": T_giga,
                     "T_target_obj": T_target,
+                    **metadata_values,
                 }
             )
             if max_samples is not None and len(rows) >= max_samples:
@@ -302,6 +392,33 @@ def residual_vector(
     return np.asarray(residuals, dtype=float)
 
 
+def residual_vector_sample_metadata(
+    xi: np.ndarray,
+    samples: list[dict[str, Any]],
+    translation_sigma_mm: float,
+    rotation_sigma_deg: float,
+    translation_prior_weight: float,
+    rotation_prior_weight: float,
+) -> np.ndarray:
+    T_delta = se3_exp(xi)
+    residuals = []
+    rotation_sigma_rad = math.radians(rotation_sigma_deg)
+
+    for sample in samples:
+        T_lidar_camera = T_delta @ sample["T_lidar_camera_prior"]
+        T_map_cam = sample["T_map_lidar"] @ T_lidar_camera
+        T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
+        T_gt = sample["T_target_obj"]
+        t_res = (T_pred[:3, 3] - T_gt[:3, 3]) / translation_sigma_mm
+        r_res = so3_log(T_pred[:3, :3] @ T_gt[:3, :3].T) / rotation_sigma_rad
+        residuals.extend(t_res.tolist())
+        residuals.extend(r_res.tolist())
+
+    residuals.extend((xi[:3] * rotation_prior_weight).tolist())
+    residuals.extend(((xi[3:6] / translation_sigma_mm) * translation_prior_weight).tolist())
+    return np.asarray(residuals, dtype=float)
+
+
 def compute_sample_errors(T_map_cam: np.ndarray, samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for sample in samples:
@@ -314,6 +431,28 @@ def compute_sample_errors(T_map_cam: np.ndarray, samples: list[dict[str, Any]]) 
                 "im_id": sample.get("im_id", ""),
                 "instance_id": sample.get("instance_id", ""),
                 "score": sample.get("score", ""),
+                "translation_error_mm": float(np.linalg.norm(T_pred[:3, 3] - T_gt[:3, 3])),
+                "rotation_error_deg": rotation_error_deg(T_pred[:3, :3], T_gt[:3, :3]),
+            }
+        )
+    return rows
+
+
+def compute_sample_metadata_errors(T_delta: np.ndarray, samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for sample in samples:
+        T_lidar_camera = T_delta @ sample["T_lidar_camera_prior"]
+        T_map_cam = sample["T_map_lidar"] @ T_lidar_camera
+        T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
+        T_gt = sample["T_target_obj"]
+        rows.append(
+            {
+                "match_key": sample.get("match_key", ""),
+                "scene_id": sample.get("scene_id", ""),
+                "im_id": sample.get("im_id", ""),
+                "instance_id": sample.get("instance_id", ""),
+                "score": sample.get("score", ""),
+                "metadata_path": sample.get("metadata_path", ""),
                 "translation_error_mm": float(np.linalg.norm(T_pred[:3, 3] - T_gt[:3, 3])),
                 "rotation_error_deg": rotation_error_deg(T_pred[:3, :3], T_gt[:3, :3]),
             }
@@ -362,21 +501,39 @@ def main() -> None:
         args.max_samples,
         args.epnp_map_pose_key,
         args.epnp_map_pose_unit,
+        args.use_sample_metadata,
+        args.metadata_path_field,
     )
-    T_initial = load_initial_extrinsic(args.initial_extrinsic, args.initial_unit)
-    before_rows = compute_sample_errors(T_initial, samples)
-
-    result = least_squares(
-        residual_vector,
-        x0=np.zeros(6, dtype=float),
-        args=(
+    if args.use_sample_metadata:
+        T_initial = np.eye(4, dtype=float)
+        before_rows = compute_sample_metadata_errors(T_initial, samples)
+        residual_fn = residual_vector_sample_metadata
+        residual_args = (
+            samples,
+            args.translation_sigma_mm,
+            args.rotation_sigma_deg,
+            args.translation_prior_weight,
+            args.rotation_prior_weight,
+        )
+    else:
+        if args.initial_extrinsic is None:
+            raise SystemExit("--initial-extrinsic is required unless --use-sample-metadata is set.")
+        T_initial = load_initial_extrinsic(args.initial_extrinsic, args.initial_unit)
+        before_rows = compute_sample_errors(T_initial, samples)
+        residual_fn = residual_vector
+        residual_args = (
             T_initial,
             samples,
             args.translation_sigma_mm,
             args.rotation_sigma_deg,
             args.translation_prior_weight,
             args.rotation_prior_weight,
-        ),
+        )
+
+    result = least_squares(
+        residual_fn,
+        x0=np.zeros(6, dtype=float),
+        args=residual_args,
         loss=args.robust_loss,
         max_nfev=500,
     )
@@ -384,7 +541,10 @@ def main() -> None:
     xi = result.x
     T_delta = se3_exp(xi)
     T_optimized = T_delta @ T_initial
-    after_rows = compute_sample_errors(T_optimized, samples)
+    if args.use_sample_metadata:
+        after_rows = compute_sample_metadata_errors(T_delta, samples)
+    else:
+        after_rows = compute_sample_errors(T_optimized, samples)
 
     write_csv(args.output_dir / "errors_before_optimization.csv", before_rows)
     write_csv(args.output_dir / "errors_after_optimization.csv", after_rows)
@@ -393,12 +553,20 @@ def main() -> None:
         "description": "Optimized map-to-camera extrinsic correction from selected GigaPose/EPnPv2 samples.",
         "translation_unit": "mm",
         "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
-        "T_map_cam_initial": T_initial.tolist(),
+        "optimization_mode": "sample_metadata_lidar_camera_prior" if args.use_sample_metadata else "static_T_map_cam",
+        "T_map_cam_initial": T_initial.tolist() if not args.use_sample_metadata else None,
         "T_correction_left_multiply": T_delta.tolist(),
-        "T_map_cam_optimized": T_optimized.tolist(),
+        "T_map_cam_optimized": T_optimized.tolist() if not args.use_sample_metadata else None,
+        "T_lidar_camera_correction_left_multiply": T_delta.tolist() if args.use_sample_metadata else None,
         "correction_rotation_rpy_like_vector_rad": xi[:3].tolist(),
         "correction_translation_mm": xi[3:6].tolist(),
-        "note": "Use T_map_cam_optimized as camera-to-map transform if your pipeline expects T_map_cam.",
+        "note": (
+            "Sample-metadata mode: apply T_lidar_camera_optimized = "
+            "T_lidar_camera_correction_left_multiply @ t_lidar_camera_prior for each frame, "
+            "then T_map_cam = t_map_lidar @ T_lidar_camera_optimized."
+            if args.use_sample_metadata
+            else "Use T_map_cam_optimized as camera-to-map transform if your pipeline expects T_map_cam."
+        ),
     }
     (args.output_dir / "optimized_extrinsics.json").write_text(json.dumps(extrinsics, indent=2))
 
@@ -409,6 +577,7 @@ def main() -> None:
         "optimizer_cost": float(result.cost),
         "robust_loss": args.robust_loss,
         "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
+        "optimization_mode": "sample_metadata_lidar_camera_prior" if args.use_sample_metadata else "static_T_map_cam",
         "translation_sigma_mm": args.translation_sigma_mm,
         "rotation_sigma_deg": args.rotation_sigma_deg,
         "translation_prior_weight": args.translation_prior_weight,
