@@ -269,7 +269,7 @@ Now it is time for real world stuff:
  /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0 Done
  /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2 Done
   /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1 Done
-   /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4 not started
+   /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4 only front for now:
   -->
 
 Full prep command:
@@ -348,25 +348,25 @@ CUDA_VISIBLE_DEVICES=1 python test.py \
   we can also visualize it useing: 
   ```bash
   python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/real_world_data/large_real_20260526_front_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260526_front_gsam_v4-test_real_20260526_front_gsam_v4_finetunedMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/real_20260526_front_gsam_v4 \
+  --predictions gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_front_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_front_gsam_v4-test_real_20260518v2v4_front_gsam_v4_finetunedMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_front_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260526_front_gsam_v4_finetuned/pred_overlays \
+  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_front_gsam_v4_finetuned/pred_overlays \
   --min-score 0.01
 
   python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/real_world_data/large_real_20260526_rear_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260526_rear_gsam_v4-test_real_20260526_rear_gsam_v4_finetunedMultiHypothesis.csv\
-  --dataset-dir gigaPose_datasets/datasets/real_20260526_rear_gsam_v4 \
+  --predictions gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_rear_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_rear_gsam_v4-test_real_20260518v2v4_rear_gsam_v4_finetunedMultiHypothesis.csv\
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_rear_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260526_rear_gsam_v4_finetuned/pred_overlays \
+  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_rear_gsam_v4_finetuned/pred_overlays \
   --min-score 0.01
 
 
 python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/real_world_data/large_real_20260526_stereo_left_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260526_stereo_left_gsam_v4-test_real_20260526_stereo_left_gsam_v4_finetunedMultiHypothesis.csv\
-  --dataset-dir gigaPose_datasets/datasets/real_20260526_stereo_left_gsam_v4 \
+  --predictions gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_stereo_left_gsam_v4_finetuned/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_stereo_left_gsam_v4-test_real_20260518v2v4_stereo_left_gsam_v4_finetunedMultiHypothesis.csv\
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260526_stereo_left_gsam_v4_finetuned/pred_overlays \
+  --output-dir gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_stereo_left_gsam_v4_finetuned/pred_overlays \
   --min-score 0.01
 
 
