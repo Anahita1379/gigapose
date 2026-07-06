@@ -201,24 +201,65 @@ PY
 ```
 
 
-python - <<'PY'
-from pathlib import Path
-import json
+If you have multiple selected files, pass multiple --input arguments:
+Important: only combine files for the same camera.
 
-roots = [
-    "/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_labels",
-    "/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_labels",
-    "/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels",
-]
+```bash
+For only front: 
 
-for root in roots:
-    root = Path(root)
-    print("\nROOT", root)
-    files = sorted(root.glob("*.json"))[:20]
-    keys = set()
-    for f in files:
-        data = json.load(open(f))
-        keys.update(k for k in data if "T_" in k or "map" in k.lower() or "pose" in k.lower())
-    for k in sorted(keys):
-        print(" ", k)
-PY
+python -m fine_tuning.combine_selected_samples \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260505v1_front_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260518v0_front_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260518v1v4_front_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_front_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --output gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
+  --dedupe-by match_key_epnp \
+  --keep lowest-error
+
+
+For only rear: 
+python -m fine_tuning.combine_selected_samples \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260505v1_rear_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260505v2_rear_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260518v1v4_rear_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --output gigaPose_datasets/results/real_world_data/combined_rear_selected_samples.csv \
+  --dedupe-by match_key_epnp \
+  --keep lowest-error
+
+
+For only stereo_left: 
+python -m fine_tuning.combine_selected_samples \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260505v1_stereo_left_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260518v0_stereo_left_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260518v1v4_stereo_left_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --input gigaPose_datasets/results/real_world_data/large_real_20260518v2v4_stereo_left_gsam_v4_finetuned/label_candidates_refined/selected_samples.csv \
+  --output gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --dedupe-by match_key_epnp \
+  --keep lowest-error
+```
+
+
+Then the combined file can be used here:
+```bash
+python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
+
+```
+
+Then run extrinsic optimization using the map pose key:
+```bash
+python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
+  --initial-extrinsic path/to/initial_T_map_cam_front.json \
+  --initial-unit m \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit auto \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --translation-prior-weight 25 \
+  --rotation-prior-weight 1 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front
+
+```
+Important: the candidate selection still uses T_camera_object_centered internally for camera-frame GigaPose-vs-EPnP agreement. But because the selected CSV keeps epnp_label_path, the optimizer can then open the same JSON and read T_map_object_raw
