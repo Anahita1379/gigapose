@@ -377,6 +377,30 @@ def plot_camera_bars(rows: list[dict[str, Any]], output_dir: Path, fmt: str, dpi
             fig.savefig(output_dir / f"camera_{safe_camera}_{metric}.{fmt}", dpi=dpi)
             plt.close(fig)
 
+        # Combined view: one figure with one subplot per camera. This makes it
+        # easier to compare front/stereo/rear behavior at a glance.
+        if cameras:
+            fig_width = max(5 * len(cameras), 8)
+            fig, axes = plt.subplots(1, len(cameras), figsize=(fig_width, 4.8), sharey=True)
+            if len(cameras) == 1:
+                axes = [axes]
+            for ax, camera in zip(axes, cameras):
+                items = [row for row in rows if str(row.get("camera_id")) == camera]
+                methods = [str(row["method"]) for row in items]
+                values = [finite_float(row.get(metric)) for row in items]
+                x = np.arange(len(methods))
+                ax.bar(x, values)
+                ax.set_title(str(camera))
+                ax.set_xticks(x)
+                ax.set_xticklabels(methods, rotation=35, ha="right")
+                ax.grid(axis="y", alpha=0.25)
+                if ax is axes[0]:
+                    ax.set_ylabel(ylabel)
+            fig.suptitle(f"{ylabel} by camera")
+            fig.tight_layout()
+            fig.savefig(output_dir / f"camera_all_{metric}.{fmt}", dpi=dpi)
+            plt.close(fig)
+
 
 def plot_error_vs_distance(
     instance_rows: list[dict[str, Any]],
@@ -439,6 +463,160 @@ def plot_error_vs_distance(
             plt.close(fig)
 
 
+def plot_binned_error_bars(
+    distance_rows: list[dict[str, Any]],
+    output_dir: Path,
+    fmt: str,
+    dpi: int,
+) -> None:
+    plt = import_matplotlib()
+    metrics = [
+        ("translation_error_mm", "Translation error (mm)"),
+        ("rotation_error_deg", "Rotation error (deg)"),
+    ]
+    stats = [
+        ("median", "median"),
+        ("mean", "mean"),
+    ]
+    cameras = ["all", *sorted({str(row.get("camera_id", "unknown_camera")) for row in distance_rows})]
+    methods = sorted({str(row["method"]) for row in distance_rows})
+
+    for metric, ylabel in metrics:
+        for stat, stat_label in stats:
+            value_key = f"{metric}_{stat}"
+            for camera in cameras:
+                rows = [
+                    row
+                    for row in distance_rows
+                    if camera == "all" or str(row.get("camera_id")) == camera
+                ]
+                if not rows:
+                    continue
+                bins = sorted(
+                    {
+                        (
+                            finite_float(row["distance_bin_start_m"]),
+                            finite_float(row["distance_bin_end_m"]),
+                            str(row["distance_bin"]),
+                        )
+                        for row in rows
+                    }
+                )
+                if not bins:
+                    continue
+                bin_labels = [label for _, _, label in bins]
+                x = np.arange(len(bins), dtype=float)
+                width = min(0.8 / max(len(methods), 1), 0.25)
+
+                fig, ax = plt.subplots(figsize=(max(9, 0.65 * len(bins) + 1.5 * len(methods)), 5))
+                for method_idx, method in enumerate(methods):
+                    values = []
+                    counts = []
+                    for start, end, _ in bins:
+                        match = next(
+                            (
+                                row
+                                for row in rows
+                                if str(row["method"]) == method
+                                and abs(finite_float(row["distance_bin_start_m"]) - start) < 1e-9
+                                and abs(finite_float(row["distance_bin_end_m"]) - end) < 1e-9
+                            ),
+                            None,
+                        )
+                        values.append(finite_float(match.get(value_key)) if match else float("nan"))
+                        counts.append(int(finite_float(match.get("evaluated_instances"))) if match else 0)
+                    offset = (method_idx - (len(methods) - 1) / 2.0) * width
+                    bars = ax.bar(x + offset, values, width=width, label=method)
+                    for bar, count, value in zip(bars, counts, values):
+                        if count > 0 and np.isfinite(value):
+                            ax.text(
+                                bar.get_x() + bar.get_width() / 2,
+                                bar.get_height(),
+                                str(count),
+                                ha="center",
+                                va="bottom",
+                                fontsize=7,
+                                rotation=90,
+                            )
+                ax.set_xlabel("GT distance bin")
+                ax.set_ylabel(f"{ylabel} {stat_label}")
+                ax.set_title(f"Binned {ylabel} {stat_label} vs GT distance ({camera})")
+                ax.set_xticks(x)
+                ax.set_xticklabels(bin_labels, rotation=35, ha="right")
+                ax.grid(axis="y", alpha=0.25)
+                ax.legend(fontsize="small")
+                fig.tight_layout()
+                safe_camera = camera.replace("/", "_").replace(" ", "_")
+                fig.savefig(output_dir / f"binned_{metric}_{stat}_vs_gt_distance_{safe_camera}.{fmt}", dpi=dpi)
+                plt.close(fig)
+
+
+def plot_error_vs_distance_per_model(
+    instance_rows: list[dict[str, Any]],
+    distance_rows: list[dict[str, Any]],
+    output_dir: Path,
+    fmt: str,
+    dpi: int,
+    scatter_alpha: float,
+) -> None:
+    plt = import_matplotlib()
+    metrics = [
+        ("translation_error_mm", "Translation error (mm)"),
+        ("rotation_error_deg", "Rotation error (deg)"),
+    ]
+    cameras = ["all", *sorted({str(row.get("camera_id", "unknown_camera")) for row in instance_rows})]
+    methods = sorted({str(row["method"]) for row in instance_rows})
+
+    for metric, ylabel in metrics:
+        for method in methods:
+            for camera in cameras:
+                rows = [
+                    row
+                    for row in instance_rows
+                    if str(row["method"]) == method
+                    and (camera == "all" or str(row.get("camera_id")) == camera)
+                ]
+                if not rows:
+                    continue
+                fig, ax = plt.subplots(figsize=(8, 5))
+                x = np.asarray([finite_float(row.get("gt_distance_m")) for row in rows], dtype=float)
+                y = np.asarray([finite_float(row.get(metric)) for row in rows], dtype=float)
+                valid = np.isfinite(x) & np.isfinite(y)
+                ax.scatter(x[valid], y[valid], s=12, alpha=scatter_alpha, label="samples")
+
+                bins = [
+                    row
+                    for row in distance_rows
+                    if str(row["method"]) == method
+                    and (camera == "all" or str(row.get("camera_id")) == camera)
+                ]
+                if bins:
+                    starts = np.asarray([finite_float(row["distance_bin_start_m"]) for row in bins], dtype=float)
+                    ends = np.asarray([finite_float(row["distance_bin_end_m"]) for row in bins], dtype=float)
+                    medians = np.asarray([finite_float(row.get(f"{metric}_median")) for row in bins], dtype=float)
+                    widths = ends - starts
+                    valid_bins = np.isfinite(starts) & np.isfinite(widths) & np.isfinite(medians)
+                    ax.bar(
+                        starts[valid_bins],
+                        medians[valid_bins],
+                        width=widths[valid_bins],
+                        align="edge",
+                        alpha=0.25,
+                        edgecolor="black",
+                        label="binned median",
+                    )
+                ax.set_xlabel("GT distance to car (m)")
+                ax.set_ylabel(ylabel)
+                ax.set_title(f"{method}: {ylabel} vs GT distance ({camera})")
+                ax.grid(alpha=0.25)
+                ax.legend(fontsize="small")
+                fig.tight_layout()
+                safe_camera = camera.replace("/", "_").replace(" ", "_")
+                safe_method = method.replace("/", "_").replace(" ", "_")
+                fig.savefig(output_dir / f"{safe_method}_{metric}_vs_gt_distance_{safe_camera}.{fmt}", dpi=dpi)
+                plt.close(fig)
+
+
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -481,6 +659,15 @@ def main() -> None:
     plot_summary_bars(overall, plots_dir, args.plot_format, args.dpi)
     plot_camera_bars(by_camera, plots_dir, args.plot_format, args.dpi)
     plot_error_vs_distance(
+        all_rows,
+        by_distance,
+        plots_dir,
+        args.plot_format,
+        args.dpi,
+        args.scatter_alpha,
+    )
+    plot_binned_error_bars(by_distance, plots_dir, args.plot_format, args.dpi)
+    plot_error_vs_distance_per_model(
         all_rows,
         by_distance,
         plots_dir,
