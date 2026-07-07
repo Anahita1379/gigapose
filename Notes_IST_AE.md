@@ -19,7 +19,20 @@ assettocorsa_older_ist_2layerAE_benchmark
 large_assettocorsa_older_ist_2layerAE_benchmark
 pred: gigaPose_datasets/results/last_picks/large_assettocorsa_older_ist_2layerAE_benchmark/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_older_ist_2layerAE_benchmarkMultiHypothesis.csv
 
-comparing the three IST_AE
+First make sure they all have ran on the same dataset
+python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/last_picks/assettocorsa_ist_penultimate_last_ae_corrected_good/checkpoints/last.ckpt'" \
+  run_id=assettocorsa_ist_penultimate_last_ae_corrected_benchmark_with_max_depth \
+  name_exp=large_assettocorsa_ist_penultimate_last_ae_corrected_benchmark_with_max_depth
+
+
+So now, the correct format is: 
+oldest: assettocorsa_ist_penultimate_last_ae_corrected ISTlr5e6
+gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_corrected_good/checkpoints/last.ckpt
+
+
+<!-- comparing the three IST_AE
 ```bash
 python -m fine_tuning.evaluate_gigapose_models \
 --model IST_AE_withoutRear_istLr1e5= gigaPose_datasets/results/last_picks/large_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depthMultiHypothesis.csv \
@@ -30,7 +43,25 @@ python -m fine_tuning.evaluate_gigapose_models \
 --rendered-iou \
 --output-dir gigaPose_datasets/results/last_picks/metrics/IST_AE_July6_2047
 ```
+ -->
 
+new code for evaluation: 
+```bash
+python -m fine_tuning.evaluate_pose_errors_by_distance \
+  --model IST_AE_withoutRear_istLr1e5=gigaPose_datasets/results/last_picks/large_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depthMultiHypothesis.csv \
+  --model IST_AE_withoutRear_istLr5e6=gigaPose_datasets/results/last_picks/large_assettocorsa_IST_AE_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_benchmark_with_max_depthMultiHypothesis.csv \
+  --model IST_AE_withRear_istLr5e6=gigaPose_datasets/results/large_assettocorsa_ist_penultimate_last_ae_corrected_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_ist_penultimate_last_ae_corrected_benchmark_with_max_depthMultiHypothesis.csv  \
+  --model IST_only_current=gigaPose_datasets/results/last_picks/large_final_AC_gigapose_IST_only_benchmark_withMaxDepth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_final_AC_gigapose_IST_only_benchmark_withMaxDepthMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_with_max_depth \
+  --split test \
+  --distance-bin-m 10 \
+  --output-dir gigaPose_datasets/results/final_results/metrics/IST_IST_AE_July6_2151/pose_distance
+
+```
+
+
+For now it seems the best model is actually: 
+ IST_AE_withoutRear_istLr1e5=gigaPose_datasets/results/last_picks/large_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_with_max_depth-test_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depthMultiHypothesis.csv \
 
 
 comparing the IST only
