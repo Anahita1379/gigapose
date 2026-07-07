@@ -347,7 +347,7 @@ For stereo-left, I’d first run the less strict/depth-based version:
 ```bash
 python -m fine_tuning.filter_selected_samples_for_optimization \
   --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
-  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed \
+  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed_new \
   --map-z-mode session_lidar_offset \
   --projection-model metadata \
   --max-depth-diff-m 15 \
@@ -364,13 +364,29 @@ all_sample_diagnostics.csv
 filter_report.json
 
 
-Then optimize using the clean file:
-```bash
-python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_depth_only/selected_samples_clean.csv \
+
+
+If you want to be stricter and use only true GT-style metadata, run:
+  ```bash
+python -m fine_tuning.filter_selected_samples_for_optimization \
+  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
+  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_gt_only \
+  --map-z-mode session_lidar_offset \
+  --projection-model metadata \
+  --reject-ground-truth-missing \
+  --allowed-export-pose-source ground_truth_pose \
+  --max-depth-diff-m 15 \
+  --max-relative-depth-diff 0.25 \
+  --max-center-diff-px 120 \
+  --max-bbox-center-diff-px 120
+
+
+  python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_gt_only/selected_samples_clean.csv \
   --use-sample-metadata \
   --epnp-map-pose-key T_map_object_raw \
   --epnp-map-pose-unit auto \
+  --projection-model metadata \
   --translation-residual-components xy \
   --translation-sigma-mm 1000 \
   --rotation-sigma-deg 10 \
@@ -380,21 +396,81 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --translation-prior-weight 5000 \
   --rotation-prior-weight 100 \
   --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered
-  
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_gt_only
   ```
 
-  If you want to be stricter and use only true GT-style metadata, run:
+
+Then optimize using the clean file:
+```bash
+python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed/selected_samples_clean.csv \
+  --use-sample-metadata \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit auto \
+  --projection-model metadata \
+  --translation-residual-components xy \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 5 \
+  --image-center-sigma-px 50 \
+  --image-center-map-z-mode session_lidar_offset \
+  --translation-prior-weight 5000 \
+  --rotation-prior-weight 100 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_relaxed_metadata
+  
+
+
+
+  python -m fine_tuning.optimize_camera_map_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed_new/selected_samples_clean.csv \
+  --use-sample-metadata \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit auto \
+  --projection-model metadata \
+  --translation-residual-components xy \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 5 \
+  --image-center-sigma-px 35 \
+  --image-center-map-z-mode session_lidar_offset \
+  --translation-prior-weight 5000 \
+  --rotation-prior-weight 50 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_new_metadata
+  ```
+
+  
+
+  then, we can visualize: 
+  --projection-model metadata  
   ```bash
-python -m fine_tuning.filter_selected_samples_for_optimization \
-  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
-  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_gt_only \
+python -m fine_tuning.visualize_extrinsic_optimization_on_images \
+  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed_new/selected_samples_clean.csv \
+  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_new_metadata \
+  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_new_metadata/image_overlays_metadata_projection \
   --map-z-mode session_lidar_offset \
   --projection-model metadata \
-  --reject-ground-truth-missing \
-  --allowed-export-pose-source ground_truth_pose \
-  --max-depth-diff-m 10 \
-  --max-relative-depth-diff 0.20 \
-  --max-center-diff-px 80 \
-  --max-bbox-center-diff-px 120
+  --draw-gigapose \
+  --draw-detection-bbox \
+  --write-debug-projections \
+  --max-images 100
+
+
+  python -m fine_tuning.visualize_extrinsic_optimization_on_images \
+  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_gt_only/selected_samples_clean.csv \
+  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_gt_only \
+  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_gt_only/image_overlays_metadata_projection_pinhole \
+  --map-z-mode session_lidar_offset \
+  --projection-model pinhole \
+  --draw-gigapose \
+  --draw-detection-bbox \
+  --write-debug-projections \
+  --max-images 100
   ```
+final folders for the optimized extrinsics are: 
+Front: gigapose/gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_session_z_ggod
+Rear: gigapose/gigaPose_datasets/results/real_world_data/extrinsic_optimization_rear_metadata_xy_session_z_good?
+Stereo_left: gigapose/gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_relaxed_metadata_good
