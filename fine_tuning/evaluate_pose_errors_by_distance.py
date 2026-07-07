@@ -477,6 +477,7 @@ def plot_binned_error_bars(
     stats = [
         ("median", "median"),
         ("mean", "mean"),
+        ("variance", "variance"),
     ]
     cameras = ["all", *sorted({str(row.get("camera_id", "unknown_camera")) for row in distance_rows})]
     methods = sorted({str(row["method"]) for row in distance_rows})
@@ -549,6 +550,82 @@ def plot_binned_error_bars(
                 safe_camera = camera.replace("/", "_").replace(" ", "_")
                 fig.savefig(output_dir / f"binned_{metric}_{stat}_vs_gt_distance_{safe_camera}.{fmt}", dpi=dpi)
                 plt.close(fig)
+
+        # Combined stat view: median, mean, and variance stacked in one image
+        # for each camera. This is the easiest view for checking how the error
+        # distribution changes with distance.
+        for camera in cameras:
+            rows = [
+                row
+                for row in distance_rows
+                if camera == "all" or str(row.get("camera_id")) == camera
+            ]
+            if not rows:
+                continue
+            bins = sorted(
+                {
+                    (
+                        finite_float(row["distance_bin_start_m"]),
+                        finite_float(row["distance_bin_end_m"]),
+                        str(row["distance_bin"]),
+                    )
+                    for row in rows
+                }
+            )
+            if not bins:
+                continue
+            bin_labels = [label for _, _, label in bins]
+            x = np.arange(len(bins), dtype=float)
+            width = min(0.8 / max(len(methods), 1), 0.25)
+            fig, axes = plt.subplots(
+                3,
+                1,
+                figsize=(max(10, 0.7 * len(bins) + 1.5 * len(methods)), 12),
+                sharex=True,
+            )
+            for ax, (stat, stat_label) in zip(axes, stats):
+                value_key = f"{metric}_{stat}"
+                for method_idx, method in enumerate(methods):
+                    values = []
+                    counts = []
+                    for start, end, _ in bins:
+                        match = next(
+                            (
+                                row
+                                for row in rows
+                                if str(row["method"]) == method
+                                and abs(finite_float(row["distance_bin_start_m"]) - start) < 1e-9
+                                and abs(finite_float(row["distance_bin_end_m"]) - end) < 1e-9
+                            ),
+                            None,
+                        )
+                        values.append(finite_float(match.get(value_key)) if match else float("nan"))
+                        counts.append(int(finite_float(match.get("evaluated_instances"))) if match else 0)
+                    offset = (method_idx - (len(methods) - 1) / 2.0) * width
+                    bars = ax.bar(x + offset, values, width=width, label=method)
+                    for bar, count, value in zip(bars, counts, values):
+                        if count > 0 and np.isfinite(value):
+                            ax.text(
+                                bar.get_x() + bar.get_width() / 2,
+                                bar.get_height(),
+                                str(count),
+                                ha="center",
+                                va="bottom",
+                                fontsize=6,
+                                rotation=90,
+                            )
+                ax.set_ylabel(f"{stat_label}")
+                ax.set_title(f"{ylabel}: {stat_label}")
+                ax.grid(axis="y", alpha=0.25)
+            axes[-1].set_xlabel("GT distance bin")
+            axes[-1].set_xticks(x)
+            axes[-1].set_xticklabels(bin_labels, rotation=35, ha="right")
+            axes[0].legend(fontsize="small", ncols=min(len(methods), 3))
+            fig.suptitle(f"Binned {ylabel}: median, mean, variance vs GT distance ({camera})")
+            fig.tight_layout()
+            safe_camera = camera.replace("/", "_").replace(" ", "_")
+            fig.savefig(output_dir / f"binned_{metric}_median_mean_variance_vs_gt_distance_{safe_camera}.{fmt}", dpi=dpi)
+            plt.close(fig)
 
 
 def plot_error_vs_distance_per_model(
