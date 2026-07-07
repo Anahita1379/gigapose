@@ -60,6 +60,40 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Also draw the Grounded-SAM/Detection bbox from frame_map.json, if available.",
     )
+    parser.add_argument(
+        "--bbox-match-mode",
+        choices=("instance_id", "nearest_projected_center"),
+        default="nearest_projected_center",
+        help=(
+            "How to choose which detection bbox to draw when an image has multiple cars. "
+            "nearest_projected_center is safer for multi-car real data; instance_id keeps "
+            "the old behavior."
+        ),
+    )
+    parser.add_argument(
+        "--min-score",
+        type=float,
+        default=None,
+        help="Optional score filter before visualization.",
+    )
+    parser.add_argument(
+        "--max-translation-error-mm",
+        type=float,
+        default=None,
+        help=(
+            "Optional filter for candidate CSVs. Useful when visualizing "
+            "best_candidate_per_epnp_label.csv, which can still contain bad matches."
+        ),
+    )
+    parser.add_argument(
+        "--max-rotation-error-deg",
+        type=float,
+        default=None,
+        help=(
+            "Optional filter for candidate CSVs. Useful when visualizing "
+            "best_candidate_per_epnp_label.csv, which can still contain bad matches."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -134,6 +168,13 @@ def project(points_obj_mm: np.ndarray, T_cam_obj: np.ndarray, K: np.ndarray) -> 
     return uv, valid
 
 
+def project_pose_center(T_cam_obj: np.ndarray, K: np.ndarray) -> tuple[np.ndarray | None, bool]:
+    uv, valid = project(np.zeros((1, 3), dtype=float), T_cam_obj, K)
+    if not bool(valid[0]) or not np.all(np.isfinite(uv[0])):
+        return None, False
+    return uv[0], True
+
+
 def draw_projected_box(
     draw: ImageDraw.ImageDraw,
     corners_mm: np.ndarray,
@@ -170,9 +211,80 @@ def draw_bbox(draw: ImageDraw.ImageDraw, bbox: list[float], label: str) -> None:
     draw.text((x, max(0, y - 14)), label, fill=MASK_COLOR)
 
 
+def bbox_center(bbox: list[float]) -> np.ndarray:
+    x, y, w, h = map(float, bbox)
+    return np.asarray([x + 0.5 * w, y + 0.5 * h], dtype=float)
+
+
+def choose_detection_bbox(
+    instances: list[dict[str, Any]],
+    row: dict[str, str],
+    T_gigapose: np.ndarray,
+    T_epnp: np.ndarray,
+    K: np.ndarray,
+    mode: str,
+) -> tuple[list[float] | None, int | None, float | None]:
+    if not instances:
+        return None, None, None
+
+    if mode == "instance_id":
+        idx = int(float(row.get("instance_id") or 0))
+        idx = min(max(idx, 0), len(instances) - 1)
+        bbox = instances[idx].get("bbox")
+        return (list(map(float, bbox)), idx, None) if bbox else (None, idx, None)
+
+    center_uv, ok = project_pose_center(T_gigapose, K)
+    if not ok:
+        center_uv, ok = project_pose_center(T_epnp, K)
+    if not ok or center_uv is None:
+        return None, None, None
+
+    best_idx = None
+    best_bbox = None
+    best_dist = None
+    for idx, instance in enumerate(instances):
+        bbox = instance.get("bbox")
+        if not bbox:
+            continue
+        dist = float(np.linalg.norm(bbox_center(list(map(float, bbox))) - center_uv))
+        if best_dist is None or dist < best_dist:
+            best_idx = idx
+            best_bbox = list(map(float, bbox))
+            best_dist = dist
+    return best_bbox, best_idx, best_dist
+
+
 def read_rows(path: Path) -> list[dict[str, str]]:
     with path.open(newline="") as handle:
         return list(csv.DictReader(handle))
+
+
+def maybe_float(value: str | None) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def keep_row(row: dict[str, str], args: argparse.Namespace) -> bool:
+    if not row.get("T_epnp_obj") or not row.get("T_gigapose_aligned_epnp_obj"):
+        return False
+    score = maybe_float(row.get("score"))
+    trans = maybe_float(row.get("translation_error_mm"))
+    rot = maybe_float(row.get("rotation_error_deg"))
+    if args.min_score is not None and (score is None or score < args.min_score):
+        return False
+    if args.max_translation_error_mm is not None and (
+        trans is None or trans > args.max_translation_error_mm
+    ):
+        return False
+    if args.max_rotation_error_deg is not None and (
+        rot is None or rot > args.max_rotation_error_deg
+    ):
+        return False
+    return True
 
 
 def load_frame_map(dataset_dir: Path) -> dict[tuple[int, int], dict[str, Any]]:
@@ -238,7 +350,8 @@ def main() -> None:
 
     frame_map = load_frame_map(args.dataset_dir)
     rows = read_rows(args.candidate_csv)
-    rows = [row for row in rows if row.get("T_epnp_obj") and row.get("T_gigapose_aligned_epnp_obj")]
+    input_row_count = len(rows)
+    rows = [row for row in rows if keep_row(row, args)]
     rows.sort(key=lambda row: row_sort_key(row, args.sort_by))
     rows = rows[:: max(args.every, 1)]
     if args.max_images is not None:
@@ -281,13 +394,27 @@ def main() -> None:
         if args.draw_mask_bbox:
             instances = frame_info.get("instances") or []
             if instances:
-                # If there are multiple detections in the image, instance_id usually
-                # points to the detection that produced this GigaPose hypothesis.
-                idx = int(float(row.get("instance_id") or 0))
-                idx = min(max(idx, 0), len(instances) - 1)
-                bbox = instances[idx].get("bbox")
+                bbox, bbox_idx, bbox_dist = choose_detection_bbox(
+                    instances,
+                    row,
+                    T_giga,
+                    T_epnp,
+                    K,
+                    args.bbox_match_mode,
+                )
                 if bbox:
-                    draw_bbox(draw, list(map(float, bbox)), "GSAM/detection bbox")
+                    label = "GSAM/detection bbox"
+                    if bbox_idx is not None:
+                        label += f" #{bbox_idx}"
+                    if bbox_dist is not None:
+                        label += f" d={bbox_dist:.0f}px"
+                    draw_bbox(draw, bbox, label)
+            else:
+                bbox_idx = None
+                bbox_dist = None
+        else:
+            bbox_idx = None
+            bbox_dist = None
 
         output_path = args.output_dir / f"{scene_id:06d}_{im_id:06d}_epnp{int(row.get('epnp_record_index') or 0):02d}.jpg"
         image.save(output_path, quality=94)
@@ -300,6 +427,9 @@ def main() -> None:
                 "translation_error_mm": row.get("translation_error_mm", ""),
                 "rotation_error_deg": row.get("rotation_error_deg", ""),
                 "epnp_label_path": row.get("epnp_label_path", ""),
+                "bbox_match_mode": args.bbox_match_mode if args.draw_mask_bbox else "",
+                "bbox_match_index": "" if bbox_idx is None else bbox_idx,
+                "bbox_match_distance_px": "" if bbox_dist is None else f"{bbox_dist:.6g}",
                 "output": str(output_path),
             }
         )
@@ -313,13 +443,19 @@ def main() -> None:
             "translation_error_mm",
             "rotation_error_deg",
             "epnp_label_path",
+            "bbox_match_mode",
+            "bbox_match_index",
+            "bbox_match_distance_px",
             "output",
         ]
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(index_rows)
 
-    print(f"Wrote {len(index_rows)} EPnPv2/GigaPose overlays to {args.output_dir}")
+    print(
+        f"Wrote {len(index_rows)} EPnPv2/GigaPose overlays to {args.output_dir} "
+        f"({len(rows)} visualized after filters from {input_row_count} input rows)"
+    )
 
 
 if __name__ == "__main__":

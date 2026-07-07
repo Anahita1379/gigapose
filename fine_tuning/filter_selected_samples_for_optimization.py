@@ -62,6 +62,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--epnp-label-dir-name",
+        default=None,
+        help=(
+            "Optional sibling label folder name to use per row, e.g. "
+            "EPnPv2_gt_mesh_z_hybrid_labels. This works with combined CSVs "
+            "spanning multiple sessions/cameras."
+        ),
+    )
+    parser.add_argument(
         "--map-z-mode",
         choices=("raw", "metadata_lidar", "ground_truth_pose", "session_lidar_offset", "session_lidar_affine"),
         default="session_lidar_offset",
@@ -229,12 +238,21 @@ def metadata_session_key(metadata_path: str | Path) -> str:
     return str(path.parent)
 
 
-def load_map_pose_from_label(row: dict[str, str]) -> tuple[np.ndarray, dict[str, Any]]:
+def label_path_from_row(row: dict[str, str], label_dir_name: str | None = None) -> Path:
     label_path = Path(row["epnp_label_path"])
+    if label_dir_name:
+        label_path = label_path.parent.parent / label_dir_name / label_path.name
+    return label_path
+
+
+def load_map_pose_from_label(
+    row: dict[str, str], label_dir_name: str | None = None
+) -> tuple[np.ndarray, dict[str, Any], Path]:
+    label_path = label_path_from_row(row, label_dir_name)
     data = json.loads(label_path.read_text())
     if "T_map_object_raw" not in data:
         raise KeyError(f"T_map_object_raw missing from {label_path}")
-    return matrix_3x4_or_4x4(data["T_map_object_raw"], unit="auto"), data
+    return matrix_3x4_or_4x4(data["T_map_object_raw"], unit="auto"), data, label_path
 
 
 def label_map_z_m(label_data: dict[str, Any], T_map_obj: np.ndarray) -> float:
@@ -243,7 +261,11 @@ def label_map_z_m(label_data: dict[str, Any], T_map_obj: np.ndarray) -> float:
     return float(T_map_obj[2, 3] * 0.001)
 
 
-def compute_session_lidar_z_stats(rows: list[dict[str, str]], metadata_path_field: str) -> dict[str, dict[str, float]]:
+def compute_session_lidar_z_stats(
+    rows: list[dict[str, str]],
+    metadata_path_field: str,
+    label_dir_name: str | None = None,
+) -> dict[str, dict[str, float]]:
     offsets: dict[str, list[float]] = defaultdict(list)
     label_zs: dict[str, list[float]] = defaultdict(list)
     lidar_zs: dict[str, list[float]] = defaultdict(list)
@@ -251,7 +273,7 @@ def compute_session_lidar_z_stats(rows: list[dict[str, str]], metadata_path_fiel
         try:
             metadata_path = metadata_path_from_row(row, metadata_path_field)
             metadata = load_yaml(metadata_path)
-            T_map_obj, label_data = load_map_pose_from_label(row)
+            T_map_obj, label_data, _ = load_map_pose_from_label(row, label_dir_name)
             lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
             z_m = label_map_z_m(label_data, T_map_obj)
             session = metadata_session_key(metadata_path)
@@ -468,7 +490,7 @@ def main() -> None:
 
     rows = read_csv(args.input)
     session_z_stats = (
-        compute_session_lidar_z_stats(rows, args.metadata_path_field)
+        compute_session_lidar_z_stats(rows, args.metadata_path_field, args.epnp_label_dir_name)
         if args.map_z_mode in ("session_lidar_offset", "session_lidar_affine")
         else {}
     )
@@ -486,7 +508,9 @@ def main() -> None:
         try:
             metadata_path = metadata_path_from_row(row, args.metadata_path_field)
             metadata = load_yaml(metadata_path)
-            T_map_obj_raw, label_data = load_map_pose_from_label(row)
+            T_map_obj_raw, label_data, label_path = load_map_pose_from_label(
+                row, args.epnp_label_dir_name
+            )
             session_key = metadata_session_key(metadata_path)
             z_stats = session_z_stats.get(session_key, {})
             T_map_obj = apply_map_z_mode(
@@ -524,6 +548,7 @@ def main() -> None:
             out.update(
                 {
                     "sample_metadata_path": str(metadata_path),
+                    "target_label_path": str(label_path),
                     "metadata_session_key": session_key,
                     "metadata_export_pose_source": source,
                     "metadata_ground_truth_pose_missing": str(bool(metadata.get("ground_truth_pose_missing", False))),
@@ -642,6 +667,7 @@ def main() -> None:
         "all_diagnostics_csv": str(diagnostics_path),
         "map_z_mode": args.map_z_mode,
         "projection_model": args.projection_model,
+        "epnp_label_dir_name": args.epnp_label_dir_name,
         "filters": {
             "reject_ground_truth_missing": args.reject_ground_truth_missing,
             "allowed_export_pose_source": args.allowed_export_pose_source,

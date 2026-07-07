@@ -93,6 +93,31 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--use-epnp-label-extrinsics",
+        action="store_true",
+        help=(
+            "Do not use metadata YAML. Instead derive each sample's original "
+            "camera-to-map extrinsic directly from the EPnP label JSON as "
+            "T_map_camera = T_map_object @ inv(T_camera_object). This requires "
+            "--epnp-map-pose-key and --epnp-camera-pose-key."
+        ),
+    )
+    parser.add_argument(
+        "--epnp-camera-pose-key",
+        default="T_camera_object_centered",
+        help=(
+            "Camera-frame object pose key inside each EPnP label JSON, used with "
+            "--use-epnp-label-extrinsics to derive the per-sample original "
+            "camera-to-map extrinsic."
+        ),
+    )
+    parser.add_argument(
+        "--epnp-camera-pose-unit",
+        choices=("auto", "m", "mm"),
+        default="auto",
+        help="Translation unit for --epnp-camera-pose-key values.",
+    )
+    parser.add_argument(
         "--metadata-path-field",
         default="sample_metadata_path",
         help=(
@@ -105,6 +130,27 @@ def parse_args() -> argparse.Namespace:
         choices=("auto", "m", "mm"),
         default="auto",
         help="Translation unit for --epnp-map-pose-key values.",
+    )
+    parser.add_argument(
+        "--epnp-label-root-override",
+        type=Path,
+        default=None,
+        help=(
+            "Optional folder containing the EPnP label JSONs to use for optimization. "
+            "Each selected row keeps its label filename, but the parent folder is "
+            "replaced by this folder. Use this to force EPnPv2_gt_mesh_z_hybrid_labels "
+            "without editing selected_samples.csv."
+        ),
+    )
+    parser.add_argument(
+        "--epnp-label-dir-name",
+        default=None,
+        help=(
+            "Optional sibling label folder name to use per row, e.g. "
+            "EPnPv2_gt_mesh_z_hybrid_labels. This is safer than "
+            "--epnp-label-root-override for combined CSVs spanning multiple "
+            "sessions/cameras."
+        ),
     )
     parser.add_argument(
         "--output-dir",
@@ -421,6 +467,21 @@ def metadata_path_from_row(row: dict[str, Any], field: str) -> Path:
     if not label_path_text:
         raise ValueError("Cannot infer metadata path without epnp_label_path")
     label_path = Path(label_path_text)
+
+    # Newer EPnPv2 label JSONs explicitly store the metadata YAML used to
+    # generate that label. Prefer that over filename inference, because it makes
+    # the GT-label <-> calibration/ego-metadata pairing unambiguous.
+    if label_path.is_file():
+        try:
+            label_data = json.loads(label_path.read_text())
+        except Exception:
+            label_data = {}
+        metadata_path_text = label_data.get("metadata_path") if isinstance(label_data, dict) else None
+        if metadata_path_text:
+            metadata_path = Path(metadata_path_text)
+            if metadata_path.is_file():
+                return metadata_path
+
     match = re.match(r"(.+)_([0-9]+)$", label_path.stem)
     if not match:
         raise ValueError(f"Cannot infer metadata sample name from {label_path.name}")
@@ -429,6 +490,22 @@ def metadata_path_from_row(row: dict[str, Any], field: str) -> Path:
     if metadata_path.is_file():
         return metadata_path
     raise FileNotFoundError(f"Could not find metadata YAML for {label_path}: {metadata_path}")
+
+
+def label_path_from_row(
+    row: dict[str, Any],
+    label_root_override: Path | None = None,
+    label_dir_name: str | None = None,
+) -> Path:
+    label_path_text = row.get("epnp_label_path")
+    if not label_path_text:
+        raise ValueError("Selected sample row is missing epnp_label_path")
+    label_path = Path(label_path_text)
+    if label_dir_name:
+        label_path = label_path.parent.parent / label_dir_name / label_path.name
+    if label_root_override is not None:
+        label_path = label_root_override / label_path.name
+    return label_path
 
 
 def matrix_from_yaml_key(data: dict[str, Any], key: str, unit: str) -> np.ndarray:
@@ -450,6 +527,15 @@ def load_metadata_camera(data: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, 
         model = str(data.get("distortion_model", "pinhole"))
         return K, D, model
     return None
+
+
+def load_label_camera(data: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, str] | None:
+    if "K" in data:
+        K = np.asarray(data["K"], dtype=float).reshape(3, 3)
+        D = np.asarray(data.get("D", []), dtype=float).reshape(-1)
+        model = str(data.get("distortion_model", "pinhole") or "pinhole")
+        return K, D, model
+    return load_metadata_camera(data)
 
 
 def metadata_session_key(metadata_path: str | Path) -> str:
@@ -556,8 +642,30 @@ def load_sample_metadata_transforms(
 def load_map_pose_from_epnp_label(path: Path, pose_key: str, unit: str) -> tuple[np.ndarray, dict[str, Any]]:
     data = json.loads(path.read_text())
     if pose_key not in data:
-        raise KeyError(f"{pose_key} not found in {path}")
+        available_pose_keys = [
+            key
+            for key in data.keys()
+            if "pose" in key.lower() or key.startswith("T_") or key in ("translation", "rotation")
+        ]
+        raise KeyError(
+            f"{pose_key} not found in {path}. Pose-like keys available: {available_pose_keys}"
+        )
     return matrix_3x4_or_4x4_to_transform(data[pose_key], unit), data
+
+
+def load_pose_from_label_data(
+    data: dict[str, Any], pose_key: str, unit: str, path_for_error: Path
+) -> np.ndarray:
+    if pose_key not in data:
+        available_pose_keys = [
+            key
+            for key in data.keys()
+            if "pose" in key.lower() or key.startswith("T_") or key in ("translation", "rotation")
+        ]
+        raise KeyError(
+            f"{pose_key} not found in {path_for_error}. Pose-like keys available: {available_pose_keys}"
+        )
+    return matrix_3x4_or_4x4_to_transform(data[pose_key], unit)
 
 
 def load_selected_samples(
@@ -566,6 +674,11 @@ def load_selected_samples(
     epnp_map_pose_key: str | None,
     epnp_map_pose_unit: str,
     use_sample_metadata: bool,
+    use_epnp_label_extrinsics: bool,
+    epnp_camera_pose_key: str,
+    epnp_camera_pose_unit: str,
+    epnp_label_root_override: Path | None,
+    epnp_label_dir_name: str | None,
     metadata_path_field: str,
     image_center_map_z_mode: str,
     session_z_scale: float,
@@ -577,11 +690,14 @@ def load_selected_samples(
                 T_giga = text_to_matrix(row["T_gigapose_cam_obj"])
                 label_data = {}
                 if epnp_map_pose_key:
-                    label_path = Path(row["epnp_label_path"])
+                    label_path = label_path_from_row(
+                        row, epnp_label_root_override, epnp_label_dir_name
+                    )
                     T_target, label_data = load_map_pose_from_epnp_label(
                         label_path, epnp_map_pose_key, epnp_map_pose_unit
                     )
                 else:
+                    label_path = Path(row.get("epnp_label_path", ""))
                     T_target = text_to_matrix(row["T_epnp_obj"])
                 metadata_values = {}
                 if use_sample_metadata:
@@ -609,6 +725,31 @@ def load_selected_samples(
                         "metadata": metadata,
                         "metadata_path": metadata_path,
                     }
+                elif use_epnp_label_extrinsics:
+                    if not epnp_map_pose_key:
+                        raise ValueError("--use-epnp-label-extrinsics requires --epnp-map-pose-key")
+                    label_path = label_path_from_row(
+                        row, epnp_label_root_override, epnp_label_dir_name
+                    )
+                    T_label_cam_obj = load_pose_from_label_data(
+                        label_data,
+                        epnp_camera_pose_key,
+                        epnp_camera_pose_unit,
+                        label_path,
+                    )
+                    T_map_cam_initial_sample = T_target @ np.linalg.inv(T_label_cam_obj)
+                    camera = load_label_camera(label_data)
+                    if camera is None:
+                        K, D, distortion_model = None, None, "pinhole"
+                    else:
+                        K, D, distortion_model = camera
+                    metadata_values = {
+                        "T_map_cam_initial_sample": T_map_cam_initial_sample,
+                        "T_epnp_camera_obj": T_label_cam_obj,
+                        "K": K,
+                        "D": D,
+                        "distortion_model": distortion_model,
+                    }
             except Exception as exc:
                 print(f"Skipping malformed selected sample: {exc}")
                 continue
@@ -617,6 +758,10 @@ def load_selected_samples(
                     **row,
                     "T_gigapose_cam_obj": T_giga,
                     "T_target_obj": T_target,
+                    "target_pose_path": str(label_path),
+                    "source_csv_epnp_label_path": row.get("epnp_label_path", ""),
+                    "target_pose_key": epnp_map_pose_key or "selected_csv:T_epnp_obj",
+                    "camera_pose_key": epnp_camera_pose_key if use_epnp_label_extrinsics else "",
                     **metadata_values,
                 }
             )
@@ -733,6 +878,59 @@ def residual_vector_sample_metadata(
     return np.asarray(residuals, dtype=float)
 
 
+def residual_vector_epnp_label_extrinsics(
+    xi: np.ndarray,
+    samples: list[dict[str, Any]],
+    translation_sigma_mm: float,
+    translation_residual_components: str,
+    rotation_sigma_deg: float,
+    image_center_weight: float,
+    image_center_sigma_px: float,
+    projection_model: str,
+    translation_prior_weight: float,
+    rotation_prior_weight: float,
+) -> np.ndarray:
+    T_delta = se3_exp(xi)
+    residuals = []
+    rotation_sigma_rad = math.radians(rotation_sigma_deg)
+    t_idx = translation_component_indices(translation_residual_components)
+
+    for sample in samples:
+        T_map_cam = T_delta @ sample["T_map_cam_initial_sample"]
+        T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
+        T_gt = sample["T_target_obj"]
+        t_res = (T_pred[:3, 3] - T_gt[:3, 3])[t_idx] / translation_sigma_mm
+        r_res = so3_log(T_pred[:3, :3] @ T_gt[:3, :3].T) / rotation_sigma_rad
+        residuals.extend(t_res.tolist())
+        residuals.extend(r_res.tolist())
+
+        if image_center_weight > 0:
+            uv_res = np.zeros(2, dtype=float)
+            if sample.get("K") is not None:
+                T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ T_gt
+                uv_map, map_valid = project_origin(
+                    T_cam_obj_from_map,
+                    sample["K"],
+                    sample.get("D"),
+                    sample.get("distortion_model", "pinhole"),
+                    projection_model,
+                )
+                uv_giga, giga_valid = project_origin(
+                    sample["T_gigapose_cam_obj"],
+                    sample["K"],
+                    sample.get("D"),
+                    sample.get("distortion_model", "pinhole"),
+                    projection_model,
+                )
+                if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
+                    uv_res = ((uv_map - uv_giga) / image_center_sigma_px) * image_center_weight
+            residuals.extend(uv_res.tolist())
+
+    residuals.extend((xi[:3] * rotation_prior_weight).tolist())
+    residuals.extend(((xi[3:6] / translation_sigma_mm) * translation_prior_weight).tolist())
+    return np.asarray(residuals, dtype=float)
+
+
 def compute_sample_errors(T_map_cam: np.ndarray, samples: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for sample in samples:
@@ -790,6 +988,56 @@ def compute_sample_metadata_errors(
                 "instance_id": sample.get("instance_id", ""),
                 "score": sample.get("score", ""),
                 "metadata_path": sample.get("metadata_path", ""),
+                "target_pose_path": sample.get("target_pose_path", ""),
+                "target_pose_key": sample.get("target_pose_key", ""),
+                "translation_error_mm": float(np.linalg.norm(T_pred[:3, 3] - T_gt[:3, 3])),
+                "rotation_error_deg": rotation_error_deg(T_pred[:3, :3], T_gt[:3, :3]),
+                "image_center_error_px": image_center_error_px,
+            }
+        )
+    return rows
+
+
+def compute_sample_epnp_label_extrinsic_errors(
+    T_delta: np.ndarray,
+    samples: list[dict[str, Any]],
+    projection_model: str = "pinhole",
+) -> list[dict[str, Any]]:
+    rows = []
+    for sample in samples:
+        T_map_cam = T_delta @ sample["T_map_cam_initial_sample"]
+        T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
+        T_gt = sample["T_target_obj"]
+        image_center_error_px = float("nan")
+        if sample.get("K") is not None:
+            T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ T_gt
+            uv_map, map_valid = project_origin(
+                T_cam_obj_from_map,
+                sample["K"],
+                sample.get("D"),
+                sample.get("distortion_model", "pinhole"),
+                projection_model,
+            )
+            uv_giga, giga_valid = project_origin(
+                sample["T_gigapose_cam_obj"],
+                sample["K"],
+                sample.get("D"),
+                sample.get("distortion_model", "pinhole"),
+                projection_model,
+            )
+            if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
+                image_center_error_px = float(np.linalg.norm(uv_map - uv_giga))
+        rows.append(
+            {
+                "match_key": sample.get("match_key", ""),
+                "scene_id": sample.get("scene_id", ""),
+                "im_id": sample.get("im_id", ""),
+                "instance_id": sample.get("instance_id", ""),
+                "score": sample.get("score", ""),
+                "target_pose_path": sample.get("target_pose_path", ""),
+                "source_csv_epnp_label_path": sample.get("source_csv_epnp_label_path", ""),
+                "target_pose_key": sample.get("target_pose_key", ""),
+                "camera_pose_key": sample.get("camera_pose_key", ""),
                 "translation_error_mm": float(np.linalg.norm(T_pred[:3, 3] - T_gt[:3, 3])),
                 "rotation_error_deg": rotation_error_deg(T_pred[:3, :3], T_gt[:3, :3]),
                 "image_center_error_px": image_center_error_px,
@@ -842,10 +1090,18 @@ def main() -> None:
         args.epnp_map_pose_key,
         args.epnp_map_pose_unit,
         args.use_sample_metadata,
+        args.use_epnp_label_extrinsics,
+        args.epnp_camera_pose_key,
+        args.epnp_camera_pose_unit,
+        args.epnp_label_root_override,
+        args.epnp_label_dir_name,
         args.metadata_path_field,
         args.image_center_map_z_mode,
         args.session_z_scale,
     )
+    if args.use_sample_metadata and args.use_epnp_label_extrinsics:
+        raise SystemExit("Use either --use-sample-metadata or --use-epnp-label-extrinsics, not both.")
+
     if args.use_sample_metadata:
         T_initial = np.eye(4, dtype=float)
         before_rows = compute_sample_metadata_errors(T_initial, samples, args.projection_model)
@@ -861,9 +1117,29 @@ def main() -> None:
             args.translation_prior_weight,
             args.rotation_prior_weight,
         )
+    elif args.use_epnp_label_extrinsics:
+        T_initial = np.eye(4, dtype=float)
+        before_rows = compute_sample_epnp_label_extrinsic_errors(
+            T_initial, samples, args.projection_model
+        )
+        residual_fn = residual_vector_epnp_label_extrinsics
+        residual_args = (
+            samples,
+            args.translation_sigma_mm,
+            args.translation_residual_components,
+            args.rotation_sigma_deg,
+            args.image_center_weight,
+            args.image_center_sigma_px,
+            args.projection_model,
+            args.translation_prior_weight,
+            args.rotation_prior_weight,
+        )
     else:
         if args.initial_extrinsic is None:
-            raise SystemExit("--initial-extrinsic is required unless --use-sample-metadata is set.")
+            raise SystemExit(
+                "--initial-extrinsic is required unless --use-sample-metadata "
+                "or --use-epnp-label-extrinsics is set."
+            )
         T_initial = load_initial_extrinsic(args.initial_extrinsic, args.initial_unit)
         before_rows = compute_sample_errors(T_initial, samples)
         residual_fn = residual_vector
@@ -890,8 +1166,19 @@ def main() -> None:
     T_optimized = T_delta @ T_initial
     if args.use_sample_metadata:
         after_rows = compute_sample_metadata_errors(T_delta, samples, args.projection_model)
+    elif args.use_epnp_label_extrinsics:
+        after_rows = compute_sample_epnp_label_extrinsic_errors(
+            T_delta, samples, args.projection_model
+        )
     else:
         after_rows = compute_sample_errors(T_optimized, samples)
+
+    if args.use_sample_metadata:
+        optimization_mode = "sample_metadata_lidar_camera_prior"
+    elif args.use_epnp_label_extrinsics:
+        optimization_mode = "epnp_label_camera_extrinsics"
+    else:
+        optimization_mode = "static_T_map_cam"
 
     write_csv(args.output_dir / "errors_before_optimization.csv", before_rows)
     write_csv(args.output_dir / "errors_after_optimization.csv", after_rows)
@@ -900,11 +1187,17 @@ def main() -> None:
         "description": "Optimized map-to-camera extrinsic correction from selected GigaPose/EPnPv2 samples.",
         "translation_unit": "mm",
         "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
-        "optimization_mode": "sample_metadata_lidar_camera_prior" if args.use_sample_metadata else "static_T_map_cam",
-        "T_map_cam_initial": T_initial.tolist() if not args.use_sample_metadata else None,
+        "camera_pose_source": args.epnp_camera_pose_key if args.use_epnp_label_extrinsics else None,
+        "epnp_label_root_override": (
+            str(args.epnp_label_root_override) if args.epnp_label_root_override is not None else None
+        ),
+        "epnp_label_dir_name": args.epnp_label_dir_name,
+        "optimization_mode": optimization_mode,
+        "T_map_cam_initial": T_initial.tolist() if not args.use_sample_metadata and not args.use_epnp_label_extrinsics else None,
         "T_correction_left_multiply": T_delta.tolist(),
-        "T_map_cam_optimized": T_optimized.tolist() if not args.use_sample_metadata else None,
+        "T_map_cam_optimized": T_optimized.tolist() if not args.use_sample_metadata and not args.use_epnp_label_extrinsics else None,
         "T_lidar_camera_correction_left_multiply": T_delta.tolist() if args.use_sample_metadata else None,
+        "T_epnp_label_camera_correction_left_multiply": T_delta.tolist() if args.use_epnp_label_extrinsics else None,
         "correction_rotation_rpy_like_vector_rad": xi[:3].tolist(),
         "correction_translation_mm": xi[3:6].tolist(),
         "image_center_weight": args.image_center_weight,
@@ -917,7 +1210,14 @@ def main() -> None:
             "T_lidar_camera_correction_left_multiply @ t_lidar_camera_prior for each frame, "
             "then T_map_cam = t_map_lidar @ T_lidar_camera_optimized."
             if args.use_sample_metadata
-            else "Use T_map_cam_optimized as camera-to-map transform if your pipeline expects T_map_cam."
+            else (
+                "EPnP-label-extrinsics mode: for each frame, derive "
+                "T_map_cam_initial_i = T_map_object_raw_i @ inv(T_camera_object_i), then apply "
+                "T_map_cam_optimized_i = T_epnp_label_camera_correction_left_multiply @ "
+                "T_map_cam_initial_i."
+                if args.use_epnp_label_extrinsics
+                else "Use T_map_cam_optimized as camera-to-map transform if your pipeline expects T_map_cam."
+            )
         ),
     }
     (args.output_dir / "optimized_extrinsics.json").write_text(json.dumps(extrinsics, indent=2))
@@ -929,7 +1229,12 @@ def main() -> None:
         "optimizer_cost": float(result.cost),
         "robust_loss": args.robust_loss,
         "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
-        "optimization_mode": "sample_metadata_lidar_camera_prior" if args.use_sample_metadata else "static_T_map_cam",
+        "camera_pose_source": args.epnp_camera_pose_key if args.use_epnp_label_extrinsics else None,
+        "epnp_label_root_override": (
+            str(args.epnp_label_root_override) if args.epnp_label_root_override is not None else None
+        ),
+        "epnp_label_dir_name": args.epnp_label_dir_name,
+        "optimization_mode": optimization_mode,
         "translation_sigma_mm": args.translation_sigma_mm,
         "translation_residual_components": args.translation_residual_components,
         "rotation_sigma_deg": args.rotation_sigma_deg,

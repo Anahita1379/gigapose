@@ -110,6 +110,25 @@ def parse_args() -> argparse.Namespace:
             "when available, including plumb_bob and equidistant."
         ),
     )
+    parser.add_argument(
+        "--epnp-label-root-override",
+        type=Path,
+        default=None,
+        help=(
+            "Optional folder containing EPnP label JSONs to use for visualization. "
+            "Each selected row keeps its label filename, but this folder is used "
+            "as the parent. Use this to force EPnPv2_gt_mesh_z_hybrid_labels."
+        ),
+    )
+    parser.add_argument(
+        "--epnp-label-dir-name",
+        default=None,
+        help=(
+            "Optional sibling label folder name to use per row, e.g. "
+            "EPnPv2_gt_mesh_z_hybrid_labels. This works with combined CSVs "
+            "spanning multiple sessions/cameras."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -206,6 +225,22 @@ def metadata_path_from_row(row: dict[str, str]) -> Path:
     return label_path.parent.parent / "metadata" / f"sample_{ts}_{obj}.yaml"
 
 
+def label_path_from_row(
+    row: dict[str, str],
+    label_root_override: Path | None = None,
+    label_dir_name: str | None = None,
+) -> Path:
+    label = row.get("epnp_label_path", "")
+    if not label:
+        raise ValueError("No epnp_label_path in selected sample row")
+    label_path = Path(label)
+    if label_dir_name:
+        label_path = label_path.parent.parent / label_dir_name / label_path.name
+    if label_root_override is not None:
+        label_path = label_root_override / label_path.name
+    return label_path
+
+
 def load_yaml(path: Path) -> dict[str, Any]:
     try:
         import yaml
@@ -229,6 +264,14 @@ def load_image(metadata: dict[str, Any], metadata_path: Path) -> Image.Image:
     raise FileNotFoundError(f"Could not find image for metadata {metadata_path}")
 
 
+def load_image_from_label(label_data: dict[str, Any]) -> Image.Image | None:
+    for key in ("source_image_path", "image_path"):
+        image_path = label_data.get(key)
+        if image_path and Path(str(image_path)).is_file():
+            return Image.open(str(image_path)).convert("RGB")
+    return None
+
+
 def load_camera(metadata: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, str]:
     intrinsics = metadata.get("camera_intrinsics", {})
     if "k" in intrinsics:
@@ -244,12 +287,31 @@ def load_camera(metadata: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, str]:
     raise KeyError("No camera intrinsics k/K found in metadata")
 
 
-def load_target_map_pose(row: dict[str, str]) -> tuple[np.ndarray, dict[str, Any]]:
-    label_path = Path(row["epnp_label_path"])
+def load_camera_from_label(label_data: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, str] | None:
+    if "K" not in label_data:
+        return None
+    K = np.asarray(label_data["K"], dtype=float).reshape(3, 3)
+    D = np.asarray(label_data.get("D", []), dtype=float).reshape(-1)
+    model = str(label_data.get("distortion_model", "pinhole") or "pinhole")
+    return K, D, model
+
+
+def load_target_map_pose(
+    row: dict[str, str],
+    label_root_override: Path | None = None,
+    label_dir_name: str | None = None,
+) -> tuple[np.ndarray, dict[str, Any], Path]:
+    label_path = label_path_from_row(row, label_root_override, label_dir_name)
     data = json.loads(label_path.read_text())
     if "T_map_object_raw" not in data:
         raise KeyError(f"T_map_object_raw missing from {label_path}")
-    return matrix_3x4_or_4x4(data["T_map_object_raw"], unit="auto"), data
+    return matrix_3x4_or_4x4(data["T_map_object_raw"], unit="auto"), data, label_path
+
+
+def load_camera_object_pose_from_label(label_data: dict[str, Any], label_path: Path) -> np.ndarray:
+    if "T_camera_object_centered" not in label_data:
+        raise KeyError(f"T_camera_object_centered missing from {label_path}")
+    return matrix_3x4_or_4x4(label_data["T_camera_object_centered"], unit="auto")
 
 
 def metadata_session_key(metadata_path: str | Path) -> str:
@@ -259,7 +321,11 @@ def metadata_session_key(metadata_path: str | Path) -> str:
     return str(path.parent)
 
 
-def compute_session_lidar_z_stats(rows: list[dict[str, str]]) -> dict[str, dict[str, float]]:
+def compute_session_lidar_z_stats(
+    rows: list[dict[str, str]],
+    label_root_override: Path | None = None,
+    label_dir_name: str | None = None,
+) -> dict[str, dict[str, float]]:
     offsets_by_session: dict[str, list[float]] = {}
     label_z_by_session: dict[str, list[float]] = {}
     lidar_z_by_session: dict[str, list[float]] = {}
@@ -267,7 +333,9 @@ def compute_session_lidar_z_stats(rows: list[dict[str, str]]) -> dict[str, dict[
         try:
             metadata_path = metadata_path_from_row(row)
             metadata = load_yaml(metadata_path)
-            T_map_obj_raw, _ = load_target_map_pose(row)
+            T_map_obj_raw, _, _ = load_target_map_pose(
+                row, label_root_override, label_dir_name
+            )
             lidar_z_m = float(np.asarray(metadata["t_map_lidar"], dtype=float).reshape(4, 4)[2, 3])
             label_z_m = float(T_map_obj_raw[2, 3] * 0.001)
         except Exception:
@@ -489,12 +557,27 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     extrinsics = json.loads((args.optimization_dir / "optimized_extrinsics.json").read_text())
-    correction = np.asarray(extrinsics["T_lidar_camera_correction_left_multiply"], dtype=float).reshape(4, 4)
+    optimization_mode = str(extrinsics.get("optimization_mode", "sample_metadata_lidar_camera_prior"))
+    if "T_lidar_camera_correction_left_multiply" in extrinsics and extrinsics[
+        "T_lidar_camera_correction_left_multiply"
+    ] is not None:
+        correction = np.asarray(extrinsics["T_lidar_camera_correction_left_multiply"], dtype=float).reshape(4, 4)
+        correction_kind = "metadata_lidar"
+    elif "T_epnp_label_camera_correction_left_multiply" in extrinsics and extrinsics[
+        "T_epnp_label_camera_correction_left_multiply"
+    ] is not None:
+        correction = np.asarray(extrinsics["T_epnp_label_camera_correction_left_multiply"], dtype=float).reshape(4, 4)
+        correction_kind = "epnp_label"
+    else:
+        correction = np.asarray(extrinsics["T_correction_left_multiply"], dtype=float).reshape(4, 4)
+        correction_kind = "metadata_lidar" if "metadata" in optimization_mode else "epnp_label"
     corners = bbox_corners(read_ply_vertices(args.mesh))
 
     rows = read_csv(args.selected_samples)
     session_z_stats = (
-        compute_session_lidar_z_stats(rows)
+        compute_session_lidar_z_stats(
+            rows, args.epnp_label_root_override, args.epnp_label_dir_name
+        )
         if args.map_z_mode in ("session_lidar_offset", "session_lidar_affine")
         else {}
     )
@@ -506,27 +589,71 @@ def main() -> None:
     index_rows = []
     for row in rows:
         try:
-            metadata_path = metadata_path_from_row(row)
-            metadata = load_yaml(metadata_path)
-            image = load_image(metadata, metadata_path)
-            K, D, distortion_model = load_camera(metadata)
-            T_map_lidar = matrix_3x4_or_4x4(metadata["t_map_lidar"], unit="m")
-            T_lidar_cam_prior = matrix_3x4_or_4x4(metadata["t_lidar_camera_prior"], unit="m")
-            T_map_obj_raw, label_data = load_target_map_pose(row)
-            z_stats = session_z_stats.get(metadata_session_key(metadata_path), {})
-            T_map_obj = apply_map_z_mode(
-                T_map_obj_raw,
-                label_data,
-                metadata,
-                args.map_z_mode,
-                z_stats.get("offset_m"),
-                z_stats.get("label_z_median"),
-                z_stats.get("lidar_z_median"),
-                args.session_z_scale,
+            T_map_obj_raw, label_data, label_path = load_target_map_pose(
+                row, args.epnp_label_root_override, args.epnp_label_dir_name
             )
-            z_debug = map_z_debug(T_map_obj_raw, T_map_obj, label_data, metadata)
-            T_map_cam_prior = T_map_lidar @ T_lidar_cam_prior
-            T_map_cam_opt = T_map_lidar @ correction @ T_lidar_cam_prior
+            metadata_path = None
+            metadata: dict[str, Any] = {}
+            try:
+                metadata_path = metadata_path_from_row(row)
+                metadata = load_yaml(metadata_path)
+            except Exception:
+                metadata = {}
+
+            if metadata_path is not None:
+                image = load_image(metadata, metadata_path)
+            else:
+                image_from_label = load_image_from_label(label_data)
+                if image_from_label is None:
+                    raise FileNotFoundError(f"Could not find image from label or metadata for {label_path}")
+                image = image_from_label
+
+            camera_from_label = load_camera_from_label(label_data)
+            if correction_kind == "epnp_label" and camera_from_label is not None:
+                K, D, distortion_model = camera_from_label
+            else:
+                K, D, distortion_model = load_camera(metadata)
+
+            if correction_kind == "metadata_lidar":
+                if not metadata or metadata_path is None:
+                    raise ValueError("Metadata/lidar optimization visualization requires metadata YAML.")
+                T_map_lidar = matrix_3x4_or_4x4(metadata["t_map_lidar"], unit="m")
+                T_lidar_cam_prior = matrix_3x4_or_4x4(metadata["t_lidar_camera_prior"], unit="m")
+                z_stats = session_z_stats.get(metadata_session_key(metadata_path), {})
+                T_map_obj = apply_map_z_mode(
+                    T_map_obj_raw,
+                    label_data,
+                    metadata,
+                    args.map_z_mode,
+                    z_stats.get("offset_m"),
+                    z_stats.get("label_z_median"),
+                    z_stats.get("lidar_z_median"),
+                    args.session_z_scale,
+                )
+                z_debug = map_z_debug(T_map_obj_raw, T_map_obj, label_data, metadata)
+                T_map_cam_prior = T_map_lidar @ T_lidar_cam_prior
+                T_map_cam_opt = T_map_lidar @ correction @ T_lidar_cam_prior
+            else:
+                T_map_obj = T_map_obj_raw
+                T_camera_obj_epnp = load_camera_object_pose_from_label(label_data, label_path)
+                T_map_cam_prior = T_map_obj_raw @ np.linalg.inv(T_camera_obj_epnp)
+                T_map_cam_opt = correction @ T_map_cam_prior
+                z_debug = {
+                    "raw_map_object_z_m": float(T_map_obj_raw[2, 3] * 0.001),
+                    "label_map_pose_z_m": float(
+                        label_data.get("map_pose", {})
+                        .get("position", {})
+                        .get("z", T_map_obj_raw[2, 3] * 0.001)
+                    )
+                    if isinstance(label_data.get("map_pose"), dict)
+                    else float(T_map_obj_raw[2, 3] * 0.001),
+                    "adjusted_map_object_z_m": float(T_map_obj_raw[2, 3] * 0.001),
+                    "metadata_lidar_z_m": float("nan"),
+                    "metadata_ground_truth_pose_z_m": float("nan"),
+                    "object_minus_ego_z_m": float("nan"),
+                    "adjusted_minus_lidar_z_m": float("nan"),
+                }
+
             T_cam_obj_prior = np.linalg.inv(T_map_cam_prior) @ T_map_obj
             T_cam_obj_opt = np.linalg.inv(T_map_cam_opt) @ T_map_obj
             T_gigapose = text_to_matrix(row["T_gigapose_cam_obj"])
@@ -580,8 +707,10 @@ def main() -> None:
         image.save(output_path, quality=94)
         index_row = {
             "match_key": row.get("match_key", ""),
-            "metadata_path": str(metadata_path),
+            "metadata_path": "" if metadata_path is None else str(metadata_path),
             "epnp_label_path": row.get("epnp_label_path", ""),
+            "target_label_path": str(label_path),
+            "correction_kind": correction_kind,
             "map_z_mode": args.map_z_mode,
             "translation_error_mm": row.get("translation_error_mm", ""),
             "rotation_error_deg": row.get("rotation_error_deg", ""),
