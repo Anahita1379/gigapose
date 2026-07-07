@@ -251,7 +251,7 @@ python -m fine_tuning.combine_selected_samples \
 recommanded optimizer code: 
 ```bash
 python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data_IST_AE/combined_front_selected_samples.csv \
+  --selected-samples gigaPose_datasets/results/real_world_data_IST_AE/combined_stereo_left_selected_samples.csv \
   --use-epnp-label-extrinsics \
   --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
   --epnp-map-pose-key T_map_object_raw \
@@ -264,10 +264,10 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --image-center-weight 5 \
   --image-center-sigma-px 50 \
   --projection-model metadata \
-  --translation-prior-weight 5000 \
-  --rotation-prior-weight 100 \
+  --translation-prior-weight 1000 \
+  --rotation-prior-weight 20 \
   --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_front_epnp_hybrid_xyz
+  --output-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_stereo_left_epnp_hybrid_xyz_stronger
 
 ```
 
@@ -277,10 +277,10 @@ Key point: for this EPnP-label-only mode, use:
 --map-z-mode raw
 ```bash
 python -m fine_tuning.visualize_extrinsic_optimization_on_images \
-  --selected-samples gigaPose_datasets/results/real_world_data_IST_AE/combined_front_selected_samples.csv \
-  --optimization-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_front_epnp_hybrid_xyz \
+  --selected-samples gigaPose_datasets/results/real_world_data_IST_AE/combined_stereo_left_selected_samples.csv \
+  --optimization-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_stereo_left_epnp_hybrid_xyz_stronger \
   --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --output-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_front_epnp_hybrid_xyz/image_overlays \
+  --output-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_stereo_left_epnp_hybrid_xyz_stronger/image_overlays \
   --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
   --map-z-mode raw \
   --draw-gigapose \
@@ -290,6 +290,18 @@ python -m fine_tuning.visualize_extrinsic_optimization_on_images \
   --max-images 200
 
 ```
+
+
+we can plot the errors:
+```bash
+python -m fine_tuning.plot_extrinsic_optimization \
+  --optimization-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_stereo_left_epnp_hybrid_xyz_stronger \
+  --output-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_stereo_left_epnp_hybrid_xyz_stronger/plots \
+  --selected-samples gigaPose_datasets/results/real_world_data_IST_AE/combined_front_selected_samples.csv
+```
+
+  
+
 
 <!-- Then the combined file can be used here:
 ```bash
