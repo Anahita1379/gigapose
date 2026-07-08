@@ -126,20 +126,65 @@ Use identical alignment options in all three preparation commands.
 
 
 
+geometry check:
+python -m Assetto_data_prep.validate_camera_geometry \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --cameras rear \
+  --mask-dir-name generated_masks \
+  --frame-stride 2 \
+  --output-json fine_tuning/rear_geometry_validation_report.json \
+  --output-overlays fine_tuning/rear_geometry_overlays \
+  --max-overlays 100
+
+
+python -m fine_tuning.confirm_cad_coordinate_frame \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --camera rear \
+  --num-frames 30 \
+  --mask-dir-name generated_masks \
+  --output-dir fine_tuning/rear_coordinate_check
 
 
 ## Run GSAM on rendered dataset
-
+Grounded-SAM-2/grounded_sam2_tracking_demo_Assetto_version.py
 1. Run Grounded-SAM on the existing WebDataset split
-python -m run_grounded_sam_on_webdataset \
+python -m grounded_sam2_tracking_demo_Assetto_version \
+  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
+  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsm \
+  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
+  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
+  --text "race car. vehicle." \
+  --save-overlays \
+  --overwrite
+
+
+python -m grounded_sam2_tracking_demo_Assetto_version \
+  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
+  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_debug \
+  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
+  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
+  --allowed-label-substrings "race car" \
+  --text "race car." \
+  --box-threshold 0.30 \
+  --text-threshold 0.30 \
+  --nms-iou 0.35 \
+  --mask-nms-iou 0.60 \
+  --ego-filter-cameras front \
+  --save-overlays \
+  --overwrite
+
+
+  python -m Assetto_data_prep.run_grounded_sam_on_webdataset \
   --input-split gigaPose_datasets/datasets/assettocorsa_all/val_pbr_web \
   --output-dir gigaPose_datasets/datasets/assettocorsa_all/val_pbr_web_gsam \
   --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
   --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
   --text "race car." \
+  --ego-filter-cameras front \
   --save-overlays \
   --overwrite
-
 
 
 
