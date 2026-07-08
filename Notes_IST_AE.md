@@ -212,6 +212,9 @@ python -m fine_tuning.visualize_multi_model_per_car \
 ```
 
 
+
+
+
 Use evaluate_gigapose_models with just one --model. It will compare that model against the GT stored in the prepared dataset and write camera_summary.csv
 ```bash
 python -m fine_tuning.evaluate_gigapose_models \

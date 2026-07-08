@@ -125,6 +125,7 @@ Use identical alignment options in all three preparation commands.
 
 
 geometry check:
+```bash
 python -m Assetto_data_prep.validate_camera_geometry \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
@@ -143,23 +144,15 @@ python -m fine_tuning.confirm_cad_coordinate_frame \
   --num-frames 30 \
   --mask-dir-name generated_masks \
   --output-dir fine_tuning/rear_coordinate_check
+```
 
 
-
-python -m Assetto_data_prep.visualize_opponent_gt_projection \
-  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
-  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --cameras rear \
-  --frame-stride 5 \
-  --max-frames-per-session 50 \
-  --output-dir fine_tuning/rear_opponent_gt_projection
-
-
-## 3. Prepare fine-tuning data
+## 2. Prepare fine-tuning data
 
 Repeat `--source-root` in the desired order. The last session is held out by
 default, rather than randomly mixing adjacent frames:
 
+The old version is 
 ```bash
 python -m Assetto_data_prep.prepare_training \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
@@ -185,11 +178,9 @@ python -m Assetto_data_prep.prepare_training \
   --overwrite
 ```
 
-
-
-to validate the generated masks before training: 
+The new version is : 
 ```bash
-python -m Assetto_data_prep.validate_generated_masks \
+python -m Assetto_data_prep.prepare_training \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_rain_2opp_noMask_6Laps \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_clear_2opp_noMask_fixedSkin_6Laps  \
@@ -202,39 +193,116 @@ python -m Assetto_data_prep.validate_generated_masks \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_fog_5opp_fixedskin \
   --source-root  /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_putnam_fog_5opp_fixedskin \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name assettocorsa_new_dataset \
   --cameras all \
-  --frame-stride 20 \
+  --frame-stride 2 \
+  --max-frames-per-session 10000 \
   --mask-dir-name generated_masks \
-  --output-json fine_tuning/generated_mask_validation_report.json
-
-
-  python -m Assetto_data_prep.validate_camera_geometry \
-  --source-root "$BENCHMARK" \
-  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --cameras rear \
-  --frame-stride 20 \
-  --mask-dir-name generated_masks \
-  --output-json fine_tuning/camera_geometry_validation_report.json
+  --split-mode random_frames \
+  --validation-fraction 0.1 \
+  --validation-seed 20260707 \
+  --min-mask-pixels 100 \
+  --max-depth-m 150 \
+  --overwrite
 ```
 
-Generate masks using the same sessions, cameras, stride, and per-session cap.
-The cap prevents the 45,686-frame Laguna session from overwhelming the other
-weather/track conditions.
-
 Validate, render templates, and start with IST-only fine-tuning:
-
 ```bash
 python -m fine_tuning.validate_training_data \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_all_no_rear
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset
 
 python -m src.scripts.render_custom_templates \
-  custom_dataset_name=assettocorsa_all_no_rear \
-  machine.num_workers=1
+  custom_dataset_name=assettocorsa_new_dataset \
+  machine.num_workers=4
+```
 
+## 3. Run GSAM on rendered dataset
+
+1. Run Grounded-SAM on the existing WebDataset split 
+```bash
+###########  for trainig dataset: ################3
+python -m grounded_sam2_tracking_demo_Assetto_version \
+  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa_new_dataset/train_pbr_web \
+  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa_new_dataset/train_pbr_web_gsam_filtered \
+  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
+  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
+  --allowed-label-substrings "race car" \
+  --text "race car." \
+  --box-threshold 0.30 \
+  --text-threshold 0.30 \
+  --nms-iou 0.35 \
+  --mask-nms-iou 0.60 \
+  --overwrite
+
+# --ego-filter-cameras all \
+# --save-overlays \
+
+###### For validation dataset: ##########
+python -m grounded_sam2_tracking_demo_Assetto_version \
+  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa_new_dataset/val_pbr_web \
+  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa_new_dataset/val_pbr_web_gsam_filtered \
+  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
+  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
+  --allowed-label-substrings "race car" \
+  --text "race car." \
+  --box-threshold 0.30 \
+  --text-threshold 0.30 \
+  --nms-iou 0.35 \
+  --mask-nms-iou 0.60 \
+  --save-overlays \
+  --overwrite
+```
+
+
+Next, do the actual clearing: (this is the step we need to do when you get back to the lab on wednesday)
+```bash
+
+# For train images: 
+python -m Assetto_data_prep.filter_webdataset_by_detection_count \
+  --input-split gigaPose_datasets/datasets/assettocorsa_new_dataset/train_pbr_web \
+  --output-split gigaPose_datasets/datasets/assettocorsa_new_dataset/train_pbr_web_gsam_clean \
+  --detections gigaPose_datasets/datasets/assettocorsa_new_dataset/train_pbr_web_gsam_filtered/gsam_detections.json \
+  --min-score 0.05 \
+  --overwrite
+
+# For val images: 
+python -m Assetto_data_prep.filter_webdataset_by_detection_count \
+  --input-split gigaPose_datasets/datasets/assettocorsa_new_dataset/val_pbr_web \
+  --output-split gigaPose_datasets/datasets/assettocorsa_new_dataset/val_pbr_web_gsam_clean \
+  --detections gigaPose_datasets/datasets/assettocorsa_new_dataset/val_pbr_web_gsam_filtered/gsam_detections.json \
+  --min-score 0.05 \
+  --overwrite
+  
+``` 
+
+
+to check the rejected samples: 
+``` bash
+python -m grounded_sam2_tracking_demo_Assetto_version \
+  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa_new_dataset/val_pbr_web \
+  --keys-csv /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa_new_dataset/val_pbr_web_gsam_clean/rejected_samples.csv \
+  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa_new_dataset/rejected_val_gsam_overlays \
+  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
+  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
+  --text "race car." \
+  --allowed-label-substrings "race car" \
+  --box-threshold 0.40 \
+  --text-threshold 0.35 \
+  --nms-iou 0.25 \
+  --mask-nms-iou 0.50 \
+  --save-overlays \
+  --overwrite
+
+``` 
+
+
+## 4. Train
+---------------------------------------------------------
 AE and IST training:
-
+---------------------------------------------------------
+``` bash
 python -m fine_tuning.train \
-  --dataset-name assettocorsa_all_no_rear \
+  --dataset-name assettocorsa_new_dataset \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train all \
   --ist-lr 1e-5 \
@@ -249,18 +317,19 @@ python -m fine_tuning.train \
   --print-loss-every 50 \
   --devices all \
   --match-sim-threshold 0.2
+``` 
+
+----------------------------------------------
 
 IST only training: 
-# assettocorsa_ist_only_run_corrected
-# assettocorsa_ist_only_run_newdata
-# assettocorsa_ist_only_run_noRear
+``` bash
   python -m fine_tuning.train \
-  --dataset-name assettocorsa_all_no_rear \
+  --dataset-name assettocorsa_new_dataset \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train ist \
   --ist-lr 1e-5 \
   --batch-size 32 \
-  --max-steps 20000 \
+  --max-steps 25000 \
   --validation-interval 250 \
   --run-name assettocorsa_ist_only_run_noRear \
   --logger wandb \
@@ -364,42 +433,7 @@ blue box = fine-tuned
 
 
 
-## Run GSAM on rendered dataset
-Grounded-SAM-2/grounded_sam2_tracking_demo_Assetto_version.py
-1. Run Grounded-SAM on the existing WebDataset split
-python -m grounded_sam2_tracking_demo_Assetto_version \
-  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
-  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsm \
-  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
-  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
-  --text "race car. vehicle." \
-  --save-overlays \
-  --overwrite
 
-
-python -m grounded_sam2_tracking_demo_Assetto_version \
-  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
-  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_debug \
-  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
-  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
-  --allowed-label-substrings "race car" \
-  --text "race car." \
-  --box-threshold 0.30 \
-  --text-threshold 0.30 \
-  --nms-iou 0.35 \
-  --mask-nms-iou 0.60 \
-  --save-overlays \
-  --overwrite
-
---ego-filter-cameras all \
-Next, do the actual clearing: 
-python -m Assetto_data_prep.filter_webdataset_by_detection_count \
-  --input-split gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
-  --output-split gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_clean \
-  --detections gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_debug/gsam_detections.json \
-  --min-score 0.05 
-  --overwrite
-gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_debug/gsam_detections.json
 
 
 
