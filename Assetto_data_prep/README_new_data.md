@@ -73,8 +73,6 @@ python -m Assetto_data_prep.generate_masks \
 ```
 
 Then generate every camera:
-
-
 <!-- paths:  
 /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps (DONE)
 /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_rain_2opp_noMask_6Laps (DONE)
@@ -156,207 +154,6 @@ python -m Assetto_data_prep.visualize_opponent_gt_projection \
   --max-frames-per-session 50 \
   --output-dir fine_tuning/rear_opponent_gt_projection
 
-## Run GSAM on rendered dataset
-Grounded-SAM-2/grounded_sam2_tracking_demo_Assetto_version.py
-1. Run Grounded-SAM on the existing WebDataset split
-python -m grounded_sam2_tracking_demo_Assetto_version \
-  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
-  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsm \
-  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
-  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
-  --text "race car. vehicle." \
-  --save-overlays \
-  --overwrite
-
-
-python -m grounded_sam2_tracking_demo_Assetto_version \
-  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
-  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_debug \
-  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
-  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
-  --allowed-label-substrings "race car" \
-  --text "race car." \
-  --box-threshold 0.30 \
-  --text-threshold 0.30 \
-  --nms-iou 0.35 \
-  --mask-nms-iou 0.60 \
-  --ego-filter-cameras front \
-  --save-overlays \
-  --overwrite
-
-
-  python -m Assetto_data_prep.run_grounded_sam_on_webdataset \
-  --input-split gigaPose_datasets/datasets/assettocorsa_all/val_pbr_web \
-  --output-dir gigaPose_datasets/datasets/assettocorsa_all/val_pbr_web_gsam \
-  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
-  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
-  --text "race car." \
-  --ego-filter-cameras front \
-  --save-overlays \
-  --overwrite
-
-
-
-
-## 2. Prepare and run inference
-
-Use a held-out session:
-
-```bash
-VAL_SESSION=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps
-BENCHMARK=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK 
-
-python -m Assetto_data_prep.prepare_inference \
-  --source-root "$BENCHMARK" \
-  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --dataset-name assettocorsa_benchmark_with_max_depth \
-  --cameras all \
-  --frame-stride 5 \
-  --max-depth-m 120 \
-  --overwrite
-
-python -m src.scripts.render_custom_templates \
-  custom_dataset_name=assettocorsa_benchmark_with_max_depth \
-  machine.num_workers=1
-
-python test.py \
-  test_dataset_name=assettocorsa_benchmark_with_max_depth \
-  run_id=assettocorsa_original_benchmark_with_max_depthenchmark
-
-  python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
-  --split test \
-  --output-dir fine_tuning/prediction_overlays_corrected \
-  --min-score 0.01
-```
-
-for testing the fine tuned model: 
-```bash
-python test.py \
-  test_dataset_name=assettocorsa_benchmark \
-  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_newdata_good/checkpoints/epoch=13-step=17000.ckpt'" \
-  run_id=assettocorsa_IST_only_benchmark \
-  name_exp=large_assettocorsa_IST_only_benchmark
-
-  python test.py \
-  test_dataset_name=assettocorsa_benchmark_with_max_depth \
-  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_noRear/checkpoints/epoch=10-step=7000.ckpt'" \
-  run_id=assettocorsa_IST_only_noRear_benchmark_with_max_depth \
-  name_exp=large_assettocorsa_IST_only_noRear_benchmark_with_max_depth
-
-  python test.py \
-  test_dataset_name=assettocorsa_benchmark_with_max_depth \
-  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_noRear/checkpoints/epoch=28-step=20000.ckpt'" \
-  run_id=assettocorsa_IST_AE_benchmark_with_max_depth \
-  name_exp=large_assettocorsa_IST_AE_benchmark_with_max_depth
-
-
-python test.py \
-  test_dataset_name=assettocorsa_benchmark_with_max_depth \
-  "model.checkpoint_path='gigaPose_datasets/results/last_picks/assettocorsa_ist_penultimate_last_ae_noRear_again/checkpoints/epoch=33-step=23000.ckpt'" \
-  run_id=assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth \
-  name_exp=large_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth
-
-
-
-for older finetuned model:---------------------------
-python test.py \
-  test_dataset_name=assettocorsa_benchmark_with_max_depth \
-  "model.checkpoint_path='gigaPose_datasets/results/final_results/assettocorsa_ist_only_run_corrected_good/checkpoints/epoch=17-step=14000.ckpt'" \
-  run_id=assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth \
-  name_exp=large_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth
-
-
-python test.py \
-  test_dataset_name=assettocorsa_benchmark \
-  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_corrected_good/checkpoints/last.ckpt'" \
-  run_id=assettocorsa_older_ist_2layerAE_benchmark \
-  name_exp=large_assettocorsa_older_ist_2layerAE_benchmark
-
-python test.py \
-  test_dataset_name=assettocorsa_benchmark_with_max_depth \
-  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_corrected_run2/checkpoints/last.ckpt'" \
-  run_id=assettocorsa_ist_penultimate_last_ae_corrected_run2 \
-  name_exp=large_assettocorsa_ist_penultimate_last_ae_corrected_run2
-
------------------------------------------------------
-
-Now this command can split both .csv and .npz files:
-# gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions
-# gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions
-# gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions
-# gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions
-python -m fine_tuning.split_predictions_by_camera \
-  --predictions gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark
-
-
-python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_inference_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_IST_only_inference_correctedMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
-  --split test \
-  --output-dir fine_tuning/prediction_overlays_IST_only_inference_corrected \
-  --min-score 0.01
-```
-
-or overlay the images seperately for each camera folder: 
-```bash
-(front only)
-python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/front/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
-  --split test \
-  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/front \
-  --min-score 0.1
-
-(rear only)
- python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/rear/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
-  --split test \
-  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/rear \
-  --min-score 0.1 
-
-(stereo_left)
- python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/stereo_left/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
-  --split test \
-  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/stereo_left \
-  --min-score 0.1 
-
-(stereo_right)
- python -m fine_tuning.overlay_gigapose_predictions \
-  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/stereo_right/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
-  --split test \
-  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/stereo_right \
-  --min-score 0.1 
-```
-we are currectly using teh follwing results/preditions: 
-
-
-<!-- /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK
- rsync -avP /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark   /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK/
- -->
-```bash
-assettocorsa_ist_only_run_newdata
-gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark
-
-
-large_assettocorsa_assettocorsa_inference_run (not bench mark, need to rerun on benchmark)
-large_assettocorsa_finetuned_corrected (not benchmark, need to rerun on benchmark)
-
-```
-
-This writes the `test/` shards, centered CAD, targets, GT poses, frame map, and
-`cnos-fastsam_assettocorsa-test.json` detections expected by the existing
-`assettocorsa` configuration.
-
-The generated masks depend on ground-truth poses. This is an oracle pipeline
-check, not an unbiased inference benchmark. For a real evaluation, replace the
-detection JSON with boxes and masks predicted independently from RGB.
 
 ## 3. Prepare fine-tuning data
 
@@ -377,14 +174,14 @@ python -m Assetto_data_prep.prepare_training \
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_fog_5opp_fixedskin \
   --source-root  /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_putnam_fog_5opp_fixedskin \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --dataset-name assettocorsa_all_no_rear \
-  --cameras front,stereo_left,stereo_right \
+  --dataset-name assettocorsa_new_dataset \
+  --cameras all \
   --frame-stride 2 \
   --max-frames-per-session 10000 \
   --mask-dir-name generated_masks \
   --validation-sessions 2 \
-  --min-mask-pixels 250 \
-  --max-depth-m 120 \
+  --min-mask-pixels 100
+  --max-depth-m 150 \
   --overwrite
 ```
 
@@ -561,3 +358,208 @@ blue box = fine-tuned
 - Do not use `20260623_194543` or `20260623_194952`; both are empty.
 - Recorded AC instance masks are still preferable when available because they
   contain scene and ego-car occlusion.
+
+
+
+
+
+
+## Run GSAM on rendered dataset
+Grounded-SAM-2/grounded_sam2_tracking_demo_Assetto_version.py
+1. Run Grounded-SAM on the existing WebDataset split
+python -m grounded_sam2_tracking_demo_Assetto_version \
+  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
+  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsm \
+  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
+  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
+  --text "race car. vehicle." \
+  --save-overlays \
+  --overwrite
+
+
+python -m grounded_sam2_tracking_demo_Assetto_version \
+  --input-split /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
+  --output-dir /home/appuser/gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_debug \
+  --sam2-checkpoint ./checkpoints/sam2.1_hiera_small.pt \
+  --sam2-model-cfg configs/sam2.1/sam2.1_hiera_s.yaml \
+  --allowed-label-substrings "race car" \
+  --text "race car." \
+  --box-threshold 0.30 \
+  --text-threshold 0.30 \
+  --nms-iou 0.35 \
+  --mask-nms-iou 0.60 \
+  --save-overlays \
+  --overwrite
+
+--ego-filter-cameras all \
+Next, do the actual clearing: 
+python -m Assetto_data_prep.filter_webdataset_by_detection_count \
+  --input-split gigaPose_datasets/datasets/assettocorsa/val_pbr_web \
+  --output-split gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_clean \
+  --detections gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_debug/gsam_detections.json \
+  --min-score 0.05 
+  --overwrite
+gigapose/gigaPose_datasets/datasets/assettocorsa/val_pbr_web_gsam_debug/gsam_detections.json
+
+
+
+## 2. Prepare and run inference
+
+Use a held-out session:
+
+```bash
+VAL_SESSION=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps
+BENCHMARK=/media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK 
+
+python -m Assetto_data_prep.prepare_inference \
+  --source-root "$BENCHMARK" \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name assettocorsa_benchmark_with_max_depth \
+  --cameras all \
+  --frame-stride 5 \
+  --max-depth-m 120 \
+  --overwrite
+
+python -m src.scripts.render_custom_templates \
+  custom_dataset_name=assettocorsa_benchmark_with_max_depth \
+  machine.num_workers=1
+
+python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  run_id=assettocorsa_original_benchmark_with_max_depthenchmark
+
+  python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir fine_tuning/prediction_overlays_corrected \
+  --min-score 0.01
+```
+
+for testing the fine tuned model: 
+```bash
+python test.py \
+  test_dataset_name=assettocorsa_benchmark \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_newdata_good/checkpoints/epoch=13-step=17000.ckpt'" \
+  run_id=assettocorsa_IST_only_benchmark \
+  name_exp=large_assettocorsa_IST_only_benchmark
+
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_only_run_noRear/checkpoints/epoch=10-step=7000.ckpt'" \
+  run_id=assettocorsa_IST_only_noRear_benchmark_with_max_depth \
+  name_exp=large_assettocorsa_IST_only_noRear_benchmark_with_max_depth
+
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_noRear/checkpoints/epoch=28-step=20000.ckpt'" \
+  run_id=assettocorsa_IST_AE_benchmark_with_max_depth \
+  name_exp=large_assettocorsa_IST_AE_benchmark_with_max_depth
+
+
+python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/last_picks/assettocorsa_ist_penultimate_last_ae_noRear_again/checkpoints/epoch=33-step=23000.ckpt'" \
+  run_id=assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth \
+  name_exp=large_assettocorsa_IST_AE_noRear_again_benchmark_with_max_depth
+
+
+
+for older finetuned model:---------------------------
+python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/final_results/assettocorsa_ist_only_run_corrected_good/checkpoints/epoch=17-step=14000.ckpt'" \
+  run_id=assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth \
+  name_exp=large_assettocorsa_older_corrected_IST_only_benchmark_withMaxDepth
+
+
+python test.py \
+  test_dataset_name=assettocorsa_benchmark \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_corrected_good/checkpoints/last.ckpt'" \
+  run_id=assettocorsa_older_ist_2layerAE_benchmark \
+  name_exp=large_assettocorsa_older_ist_2layerAE_benchmark
+
+python test.py \
+  test_dataset_name=assettocorsa_benchmark_with_max_depth \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ist_penultimate_last_ae_corrected_run2/checkpoints/last.ckpt'" \
+  run_id=assettocorsa_ist_penultimate_last_ae_corrected_run2 \
+  name_exp=large_assettocorsa_ist_penultimate_last_ae_corrected_run2
+
+-----------------------------------------------------
+
+Now this command can split both .csv and .npz files:
+# gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions
+# gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions
+# gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions
+# gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions
+python -m fine_tuning.split_predictions_by_camera \
+  --predictions gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark
+
+
+python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_inference_corrected/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_IST_only_inference_correctedMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir fine_tuning/prediction_overlays_IST_only_inference_corrected \
+  --min-score 0.01
+```
+
+or overlay the images seperately for each camera folder: 
+```bash
+(front only)
+python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/front/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/front \
+  --min-score 0.1
+
+(rear only)
+ python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/rear/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/rear \
+  --min-score 0.1 
+
+(stereo_left)
+ python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/stereo_left/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/stereo_left \
+  --min-score 0.1 
+
+(stereo_right)
+ python -m fine_tuning.overlay_gigapose_predictions \
+  --predictions gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/predictions/by_camera/stereo_right/large-pbrreal-rgb-mmodel_assettocorsa_benchmark-test_assettocorsa_IST_only_benchmarkMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark/overlays/stereo_right \
+  --min-score 0.1 
+```
+we are currectly using teh follwing results/preditions: 
+
+
+<!-- /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK
+ rsync -avP /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark   /media/hdd2/ARCL_multicar_bags/camera_dataset/20260627_laguna2026_clear_2opp_fixedskin_BENCHMARK/
+ -->
+```bash
+assettocorsa_ist_only_run_newdata
+gigaPose_datasets/results/large_assettocorsa_IST_only_benchmark
+
+
+large_assettocorsa_assettocorsa_inference_run (not bench mark, need to rerun on benchmark)
+large_assettocorsa_finetuned_corrected (not benchmark, need to rerun on benchmark)
+
+```
+
+This writes the `test/` shards, centered CAD, targets, GT poses, frame map, and
+`cnos-fastsam_assettocorsa-test.json` detections expected by the existing
+`assettocorsa` configuration.
+
+The generated masks depend on ground-truth poses. This is an oracle pipeline
+check, not an unbiased inference benchmark. For a real evaluation, replace the
+detection JSON with boxes and masks predicted independently from RGB.
+

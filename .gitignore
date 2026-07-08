@@ -7,6 +7,10 @@ fine_tuning/overlays
 fine_tuning/prediction_gt_comparison
 fine_tuning/prediction_overlays_AE_IST_finetuned_corrected
 fine_tuning/prediction_overlays_IST_only_inference_corrected
+fine_tuning/prediction_*/
+fine_tuning/debug_*/
+fine_tuning/rear_*/
+
 Assetto_data_prep/README.md
 slurm_logs/
 results*
