@@ -61,8 +61,34 @@ def parse_args() -> argparse.Namespace:
         "--fit-aabb", choices=("none", "uniform", "nonuniform"),
         default="nonuniform",
     )
+    parser.add_argument(
+        "--split-mode",
+        choices=("sessions", "random_frames"),
+        default="sessions",
+        help=(
+            "'sessions' keeps the current behavior: hold out trailing sessions. "
+            "'random_frames' samples validation frame groups across all sessions "
+            "and removes those exact groups from training."
+        ),
+    )
     parser.add_argument("--validation-sessions", type=int, default=1)
     parser.add_argument("--validation-fraction", type=float, default=0.2)
+    parser.add_argument(
+        "--validation-images",
+        type=int,
+        default=None,
+        help=(
+            "For --split-mode random_frames, select exactly this many validation "
+            "frame groups/images across all sessions. If omitted, uses "
+            "--validation-fraction."
+        ),
+    )
+    parser.add_argument(
+        "--validation-seed",
+        type=int,
+        default=20260707,
+        help="Random seed for --split-mode random_frames.",
+    )
     parser.add_argument("--gap-frames", type=int, default=50)
     parser.add_argument("--min-mask-pixels", type=int, default=64)
     parser.add_argument(
@@ -78,6 +104,54 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-shard-size", type=int, default=250)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
+
+
+def split_random_frames(
+    sessions,
+    validation_fraction: float,
+    validation_images: int | None,
+    seed: int,
+):
+    frames = [frame for session in sessions for frame in session]
+    if len(frames) < 2:
+        raise RuntimeError("Need at least two frame groups for a train/validation split")
+    if validation_images is None:
+        if not 0.0 < validation_fraction < 1.0:
+            raise ValueError("--validation-fraction must be between zero and one")
+        validation_count = max(1, int(round(len(frames) * validation_fraction)))
+    else:
+        validation_count = validation_images
+    if not 1 <= validation_count < len(frames):
+        raise ValueError(
+            f"Validation count must be in [1, {len(frames) - 1}], got {validation_count}"
+        )
+
+    rng = np.random.default_rng(seed)
+    val_indices = set(rng.choice(len(frames), size=validation_count, replace=False).tolist())
+    train = [frame for idx, frame in enumerate(frames) if idx not in val_indices]
+    val = [frame for idx, frame in enumerate(frames) if idx in val_indices]
+    train.sort(key=lambda frame: (frame.session_index, frame.frame_id, frame.camera_id))
+    val.sort(key=lambda frame: (frame.session_index, frame.frame_id, frame.camera_id))
+
+    val_by_session: dict[int, int] = {}
+    for frame in val:
+        val_by_session[frame.session_index] = val_by_session.get(frame.session_index, 0) + 1
+
+    policy = {
+        "type": "random_frame_groups_across_all_sessions",
+        "validation_fraction": validation_fraction if validation_images is None else None,
+        "validation_images_requested": validation_images,
+        "validation_images": len(val),
+        "validation_seed": seed,
+        "total_frame_groups_before_split": len(frames),
+        "validation_frame_groups_by_session_index": val_by_session,
+        "note": (
+            "Each selected validation frame group is removed from training and "
+            "kept only in validation. A frame group corresponds to one "
+            "source_root/camera/frame image with all visible opponent instances."
+        ),
+    }
+    return train, val, policy
 
 
 def write_split(
@@ -211,9 +285,20 @@ def main() -> None:
         args.frame_stride,
         args.max_frames_per_session,
     )
-    train_frames, val_frames, split_policy = split_sessions(
-        sessions, args.validation_sessions, args.validation_fraction, args.gap_frames
-    )
+    if args.split_mode == "sessions":
+        train_frames, val_frames, split_policy = split_sessions(
+            sessions,
+            args.validation_sessions,
+            args.validation_fraction,
+            args.gap_frames,
+        )
+    else:
+        train_frames, val_frames, split_policy = split_random_frames(
+            sessions,
+            args.validation_fraction,
+            args.validation_images,
+            args.validation_seed,
+        )
     reference = sessions[0][0].rows[0]
     alignment = build_aligned_mesh(
         args.cad_path, reference, args.cad_scale,
