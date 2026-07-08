@@ -106,15 +106,20 @@ class GigaPoseTrainSet:
         depth = depth[batch_im_id]
         m_rgb = rgb * masks[:, None, :, :]
 
-        m_rgba = torch.cat([m_rgb, masks[:, None, :, :]], dim=1)
-        cropped_data = self.transforms.crop_transform(bboxes.xyxy_box, images=m_rgba)
+        # Crop masked input, mask, and real RGB together so augmentation uses
+        # exactly the same affine transform for the validation visualization.
+        crop_input = torch.cat([m_rgb, masks[:, None, :, :], rgb], dim=1)
+        cropped_data = self.transforms.crop_transform(
+            bboxes.xyxy_box, images=crop_input
+        )
 
         out_data = tc.PandasTensorCollection(
             full_rgb=rgb,
             full_depth=depth,
             K=K,
             rgb=cropped_data["images"][:, :3],
-            mask=cropped_data["images"][:, -1],
+            actual_rgb=cropped_data["images"][:, 4:7],
+            mask=cropped_data["images"][:, 3],
             M=cropped_data["M"],
             pose=pose,
             infos=data[idx_selected].infos,
@@ -264,6 +269,10 @@ class GigaPoseTrainSet:
                 src_M=template_data.M,
                 src_pts=keypoints["src_pts"],
                 tar_img=self.transforms.normalize(real_data.rgb),
+                # Keep an unnormalized crop with its real background for
+                # validation overlays. tar_img intentionally has the
+                # background masked out for network input.
+                tar_actual_img=real_data.actual_rgb,
                 tar_mask=real_data.mask,
                 tar_K=real_data.K,
                 tar_M=real_data.M,

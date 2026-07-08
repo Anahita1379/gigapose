@@ -21,6 +21,7 @@ from src.lib3d.torch import (
 )
 from src.libVis.torch import (
     plot_Kabsch,
+    plot_ist_alignment_batch,
     plot_keypoints_batch,
     save_tensor_to_image,
 )
@@ -215,6 +216,23 @@ class GigaPose(pl.LightningModule):
         src_patch_valid = torch.logical_and(src_pts[:, :, 0] != -1, src_pts[:, :, 1] != -1)
         tar_patch_valid = torch.logical_and(tar_pts[:, :, 0] != -1, tar_pts[:, :, 1] != -1)
         pair_patch_valid = torch.logical_and(src_patch_valid, tar_patch_valid)
+        pred_rel_scale = torch.full(
+            pair_patch_valid.shape,
+            float("nan"),
+            dtype=preds["scale"].dtype,
+            device=preds["scale"].device,
+        )
+        pred_rel_inplane = torch.full(
+            (*pair_patch_valid.shape, 2),
+            float("nan"),
+            dtype=preds["inplane"].dtype,
+            device=preds["inplane"].device,
+        )
+        if preds["scale"].shape[0] == int(pair_patch_valid.sum()):
+            pred_rel_scale[pair_patch_valid] = preds["scale"]
+            pred_rel_inplane[pair_patch_valid] = preds["inplane"]
+        setattr(batch, "pred_relScale", pred_rel_scale)
+        setattr(batch, "pred_relInplane", pred_rel_inplane)
         num_patch_pairs = pair_patch_valid.sum()
         self.log(
             f"{split}/valid_patch_pairs",
@@ -461,6 +479,25 @@ class GigaPose(pl.LightningModule):
             step=int(self.global_step),
         )
 
+    def log_validation_ist_overlay(self, batch, idx_batch, split):
+        if idx_batch != 0 and idx_batch % self.log_interval != 0:
+            return
+        vis_overlay = plot_ist_alignment_batch(batch)
+        image_dir = osp.join(self.log_dir, "validation_images")
+        os.makedirs(image_dir, exist_ok=True)
+        sample_path = osp.join(
+            image_dir,
+            f"{split}_ist_overlay_step{int(self.global_step):06d}_"
+            f"batch{idx_batch:04d}_rank{self.global_rank}.png",
+        )
+        save_tensor_to_image(vis_overlay, sample_path)
+        log_image(
+            logger=self.logger,
+            name=f"vis/{split}_ist_overlay",
+            path=sample_path,
+            step=int(self.global_step),
+        )
+
     def validate_contrast_loss(self, batch, idx_batch, split):
         src_feat = self.ae_net(batch.src_img)
         tar_feat = self.ae_net(batch.tar_img)
@@ -532,6 +569,7 @@ class GigaPose(pl.LightningModule):
             loss_ = self.compute_regression_loss(batch, "val")
             loss += loss_["scale"] + loss_["inp"]
             self.log_validation_keypoints(batch, idx_batch, "val", type_data="gt")
+            self.log_validation_ist_overlay(batch, idx_batch, "val")
         if self.optim_config.nets_to_train in ["ae", "all"]:
             _ = self.validate_contrast_loss(batch, idx_batch, "val")
         self.log(

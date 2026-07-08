@@ -94,6 +94,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--frame-stride", type=int, default=1)
     parser.add_argument("--max-images", type=int, default=None)
     parser.add_argument(
+        "--keys-csv",
+        type=Path,
+        default=None,
+        help=(
+            "Optional CSV containing a 'key' column. When provided, process only "
+            "matching WebDataset samples (for example rejected_samples.csv)."
+        ),
+    )
+    parser.add_argument(
         "--filter-ego-car",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -179,6 +188,20 @@ def iter_rgb_images(split_dir: Path) -> tuple[list[tuple[str, bytes]], dict[str,
 def parse_key(key: str) -> tuple[int, int]:
     scene_id, im_id = key.split("_", 1)
     return int(scene_id), int(im_id)
+
+
+def load_selected_keys(path: Path | None) -> set[str] | None:
+    if path is None:
+        return None
+    with path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None or "key" not in reader.fieldnames:
+            raise ValueError(f"{path} must contain a 'key' column")
+        return {
+            str(row["key"]).strip()
+            for row in reader
+            if row.get("key") and str(row["key"]).strip()
+        }
 
 
 def parse_camera_filter(value: str) -> set[str]:
@@ -426,6 +449,19 @@ def main() -> None:
     rgb_items, scan_report = iter_rgb_images(args.input_split)
     camera_map, camera_map_path = load_camera_map(args.camera_map, args.input_split)
     total_rgb_items_before_sampling = len(rgb_items)
+    selected_keys = load_selected_keys(args.keys_csv)
+    if selected_keys is not None:
+        rgb_items = [(key, data) for key, data in rgb_items if key in selected_keys]
+        found_keys = {key for key, _ in rgb_items}
+        missing_keys = selected_keys - found_keys
+        print(
+            f"Selected {len(rgb_items)}/{len(selected_keys)} keys from {args.keys_csv}"
+        )
+        if missing_keys:
+            print(
+                f"WARNING: {len(missing_keys)} requested keys were not found in "
+                f"{args.input_split}"
+            )
     print(json.dumps(scan_report, indent=2))
     if camera_map_path:
         print(f"Loaded camera map with {len(camera_map)} entries from {camera_map_path}")
@@ -573,6 +609,8 @@ def main() -> None:
         "camera_map": camera_map_path,
         "camera_map_entries": len(camera_map),
         "images_found_before_sampling": total_rgb_items_before_sampling,
+        "keys_csv": str(args.keys_csv) if args.keys_csv is not None else None,
+        "keys_requested": len(selected_keys) if selected_keys is not None else None,
         "metadata": str(args.output_dir / args.metadata_name),
         "detections": str(detections_path),
         "images_processed": len(rgb_items),
