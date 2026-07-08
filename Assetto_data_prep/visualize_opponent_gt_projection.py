@@ -27,7 +27,6 @@ from PIL import Image, ImageDraw
 
 from Assetto_data_prep.common import (
     bbox_from_mask,
-    bbox_iou,
     build_aligned_mesh,
     cad_to_camera_pose,
     collect_sessions,
@@ -51,6 +50,18 @@ MASK_COLORS = [
 ]
 RENDERED_BBOX_COLOR = (0, 255, 255)
 CSV_BBOX_COLOR = (255, 220, 0)
+
+
+def bbox_iou(first: list[int], second: list[int]) -> float:
+    ax0, ay0, aw, ah = first
+    bx0, by0, bw, bh = second
+    ax1, ay1 = ax0 + aw, ay0 + ah
+    bx1, by1 = bx0 + bw, by0 + bh
+    inter_w = max(0, min(ax1, bx1) - max(ax0, bx0))
+    inter_h = max(0, min(ay1, by1) - max(ay0, by0))
+    intersection = inter_w * inter_h
+    union = aw * ah + bw * bh - intersection
+    return float(intersection / union) if union > 0 else 0.0
 
 
 def parse_args() -> argparse.Namespace:
