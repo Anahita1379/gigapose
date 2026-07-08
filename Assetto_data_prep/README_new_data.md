@@ -147,6 +147,15 @@ python -m fine_tuning.confirm_cad_coordinate_frame \
   --output-dir fine_tuning/rear_coordinate_check
 
 
+
+python -m Assetto_data_prep.visualize_opponent_gt_projection \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/20260623_putnam_snow_3opp_noMask_4Laps \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --cameras rear \
+  --frame-stride 5 \
+  --max-frames-per-session 50 \
+  --output-dir fine_tuning/rear_opponent_gt_projection
+
 ## Run GSAM on rendered dataset
 Grounded-SAM-2/grounded_sam2_tracking_demo_Assetto_version.py
 1. Run Grounded-SAM on the existing WebDataset split
