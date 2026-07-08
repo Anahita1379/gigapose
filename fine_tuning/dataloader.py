@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections import Counter
 import copy
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from bop_toolkit_lib import inout
 
@@ -38,6 +38,10 @@ class SplitWebSceneDataset(WebSceneDataset):
 
 
 class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
+    PADDED_HEIGHT = 760
+    PADDED_WIDTH = 2064
+    FRONT_REAR_INVALID_SIDE_PIXELS = 258
+
     def __init__(
         self,
         batch_size,
@@ -51,6 +55,9 @@ class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
         self.batch_size = batch_size
         self.dataset_dir = Path(root_dir) / dataset_name
         self.transforms = transforms
+        self.deterministic_instance_selection = not bool(
+            self.transforms.rgb_augmentation
+        )
         if self.transforms.rgb_augmentation:
             self.transforms.rgb_transform.transform = [
                 transform for transform in self.transforms.rgb_transform.transform
@@ -69,35 +76,90 @@ class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
         self.keypoint_sampler = KeyPointSampler()
 
     def collate_fn(self, batch):
-        """Collate Assetto Corsa samples without mixing full-frame resolutions.
+        """Pad every camera to 2064x760 while preserving calibrated geometry.
 
-        The AC train split can contain front/rear/stereo cameras with different
-        image sizes. MegaPose's base SceneObservation collate stacks full RGB and
-        depth before object crops are resized, so mixed resolutions in a single
-        DataLoader batch fail with e.g. 760-vs-400 tensor-size errors.
+        Front/rear frames (2064x400) receive 180 rows above and below. Their
+        outer 258 columns are also marked invalid, retaining exactly 75% of the
+        original width. Stereo frames are already 2064x760 and remain fully
+        valid. RGB, depth, segmentation, instance masks, intrinsics, and boxes
+        are shifted together.
         """
-        if len(batch) > 1:
-            resolutions = [
-                tuple(sample.rgb.shape[:2])
-                for sample in batch
-                if getattr(sample, "rgb", None) is not None
-            ]
-            if resolutions and len(set(resolutions)) > 1:
-                keep_resolution, _ = Counter(resolutions).most_common(1)[0]
-                filtered = [
-                    sample
-                    for sample in batch
-                    if getattr(sample, "rgb", None) is not None
-                    and tuple(sample.rgb.shape[:2]) == keep_resolution
-                ]
-                logger.debug(
-                    "Mixed camera resolutions in batch %s; keeping %d/%d samples at %s",
-                    sorted(set(resolutions)),
-                    len(filtered),
-                    len(batch),
-                    keep_resolution,
-                )
-                batch = filtered
         if not batch:
             return None
-        return super().collate_fn(batch)
+
+        valid_masks = []
+        original_sizes = []
+        padding_offsets = []
+        for sample in batch:
+            height, width = sample.rgb.shape[:2]
+            if height > self.PADDED_HEIGHT or width > self.PADDED_WIDTH:
+                raise ValueError(
+                    f"Image {width}x{height} exceeds configured padded canvas "
+                    f"{self.PADDED_WIDTH}x{self.PADDED_HEIGHT}"
+                )
+
+            pad_y = self.PADDED_HEIGHT - height
+            pad_x = self.PADDED_WIDTH - width
+            top, bottom = pad_y // 2, pad_y - pad_y // 2
+            left, right = pad_x // 2, pad_x - pad_x // 2
+            padding = ((top, bottom), (left, right))
+
+            valid = np.zeros(
+                (self.PADDED_HEIGHT, self.PADDED_WIDTH), dtype=np.float32
+            )
+            valid[top : top + height, left : left + width] = 1.0
+            if height == 400 and width == 2064:
+                side = self.FRONT_REAR_INVALID_SIDE_PIXELS
+                valid[top : top + height, left : left + side] = 0.0
+                valid[
+                    top : top + height,
+                    left + width - side : left + width,
+                ] = 0.0
+
+            sample.rgb = np.pad(
+                sample.rgb, padding + ((0, 0),), mode="constant"
+            )
+            if sample.depth is not None:
+                sample.depth = np.pad(sample.depth, padding, mode="constant")
+            if sample.segmentation is not None:
+                sample.segmentation = np.pad(
+                    sample.segmentation, padding, mode="constant"
+                )
+            if sample.binary_masks is not None:
+                sample.binary_masks = {
+                    key: np.pad(mask, padding, mode="constant")
+                    for key, mask in sample.binary_masks.items()
+                }
+
+            shift = np.array([left, top, 0, 0])
+            for object_data in sample.object_datas or []:
+                if object_data.bbox_modal is not None:
+                    object_data.bbox_modal = object_data.bbox_modal + shift
+                if object_data.bbox_amodal is not None:
+                    object_data.bbox_amodal = object_data.bbox_amodal + shift
+
+            sample.camera_data.K = np.asarray(
+                sample.camera_data.K, dtype=np.float64
+            ).copy()
+            sample.camera_data.K[0, 2] += left
+            sample.camera_data.K[1, 2] += top
+            sample.camera_data.resolution = (
+                self.PADDED_HEIGHT,
+                self.PADDED_WIDTH,
+            )
+            valid_masks.append(valid)
+            original_sizes.append((height, width))
+            padding_offsets.append((top, left))
+
+        # process_real is called synchronously inside the parent collator.
+        self._collate_valid_masks = np.stack(valid_masks)
+        self._collate_original_sizes = np.asarray(original_sizes, dtype=np.int64)
+        self._collate_padding_offsets = np.asarray(
+            padding_offsets, dtype=np.int64
+        )
+        try:
+            return super().collate_fn(batch)
+        finally:
+            del self._collate_valid_masks
+            del self._collate_original_sizes
+            del self._collate_padding_offsets

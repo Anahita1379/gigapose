@@ -572,6 +572,7 @@ class GigaPose(pl.LightningModule):
             self.log_validation_ist_overlay(batch, idx_batch, "val")
         if self.optim_config.nets_to_train in ["ae", "all"]:
             _ = self.validate_contrast_loss(batch, idx_batch, "val")
+        self.log_heavy_validation_cad_overlay(batch, idx_batch)
         self.log(
             "val/loss",
             loss,
@@ -581,6 +582,151 @@ class GigaPose(pl.LightningModule):
             prog_bar=True,
         )
         return loss
+
+    @torch.no_grad()
+    def log_heavy_validation_cad_overlay(self, batch, idx_batch):
+        """Run sparse full inference and render its top CAD pose on real RGB."""
+        if not getattr(self, "heavy_validation_enabled", False):
+            return
+        interval = int(getattr(self, "heavy_validation_interval", 1000))
+        step = int(self.global_step)
+        if interval <= 0 or step == 0 or step % interval != 0:
+            return
+        if idx_batch != 0 or self.global_rank != 0:
+            return
+
+        max_images = max(1, int(getattr(self, "heavy_validation_images", 4)))
+        selected_indices = []
+        selected_frames = set()
+        for index, row in batch.infos.reset_index(drop=True).iterrows():
+            frame_key = (
+                int(row.get("scene_id", -1)),
+                int(row.get("view_id", row.get("im_id", -1))),
+            )
+            if frame_key in selected_frames:
+                continue
+            selected_frames.add(frame_key)
+            selected_indices.append(index)
+            if len(selected_indices) >= max_images:
+                break
+        if not selected_indices:
+            return
+        batch = batch[np.asarray(selected_indices, dtype=np.int64)]
+        # IST's template backbone is trainable in IST-only runs. Do not reuse
+        # template features cached by an earlier heavy-validation step.
+        self.template_datas.pop(self.heavy_validation_dataset_name, None)
+        self.pose_recovery.pop(self.heavy_validation_dataset_name, None)
+        predictions = self.eval_retrieval(
+            batch,
+            idx_batch=idx_batch,
+            dataset_name=self.heavy_validation_dataset_name,
+            save_outputs=False,
+            log_retrieval=False,
+        )
+
+        # Keep EGL/CAD dependencies out of the frequent lightweight path.
+        import trimesh
+        from PIL import Image, ImageDraw
+        from fine_tuning.ac_geometry import InstanceRenderer, bbox_from_mask
+
+        mesh = trimesh.load(self.heavy_validation_mesh_path, force="mesh")
+        if not isinstance(mesh, trimesh.Trimesh) or mesh.is_empty:
+            raise ValueError(
+                f"Could not load heavy-validation CAD: "
+                f"{self.heavy_validation_mesh_path}"
+            )
+        translation_scale = (
+            0.001 if 0.01 < float(np.linalg.norm(mesh.extents)) < 100.0 else 1.0
+        )
+        renderer = InstanceRenderer(mesh)
+        panels = []
+        try:
+            count = batch.tar_full_img.shape[0]
+            for index in range(count):
+                rgb = (
+                    batch.tar_full_img[index]
+                    .detach()
+                    .cpu()
+                    .clamp(0, 1)
+                    .permute(1, 2, 0)
+                    .numpy()
+                )
+                image_height, image_width = (
+                    batch.tar_image_size[index].detach().cpu().numpy().astype(int)
+                )
+                image_top, image_left = (
+                    batch.tar_image_offset[index]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                    .astype(int)
+                )
+                padded_image = Image.fromarray(np.uint8(rgb * 255))
+                pose = predictions.pred_poses[index, 0].detach().cpu().numpy().copy()
+                pose[:3, 3] *= translation_scale
+                K = batch.tar_K[index].detach().cpu().numpy()
+                segmentation, _ = renderer.render(
+                    [pose],
+                    K,
+                    width=padded_image.width,
+                    height=padded_image.height,
+                )
+                image = padded_image.crop(
+                    (
+                        image_left,
+                        image_top,
+                        image_left + image_width,
+                        image_top + image_height,
+                    )
+                )
+                mask = (
+                    segmentation[
+                        image_top : image_top + image_height,
+                        image_left : image_left + image_width,
+                    ]
+                    == 1
+                )
+                base = np.asarray(image, dtype=np.float32).copy()
+                base[mask] = (
+                    0.58 * base[mask]
+                    + 0.42 * np.array([0, 255, 80], dtype=np.float32)
+                )
+                overlay = Image.fromarray(np.uint8(np.clip(base, 0, 255)))
+                draw = ImageDraw.Draw(overlay)
+                x, y, width, height = bbox_from_mask(mask)
+                if width > 0 and height > 0:
+                    draw.rectangle(
+                        (x, y, x + width - 1, y + height - 1),
+                        outline=(0, 255, 80),
+                        width=3,
+                    )
+                panel = Image.new("RGB", (image.width * 2, image.height))
+                panel.paste(image, (0, 0))
+                panel.paste(overlay, (image.width, 0))
+                panels.append(
+                    torch.from_numpy(np.asarray(panel).copy())
+                    .permute(2, 0, 1)
+                    .float()
+                    / 255.0
+                )
+        finally:
+            renderer.close()
+
+        if panels:
+            image_dir = osp.join(self.log_dir, "validation_images")
+            os.makedirs(image_dir, exist_ok=True)
+            sample_path = osp.join(
+                image_dir,
+                f"val_heavy_cad_step{int(self.global_step):06d}_"
+                f"rank{self.global_rank}.png",
+            )
+            save_tensor_to_image(torch.stack(panels), sample_path, nrow=1)
+            log_image(
+                logger=self.logger,
+                name="vis/val_heavy_cad_overlay",
+                path=sample_path,
+                step=int(self.global_step),
+            )
 
     def set_template_data(self, dataset_name):
         logger.info("Initializing template data ...")
@@ -712,6 +858,8 @@ class GigaPose(pl.LightningModule):
         idx_batch,
         dataset_name,
         sort_pred_by_inliers=True,
+        save_outputs=True,
+        log_retrieval=True,
     ):
         torch.cuda.empty_cache()
         # prepare template data
@@ -836,12 +984,22 @@ class GigaPose(pl.LightningModule):
         self.timer.reset()
         total_time = sum(times.values())
 
-        save_path = osp.join(self.log_dir, "predictions", f"{idx_batch}.npz")
-        selected_idxs, predictions = self.filter_and_save(
-            predictions, test_list=batch.test_list, time=total_time, save_path=save_path
-        )
+        if save_outputs:
+            save_path = osp.join(self.log_dir, "predictions", f"{idx_batch}.npz")
+            selected_idxs, predictions = self.filter_and_save(
+                predictions,
+                test_list=batch.test_list,
+                time=total_time,
+                save_path=save_path,
+            )
+        else:
+            selected_idxs = list(range(B))
 
-        if idx_batch % self.log_interval == 0 and self.max_num_dets_per_forward is None:
+        if (
+            log_retrieval
+            and idx_batch % self.log_interval == 0
+            and self.max_num_dets_per_forward is None
+        ):
             vis_img = self.vis_retrieval(
                 template_data=template_data,
                 batch=batch,
@@ -861,6 +1019,7 @@ class GigaPose(pl.LightningModule):
                 path=sample_path,
                 step=int(self.global_step),
             )
+        return predictions
 
     @torch.no_grad()
     def test_step(self, batch, idx_batch):

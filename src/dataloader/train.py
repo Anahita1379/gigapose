@@ -88,6 +88,25 @@ class GigaPoseTrainSet:
         bboxes = BoundingBox(detections.bboxes, "xywh")
         if test_mode:
             idx_selected = np.arange(len(detections.bboxes))
+        elif getattr(self, "deterministic_instance_selection", False):
+            detection_image_ids = np.asarray(
+                detections.infos.batch_im_id, dtype=np.int64
+            )
+            first_per_image = []
+            seen_image_ids = set()
+            for index, image_id in enumerate(detection_image_ids):
+                if int(image_id) not in seen_image_ids:
+                    seen_image_ids.add(int(image_id))
+                    first_per_image.append(index)
+            remaining = [
+                index
+                for index in range(len(detections.bboxes))
+                if index not in set(first_per_image)
+            ]
+            idx_selected = np.asarray(
+                (first_per_image + remaining)[: self.batch_size],
+                dtype=np.int64,
+            )
         else:
             # keep only valid bounding boxes
             idx_selected = np.random.choice(
@@ -101,14 +120,47 @@ class GigaPoseTrainSet:
         masks = data.masks[idx_selected]
         K = data.K[idx_selected].float()
         pose = data.TWO[idx_selected].float()
-
-        rgb = rgb[batch_im_id]
-        depth = depth[batch_im_id]
+        selected_image_ids = np.asarray(batch_im_id, dtype=np.int64)
+        rgb = rgb[selected_image_ids]
+        depth = depth[selected_image_ids]
+        if hasattr(self, "_collate_valid_masks"):
+            full_valid_mask = torch.as_tensor(
+                self._collate_valid_masks[selected_image_ids],
+                dtype=depth.dtype,
+                device=depth.device,
+            )
+            image_size = torch.as_tensor(
+                self._collate_original_sizes[selected_image_ids],
+                dtype=torch.int64,
+            )
+            image_offset = torch.as_tensor(
+                self._collate_padding_offsets[selected_image_ids],
+                dtype=torch.int64,
+            )
+        else:
+            camera_resolutions = batch["cameras"].infos.iloc[
+                selected_image_ids
+            ].resolution
+            image_size = torch.as_tensor(
+                np.asarray(list(camera_resolutions), dtype=np.int64),
+                dtype=torch.int64,
+            )
+            image_offset = torch.zeros_like(image_size)
+            full_valid_mask = torch.ones_like(depth)
+        masks = masks * full_valid_mask
         m_rgb = rgb * masks[:, None, :, :]
 
         # Crop masked input, mask, and real RGB together so augmentation uses
         # exactly the same affine transform for the validation visualization.
-        crop_input = torch.cat([m_rgb, masks[:, None, :, :], rgb], dim=1)
+        crop_input = torch.cat(
+            [
+                m_rgb,
+                masks[:, None, :, :],
+                full_valid_mask[:, None, :, :],
+                rgb,
+            ],
+            dim=1,
+        )
         cropped_data = self.transforms.crop_transform(
             bboxes.xyxy_box, images=crop_input
         )
@@ -118,10 +170,13 @@ class GigaPoseTrainSet:
             full_depth=depth,
             K=K,
             rgb=cropped_data["images"][:, :3],
-            actual_rgb=cropped_data["images"][:, 4:7],
+            actual_rgb=cropped_data["images"][:, 5:8],
             mask=cropped_data["images"][:, 3],
+            valid_mask=cropped_data["images"][:, 4],
             M=cropped_data["M"],
             pose=pose,
+            image_size=image_size,
+            image_offset=image_offset,
             infos=data[idx_selected].infos,
         )
 
@@ -273,7 +328,11 @@ class GigaPoseTrainSet:
                 # validation overlays. tar_img intentionally has the
                 # background masked out for network input.
                 tar_actual_img=real_data.actual_rgb,
+                tar_full_img=real_data.full_rgb,
+                tar_image_size=real_data.image_size,
+                tar_image_offset=real_data.image_offset,
                 tar_mask=real_data.mask,
+                tar_valid_mask=real_data.valid_mask,
                 tar_K=real_data.K,
                 tar_M=real_data.M,
                 tar_pts=keypoints["tar_pts"],

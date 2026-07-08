@@ -181,6 +181,15 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Override model.testing_metric.patch_threshold.",
     )
+    parser.add_argument(
+        "--heavy-validation",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable a sparse no-grad end-to-end CAD-overlay validation stage.",
+    )
+    parser.add_argument("--heavy-validation-interval", type=int, default=1000)
+    parser.add_argument("--heavy-validation-images", type=int, default=4)
+    parser.add_argument("--heavy-validation-mesh", type=Path, default=None)
     return parser.parse_args()
 
 
@@ -295,6 +304,19 @@ def main() -> None:
     # Initialize weights only. Passing ckpt_path to trainer.fit would also
     # restore the old optimizer and global step, which is not desired here.
     load_checkpoint(model, args.checkpoint, checkpoint_key="state_dict")
+    model.template_datasets = {
+        args.dataset_name: validation_dataset.template_dataset
+    }
+    model.heavy_validation_enabled = args.heavy_validation
+    model.heavy_validation_interval = args.heavy_validation_interval
+    model.heavy_validation_images = args.heavy_validation_images
+    model.heavy_validation_dataset_name = args.dataset_name
+    model.heavy_validation_mesh_path = str(
+        (
+            args.heavy_validation_mesh
+            or args.root_dir / args.dataset_name / "models" / "obj_000001.ply"
+        ).resolve()
+    )
     logger.info(
         "Fine-tuning %s on %s; outputs: %s",
         args.nets_to_train,
@@ -303,6 +325,20 @@ def main() -> None:
     )
     logger.info("Checkpoints: %s", output_dir / "checkpoints")
     logger.info("Validation images: %s", output_dir / "validation_images")
+    logger.info(
+        "Camera preprocessing: symmetric pad to 2064x760; front/rear outer "
+        "258 px per side invalid (75%% horizontal region retained)"
+    )
+    if args.heavy_validation:
+        logger.info(
+            "Heavy CAD validation: every %d steps, %d deterministic images, W&B key=%s",
+            args.heavy_validation_interval,
+            args.heavy_validation_images,
+            "vis/val_heavy_cad_overlay",
+        )
+        logger.info("Heavy validation mesh: %s", model.heavy_validation_mesh_path)
+    else:
+        logger.info("Heavy CAD validation: disabled")
     if args.logger == "tensorboard":
         logger.info("TensorBoard: tensorboard --logdir %s", output_dir / "tensorboard")
     elif args.logger == "wandb":
