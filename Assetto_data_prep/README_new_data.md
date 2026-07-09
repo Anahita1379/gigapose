@@ -358,16 +358,16 @@ python -m fine_tuning.train_val \
   --checkpoint gigaPose_datasets/pretrained/gigaPose_v1.ckpt \
   --nets-to-train ist \
   --ist-lr 1e-5 \
-  --batch-size 16 \
+  --batch-size 32 \
   --num-workers 4 \
   --max-steps 25000 \
-  --validation-interval 150 \
+  --validation-interval 250 \
   --heavy-validation \
-  --heavy-validation-interval 150 \
+  --heavy-validation-interval 250 \
   --heavy-validation-images 4 \
   --heavy-validation-seed 20260707 \
   --checkpoint-interval 1000 \
-  --run-name assettocorsa_ist_only_july8_heavy_val_test_run \
+  --run-name assettocorsa_ist_only_july8_heavy_val_actual_run \
   --logger wandb \
   --print-loss-every 50 \
   --devices 0 \
