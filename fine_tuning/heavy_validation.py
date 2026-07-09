@@ -208,6 +208,11 @@ class HeavyValidationCallback(pl.Callback):
         failed = torch.zeros(1, dtype=torch.int32, device=pl_module.device)
         if trainer.is_global_zero:
             try:
+                logger.info(
+                    "Starting dedicated heavy validation at step %d after "
+                    "light validation completed",
+                    step,
+                )
                 self._run_rank_zero(pl_module, step)
             except Exception:
                 failed.fill_(1)
@@ -223,6 +228,9 @@ class HeavyValidationCallback(pl.Callback):
 
     @torch.inference_mode()
     def _run_rank_zero(self, model, step: int) -> None:
+        logger.info(
+            "Loading the fixed heavy-validation batch for step %d", step
+        )
         batch = next(iter(self.loader))
         if batch is None or len(batch) == 0:
             raise RuntimeError("The fixed heavy-validation batch is empty.")
@@ -240,6 +248,11 @@ class HeavyValidationCallback(pl.Callback):
         was_training = model.training
         model.eval()
         try:
+            logger.info(
+                "Running full retrieval, IST, pose recovery, and CAD rendering "
+                "for heavy-validation step %d",
+                step,
+            )
             predictions = model.eval_retrieval(
                 batch,
                 idx_batch=0,
