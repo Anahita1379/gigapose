@@ -87,6 +87,12 @@ class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
         if not batch:
             return None
 
+        # Apply photometric training augmentation at native resolution. Padding
+        # afterward avoids spending augmentation time on 360 rows of zeros.
+        augmentation_applied = bool(self.transforms.rgb_augmentation)
+        if augmentation_applied:
+            batch = [self.transforms.rgb_transform(sample) for sample in batch]
+
         valid_masks = []
         original_sizes = []
         padding_offsets = []
@@ -125,9 +131,13 @@ class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
                 sample.segmentation = np.pad(
                     sample.segmentation, padding, mode="constant"
                 )
+                sample.segmentation[valid == 0] = 0
             if sample.binary_masks is not None:
                 sample.binary_masks = {
-                    key: np.pad(mask, padding, mode="constant")
+                    key: np.logical_and(
+                        np.pad(mask, padding, mode="constant"),
+                        valid > 0,
+                    )
                     for key, mask in sample.binary_masks.items()
                 }
 
@@ -157,9 +167,11 @@ class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
         self._collate_padding_offsets = np.asarray(
             padding_offsets, dtype=np.int64
         )
+        self._rgb_augmentation_applied = augmentation_applied
         try:
             return super().collate_fn(batch)
         finally:
             del self._collate_valid_masks
             del self._collate_original_sizes
             del self._collate_padding_offsets
+            del self._rgb_augmentation_applied
