@@ -333,18 +333,18 @@ IST only training: we are going to start with this
   --batch-size 32 \
   --num-workers 4 \
   --max-steps 25000 \
-  --validation-interval 250 \
+  --validation-interval 150 \
   --heavy-validation \
-  --heavy-validation-interval 1000 \
+  --heavy-validation-interval 150 \
   --heavy-validation-images 4 \
   --checkpoint-interval 1000 \
-  --run-name assettocorsa_ist_only_july8_newdataset \
+  --run-name assettocorsa_ist_only_july8_test_run \
   --logger wandb \
   --print-loss-every 50 \
   --devices all \
   --match-sim-threshold 0.2 
 ```
-
+assettocorsa_ist_only_july8_newdataset
 when fine tuning all nets, f train/infoNCE improves but val/matching gets worse, AE is overfitting; lower ae-lr or train fewer steps.
 
 Then open Tensorboard with 
