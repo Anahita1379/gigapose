@@ -123,21 +123,26 @@ class GigaPoseTrainSet:
         selected_image_ids = np.asarray(batch_im_id, dtype=np.int64)
         rgb = rgb[selected_image_ids]
         depth = depth[selected_image_ids]
+        retain_validation_visuals = bool(
+            getattr(self, "deterministic_instance_selection", False)
+        )
         if hasattr(self, "_collate_valid_masks"):
-            full_valid_mask = torch.as_tensor(
-                self._collate_valid_masks[selected_image_ids],
-                dtype=depth.dtype,
-                device=depth.device,
-            )
-            image_size = torch.as_tensor(
-                self._collate_original_sizes[selected_image_ids],
-                dtype=torch.int64,
-            )
-            image_offset = torch.as_tensor(
-                self._collate_padding_offsets[selected_image_ids],
-                dtype=torch.int64,
-            )
-        else:
+            if retain_validation_visuals:
+                full_valid_mask = torch.as_tensor(
+                    self._collate_valid_masks[selected_image_ids],
+                    dtype=depth.dtype,
+                    device=depth.device,
+                )
+                image_size = torch.as_tensor(
+                    self._collate_original_sizes[selected_image_ids],
+                    dtype=torch.int64,
+                )
+                image_offset = torch.as_tensor(
+                    self._collate_padding_offsets[selected_image_ids],
+                    dtype=torch.int64,
+                )
+        elif retain_validation_visuals:
+            full_valid_mask = torch.ones_like(depth)
             camera_resolutions = batch["cameras"].infos.iloc[
                 selected_image_ids
             ].resolution
@@ -146,41 +151,42 @@ class GigaPoseTrainSet:
                 dtype=torch.int64,
             )
             image_offset = torch.zeros_like(image_size)
-            full_valid_mask = torch.ones_like(depth)
-        masks = masks * full_valid_mask
+        if retain_validation_visuals:
+            masks = masks * full_valid_mask
         m_rgb = rgb * masks[:, None, :, :]
 
-        # Crop masked input, mask, and real RGB together so augmentation uses
-        # exactly the same affine transform for the validation visualization.
-        crop_input = torch.cat(
-            [
-                m_rgb,
-                masks[:, None, :, :],
-                full_valid_mask[:, None, :, :],
-                rgb,
-            ],
-            dim=1,
-        )
+        # Ordinary training only needs the masked RGB and supervision mask.
+        # Validation additionally carries the unmasked crop and validity mask
+        # for lightweight/heavy visualizations.
+        crop_channels = [m_rgb, masks[:, None, :, :]]
+        if retain_validation_visuals:
+            crop_channels.extend(
+                [full_valid_mask[:, None, :, :], rgb]
+            )
+        crop_input = torch.cat(crop_channels, dim=1)
         cropped_data = self.transforms.crop_transform(
             bboxes.xyxy_box, images=crop_input
         )
 
-        out_data = tc.PandasTensorCollection(
+        out_tensors = dict(
             full_rgb=rgb,
             full_depth=depth,
             K=K,
             rgb=cropped_data["images"][:, :3],
-            actual_rgb=cropped_data["images"][:, 5:8],
             mask=cropped_data["images"][:, 3],
-            valid_mask=cropped_data["images"][:, 4],
             M=cropped_data["M"],
             pose=pose,
-            image_size=image_size,
-            image_offset=image_offset,
-            infos=data[idx_selected].infos,
         )
-
-        return out_data
+        if retain_validation_visuals:
+            out_tensors.update(
+                actual_rgb=cropped_data["images"][:, 5:8],
+                valid_mask=cropped_data["images"][:, 4],
+                image_size=image_size,
+                image_offset=image_offset,
+            )
+        return tc.PandasTensorCollection(
+            infos=data[idx_selected].infos, **out_tensors
+        )
 
     def process_template(self, real_data: SceneObservationTensorCollection):
         names = [
@@ -301,7 +307,10 @@ class GigaPoseTrainSet:
         batch: List[SceneObservation],
     ):
         try:
-            if self.transforms.rgb_augmentation:
+            if (
+                self.transforms.rgb_augmentation
+                and not getattr(self, "_rgb_augmentation_applied", False)
+            ):
                 batch = [self.transforms.rgb_transform(data) for data in batch]
             # convert to tensor collection
             batch = SceneObservation.collate_fn(batch)
@@ -317,28 +326,30 @@ class GigaPoseTrainSet:
                 real_data, template_data, T_real2temp, T_temp2real
             )
 
-            out_data = tc.PandasTensorCollection(
+            out_tensors = dict(
                 src_img=self.transforms.normalize(template_data.rgb),
                 src_mask=template_data.mask,
                 src_K=template_data.K,
                 src_M=template_data.M,
                 src_pts=keypoints["src_pts"],
                 tar_img=self.transforms.normalize(real_data.rgb),
-                # Keep an unnormalized crop with its real background for
-                # validation overlays. tar_img intentionally has the
-                # background masked out for network input.
-                tar_actual_img=real_data.actual_rgb,
-                tar_full_img=real_data.full_rgb,
-                tar_image_size=real_data.image_size,
-                tar_image_offset=real_data.image_offset,
                 tar_mask=real_data.mask,
-                tar_valid_mask=real_data.valid_mask,
                 tar_K=real_data.K,
                 tar_M=real_data.M,
                 tar_pts=keypoints["tar_pts"],
                 relScale=rel_data["relScale"],
                 relInplane=rel_data["relInplane"],
-                infos=real_data.infos,
+            )
+            if hasattr(real_data, "actual_rgb"):
+                out_tensors.update(
+                    tar_actual_img=real_data.actual_rgb,
+                    tar_full_img=real_data.full_rgb,
+                    tar_image_size=real_data.image_size,
+                    tar_image_offset=real_data.image_offset,
+                    tar_valid_mask=real_data.valid_mask,
+                )
+            out_data = tc.PandasTensorCollection(
+                infos=real_data.infos, **out_tensors
             )
         except Exception as e:
             logger.info(f"Error {e}")
