@@ -300,13 +300,23 @@ def main() -> None:
         collate_fn=validation_dataset.collate_fn,
     )
 
+    heavy_template_dataset = None
+    if args.heavy_validation:
+        heavy_template_cfg = make_dataset_config(
+            cfg, args, args.validation_split, augment=False
+        )
+        heavy_template_cfg._target_ = "src.dataloader.template.TemplateSet"
+        heavy_template_dataset = instantiate(heavy_template_cfg)
+
     model = instantiate(cfg.model)
     # Initialize weights only. Passing ckpt_path to trainer.fit would also
     # restore the old optimizer and global step, which is not desired here.
     load_checkpoint(model, args.checkpoint, checkpoint_key="state_dict")
-    model.template_datasets = {
-        args.dataset_name: validation_dataset.template_dataset
-    }
+    model.template_datasets = (
+        {args.dataset_name: heavy_template_dataset}
+        if heavy_template_dataset is not None
+        else {}
+    )
     model.heavy_validation_enabled = args.heavy_validation
     model.heavy_validation_interval = args.heavy_validation_interval
     model.heavy_validation_images = args.heavy_validation_images
