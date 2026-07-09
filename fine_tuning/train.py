@@ -207,6 +207,9 @@ def make_dataset_config(cfg, args: argparse.Namespace, split_name: str, augment:
     dataset_cfg.template_config.dir = str((args.root_dir / "templates").resolve())
     dataset_cfg.template_config.scale_factor = 1.0
     dataset_cfg.transforms.rgb_augmentation = augment
+    dataset_cfg.retain_heavy_visuals = bool(
+        args.heavy_validation and not augment
+    )
     return dataset_cfg
 
 

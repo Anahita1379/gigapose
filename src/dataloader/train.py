@@ -126,13 +126,12 @@ class GigaPoseTrainSet:
         retain_validation_visuals = bool(
             getattr(self, "deterministic_instance_selection", False)
         )
-        if hasattr(self, "_collate_valid_masks"):
-            if retain_validation_visuals:
-                full_valid_mask = torch.as_tensor(
-                    self._collate_valid_masks[selected_image_ids],
-                    dtype=depth.dtype,
-                    device=depth.device,
-                )
+        retain_heavy_visuals = bool(
+            retain_validation_visuals
+            and getattr(self, "retain_heavy_visuals", False)
+        )
+        if retain_heavy_visuals:
+            if hasattr(self, "_collate_original_sizes"):
                 image_size = torch.as_tensor(
                     self._collate_original_sizes[selected_image_ids],
                     dtype=torch.int64,
@@ -141,35 +140,29 @@ class GigaPoseTrainSet:
                     self._collate_padding_offsets[selected_image_ids],
                     dtype=torch.int64,
                 )
-        elif retain_validation_visuals:
-            full_valid_mask = torch.ones_like(depth)
-            camera_resolutions = batch["cameras"].infos.iloc[
-                selected_image_ids
-            ].resolution
-            image_size = torch.as_tensor(
-                np.asarray(list(camera_resolutions), dtype=np.int64),
-                dtype=torch.int64,
-            )
-            image_offset = torch.zeros_like(image_size)
-        if retain_validation_visuals:
-            masks = masks * full_valid_mask
+            else:
+                camera_resolutions = batch["cameras"].infos.iloc[
+                    selected_image_ids
+                ].resolution
+                image_size = torch.as_tensor(
+                    np.asarray(list(camera_resolutions), dtype=np.int64),
+                    dtype=torch.int64,
+                )
+                image_offset = torch.zeros_like(image_size)
         m_rgb = rgb * masks[:, None, :, :]
 
         # Ordinary training only needs the masked RGB and supervision mask.
-        # Validation additionally carries the unmasked crop and validity mask
-        # for lightweight/heavy visualizations.
+        # Validation additionally carries the unmasked crop for lightweight
+        # visualization; full-image metadata is retained only for heavy mode.
         crop_channels = [m_rgb, masks[:, None, :, :]]
         if retain_validation_visuals:
-            crop_channels.extend(
-                [full_valid_mask[:, None, :, :], rgb]
-            )
+            crop_channels.append(rgb)
         crop_input = torch.cat(crop_channels, dim=1)
         cropped_data = self.transforms.crop_transform(
             bboxes.xyxy_box, images=crop_input
         )
 
         out_tensors = dict(
-            full_rgb=rgb,
             full_depth=depth,
             K=K,
             rgb=cropped_data["images"][:, :3],
@@ -179,8 +172,11 @@ class GigaPoseTrainSet:
         )
         if retain_validation_visuals:
             out_tensors.update(
-                actual_rgb=cropped_data["images"][:, 5:8],
-                valid_mask=cropped_data["images"][:, 4],
+                actual_rgb=cropped_data["images"][:, 4:7],
+            )
+        if retain_heavy_visuals:
+            out_tensors.update(
+                full_rgb=rgb,
                 image_size=image_size,
                 image_offset=image_offset,
             )
@@ -255,7 +251,6 @@ class GigaPoseTrainSet:
         )
 
         out_data = tc.PandasTensorCollection(
-            full_rgb=template_data["full_rgba"],
             full_depth=template_data["full_depth"].squeeze(1),
             K=template_data["K"],
             rgb=cropped_data["images"][:, :3],
@@ -276,7 +271,7 @@ class GigaPoseTrainSet:
         all_data = {}
         for name, data in zip(["real", "template"], [real_data, template_data]):
             all_data[name] = KeypointInput(
-                full_rgb=data.full_rgb,
+                full_rgb=getattr(data, "full_rgb", None),
                 full_depth=data.full_depth,
                 K=data.K,
                 M=data.M,
@@ -341,12 +336,12 @@ class GigaPoseTrainSet:
                 relInplane=rel_data["relInplane"],
             )
             if hasattr(real_data, "actual_rgb"):
+                out_tensors.update(tar_actual_img=real_data.actual_rgb)
+            if hasattr(real_data, "image_size"):
                 out_tensors.update(
-                    tar_actual_img=real_data.actual_rgb,
                     tar_full_img=real_data.full_rgb,
                     tar_image_size=real_data.image_size,
                     tar_image_offset=real_data.image_offset,
-                    tar_valid_mask=real_data.valid_mask,
                 )
             out_data = tc.PandasTensorCollection(
                 infos=real_data.infos, **out_tensors

@@ -51,10 +51,12 @@ class AssettoCorsaFineTuneSet(GigaPoseTrainSet):
         depth_scale,
         template_config,
         transforms,
+        retain_heavy_visuals=False,
     ):
         self.batch_size = batch_size
         self.dataset_dir = Path(root_dir) / dataset_name
         self.transforms = transforms
+        self.retain_heavy_visuals = bool(retain_heavy_visuals)
         self.deterministic_instance_selection = not bool(
             self.transforms.rgb_augmentation
         )
