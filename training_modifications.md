@@ -370,3 +370,33 @@ but incorrect coordinate convention, calibration, or pose interpretation.
   `fine_tuning/padding_mask_examples/`.
 - Static syntax and formatting checks were run after the modifications. A full
   GPU/EGL smoke test is still required in the actual GigaPose environment.
+
+## 11. Alternate training entry point with isolated heavy validation
+
+`fine_tuning.train_val` is an alternate entry point that leaves the existing
+`fine_tuning.train` workflow available.
+
+In this version, the three data paths are isolated:
+
+- Training uses only model and supervision crops.
+- Lightweight validation uses crops plus its unmasked visualization crop.
+- Heavy validation uses a separate fixed map-style subset and is the only
+  loader that retains full RGB and original-frame geometry.
+
+The heavy subset is selected deterministically and saved to
+`heavy_validation/fixed_selection.json` inside the run output. Reusing the same
+run directory reuses those exact frame keys.
+
+At each configured heavy interval, all DDP ranks synchronize. Rank zero alone
+loads the fixed batch, refreshes current IST template features, runs retrieval,
+matching, RANSAC, and full pose recovery, then renders every annotated car in
+each selected frame. Other ranks wait until rendering finishes. A shared
+failure flag ensures a caught rank-zero exception is reported by every rank
+instead of being presented only as an unexplained DDP deadlock.
+
+Heavy outputs are stored under:
+
+`gigaPose_datasets/results/<run-name>/heavy_validation/`
+
+Each event writes a CAD-overlay contact sheet and a JSON report containing the
+selected frames, number of instances, and prediction scores.
