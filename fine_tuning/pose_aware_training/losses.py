@@ -192,7 +192,6 @@ def pose_aware_ist_losses(
         & torch.isfinite(pred_inplane).all(dim=-1)
         & torch.isfinite(gt_scale_flat)
         & torch.isfinite(gt_inplane_flat)
-        & (pred_scale > EPS)
         & (gt_scale_flat > EPS)
     )
     if not finite.any():
@@ -215,6 +214,7 @@ def pose_aware_ist_losses(
 
     instance_ids = instance_ids[finite]
     pred_scale = pred_scale[finite]
+    pred_scale_safe = pred_scale.clamp_min(EPS)
     pred_inplane = F.normalize(pred_inplane[finite], dim=-1, eps=EPS)
     gt_scale_flat = gt_scale_flat[finite]
     gt_cos_sin = torch.stack(
@@ -224,7 +224,7 @@ def pose_aware_ist_losses(
 
     # Since z_target is proportional to 1/scale, this is exactly the robust
     # relative log-depth residual up to sign.
-    log_depth_residual = torch.log(pred_scale.clamp_min(EPS)) - torch.log(
+    log_depth_residual = torch.log(pred_scale_safe) - torch.log(
         gt_scale_flat.clamp_min(EPS)
     )
     log_depth_loss = smooth_l1(log_depth_residual, log_depth_beta).mean()
@@ -238,7 +238,7 @@ def pose_aware_ist_losses(
     c, s = pred_inplane.unbind(-1)
     rotated_src_x = c * src_px[:, 0] - s * src_px[:, 1]
     rotated_src_y = s * src_px[:, 0] + c * src_px[:, 1]
-    transformed_src = pred_scale[:, None] * torch.stack(
+    transformed_src = pred_scale_safe[:, None] * torch.stack(
         [rotated_src_x, rotated_src_y], dim=-1
     )
     translation_2d = tar_px - transformed_src
@@ -249,7 +249,7 @@ def pose_aware_ist_losses(
     rotated_center_x = c * source_center[:, 0] - s * source_center[:, 1]
     rotated_center_y = s * source_center[:, 0] + c * source_center[:, 1]
     predicted_center_per_patch = (
-        pred_scale[:, None]
+        pred_scale_safe[:, None]
         * torch.stack([rotated_center_x, rotated_center_y], dim=-1)
         + translation_2d
     )
@@ -269,7 +269,7 @@ def pose_aware_ist_losses(
     # the isolated training entry point can also opt into optimizing their
     # normalized robust losses.
     mean_log_scale = _scatter_mean(
-        torch.log(pred_scale), instance_ids, num_instances
+        torch.log(pred_scale_safe), instance_ids, num_instances
     )
     instance_scale = mean_log_scale.exp()
     instance_inplane = F.normalize(

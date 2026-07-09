@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import torch
 
 from .losses import pose_aware_ist_losses, soft_pose_aware_template_loss
@@ -85,3 +87,88 @@ def test_soft_template_loss_backpropagates_to_both_descriptor_sets():
     loss.backward()
     assert torch.isfinite(src.grad).all()
     assert torch.isfinite(tar.grad).all()
+
+
+def test_nonpositive_predicted_scale_does_not_drop_inplane_supervision():
+    src_pts = torch.tensor([[[1.0, 1.0], [2.0, 2.0]]])
+    tar_pts = src_pts.clone()
+    pose, K, M = _identity_geometry(1)
+    scale = torch.tensor([-1.0, 1.0], requires_grad=True)
+    inplane = torch.tensor([[1.0, 0.0], [1.0, 0.0]], requires_grad=True)
+    output = pose_aware_ist_losses(
+        pred_scale=scale,
+        pred_inplane=inplane,
+        src_pts=src_pts,
+        tar_pts=tar_pts,
+        gt_scale=torch.ones(1),
+        gt_inplane=torch.zeros(1),
+        src_pose=pose,
+        tar_pose=pose,
+        src_K=K,
+        tar_K=K,
+        src_M=M,
+        tar_M=M,
+        patch_size=14,
+        log_depth_beta=0.1,
+        reprojection_beta=0.05,
+        direct_translation_scale=1000.0,
+        direct_depth_scale=1000.0,
+        direct_translation_beta=0.05,
+        direct_depth_beta=0.05,
+        direct_rotation_beta=0.05,
+    )
+    assert output.valid_patch_pairs.item() == 2.0
+    assert torch.isfinite(output.log_depth)
+    assert torch.isfinite(output.inplane)
+    assert torch.isfinite(output.reprojection)
+    (output.log_depth + output.inplane + output.reprojection).backward()
+    assert torch.isfinite(scale.grad).all()
+    assert torch.isfinite(inplane.grad).all()
+
+
+def test_exact_depth_and_inplane_prediction_reconstructs_pose_metrics():
+    src_pts = torch.tensor([[[8.0, 8.0], [8.0, 8.0]]])
+    tar_pts = src_pts.clone()
+    src_pose, K, M = _identity_geometry(1)
+    tar_pose = src_pose.clone()
+    tar_pose[:, 2, 3] = 500.0
+    angle = math.radians(30.0)
+    rotation_z = torch.tensor(
+        [
+            [math.cos(angle), -math.sin(angle), 0.0],
+            [math.sin(angle), math.cos(angle), 0.0],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    tar_pose[:, :3, :3] = rotation_z
+    scale = torch.full((2,), 2.0, requires_grad=True)
+    inplane = torch.tensor(
+        [[math.cos(angle), math.sin(angle)], [math.cos(angle), math.sin(angle)]],
+        requires_grad=True,
+    )
+    output = pose_aware_ist_losses(
+        pred_scale=scale,
+        pred_inplane=inplane,
+        src_pts=src_pts,
+        tar_pts=tar_pts,
+        gt_scale=torch.full((1,), 2.0),
+        gt_inplane=torch.full((1,), angle),
+        src_pose=src_pose,
+        tar_pose=tar_pose,
+        src_K=K,
+        tar_K=K,
+        src_M=M,
+        tar_M=M,
+        patch_size=14,
+        log_depth_beta=0.1,
+        reprojection_beta=0.05,
+        direct_translation_scale=1000.0,
+        direct_depth_scale=1000.0,
+        direct_translation_beta=0.05,
+        direct_depth_beta=0.05,
+        direct_rotation_beta=0.05,
+    )
+    assert output.log_depth.item() == 0.0
+    assert torch.isclose(output.depth_abs_error, torch.tensor(0.0), atol=1e-5)
+    assert torch.isclose(output.translation_error, torch.tensor(0.0), atol=1e-5)
+    assert torch.isclose(output.rotation_error_deg, torch.tensor(0.0), atol=1e-4)

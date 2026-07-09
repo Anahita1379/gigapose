@@ -43,7 +43,10 @@ L_{\log\text{-depth}}
 ```
 
 Target depth is inversely proportional to relative scale, so this is a relative
-log-depth loss up to sign.
+log-depth loss up to sign. In code, non-positive predicted scales are clamped
+to a tiny positive value before `log` and geometric reconstruction. This matches
+the original log-scale loss behavior and avoids dropping the whole patch pair
+when only the predicted scale is invalid.
 
 ```math
 L_{\text{inplane}}
