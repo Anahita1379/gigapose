@@ -1,0 +1,87 @@
+"""Focused CPU tests for the isolated mathematical objectives."""
+
+from __future__ import annotations
+
+import torch
+
+from .losses import pose_aware_ist_losses, soft_pose_aware_template_loss
+
+
+def _identity_geometry(batch_size: int):
+    pose = torch.eye(4).repeat(batch_size, 1, 1)
+    pose[:, 2, 3] = 1000.0
+    K = torch.tensor(
+        [[[100.0, 0.0, 112.0], [0.0, 100.0, 112.0], [0.0, 0.0, 1.0]]]
+    ).repeat(batch_size, 1, 1)
+    M = torch.eye(3).repeat(batch_size, 1, 1)
+    return pose, K, M
+
+
+def test_perfect_ist_prediction_has_zero_losses_and_pose_errors():
+    src_pts = torch.tensor([[[1.0, 1.0], [2.0, 2.0], [-1.0, -1.0]]])
+    tar_pts = src_pts.clone()
+    pose, K, M = _identity_geometry(1)
+    scale = torch.ones(2, requires_grad=True)
+    inplane = torch.tensor([[1.0, 0.0], [1.0, 0.0]], requires_grad=True)
+    output = pose_aware_ist_losses(
+        pred_scale=scale,
+        pred_inplane=inplane,
+        src_pts=src_pts,
+        tar_pts=tar_pts,
+        gt_scale=torch.ones(1),
+        gt_inplane=torch.zeros(1),
+        src_pose=pose,
+        tar_pose=pose,
+        src_K=K,
+        tar_K=K,
+        src_M=M,
+        tar_M=M,
+        patch_size=14,
+        log_depth_beta=0.1,
+        reprojection_beta=0.05,
+        direct_translation_scale=1000.0,
+        direct_depth_scale=1000.0,
+        direct_translation_beta=0.05,
+        direct_depth_beta=0.05,
+        direct_rotation_beta=0.05,
+    )
+    assert output.log_depth.item() == 0.0
+    assert output.inplane.item() == 0.0
+    assert output.reprojection.item() == 0.0
+    assert output.direct_translation.item() == 0.0
+    assert output.direct_depth.item() == 0.0
+    assert output.direct_rotation.item() == 0.0
+    assert output.direct_reprojection.item() == 0.0
+    assert output.translation_error.item() == 0.0
+    assert output.rotation_error_deg.item() == 0.0
+    (
+        output.log_depth
+        + output.inplane
+        + output.reprojection
+        + output.direct_translation
+        + output.direct_depth
+        + output.direct_rotation
+    ).backward()
+    assert torch.isfinite(scale.grad).all()
+    assert torch.isfinite(inplane.grad).all()
+
+
+def test_soft_template_loss_backpropagates_to_both_descriptor_sets():
+    batch_size = 3
+    src = torch.randn(batch_size, 8, 4, 4, requires_grad=True)
+    tar = torch.randn(batch_size, 8, 4, 4, requires_grad=True)
+    pose, _, _ = _identity_geometry(batch_size)
+    loss, _ = soft_pose_aware_template_loss(
+        src_features=src,
+        tar_features=tar,
+        src_masks=torch.ones(batch_size, 16, 16),
+        tar_masks=torch.ones(batch_size, 16, 16),
+        src_rotations=pose[:, :3, :3],
+        tar_rotations=pose[:, :3, :3],
+        labels=torch.ones(batch_size, dtype=torch.long),
+        prediction_temperature=0.1,
+        target_temperature_rad=0.25,
+    )
+    loss.backward()
+    assert torch.isfinite(src.grad).all()
+    assert torch.isfinite(tar.grad).all()
