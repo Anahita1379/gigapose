@@ -12,16 +12,18 @@ from collections import defaultdict
 import json
 import os
 from pathlib import Path
-from typing import Any
+import tarfile
+from typing import Any, Union
 
 import numpy as np
 from PIL import Image, ImageDraw
 import pytorch_lightning as pl
 import torch
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Dataset
 import trimesh
 
 from fine_tuning.ac_geometry import InstanceRenderer, bbox_from_mask
+from src.custom_megapose.web_scene_dataset import load_scene_ds_obs
 from src.utils.logging import get_logger, log_image
 
 
@@ -34,6 +36,64 @@ COLORS = [
     (210, 40, 255),
     (255, 210, 20),
 ]
+
+
+class HeavyFrameMapDataset(Dataset):
+    """Random-access adapter for the current BOP-style WebDataset members."""
+
+    def __init__(self, scene_dataset, selected_indices: list[int]) -> None:
+        self.scene_dataset = scene_dataset
+        self.rows = (
+            scene_dataset.frame_index.iloc[selected_indices]
+            .reset_index(drop=True)
+        )
+
+    def __len__(self) -> int:
+        return len(self.rows)
+
+    def __getitem__(self, index: int):
+        row = self.rows.iloc[index]
+        key = str(row.key)
+        shard_path = self.scene_dataset.wds_dir / str(row.shard_fname)
+        sample: dict[str, Union[bytes, str]] = {"__key__": key}
+        with tarfile.open(shard_path) as tar:
+            names = set(tar.getnames())
+            rgb_suffix = next(
+                (
+                    suffix
+                    for suffix in ("rgb.jpg", "rgb.png")
+                    if f"{key}.{suffix}" in names
+                ),
+                None,
+            )
+            if rgb_suffix is None:
+                raise FileNotFoundError(
+                    f"No RGB member for {key} in {shard_path}"
+                )
+            suffixes = [
+                rgb_suffix,
+                "camera.json",
+                "gt.json",
+                "gt_info.json",
+                "mask_visib.json",
+            ]
+            if self.scene_dataset.load_depth:
+                suffixes.append("depth.png")
+            for suffix in suffixes:
+                member_name = f"{key}.{suffix}"
+                handle = tar.extractfile(member_name)
+                if handle is None:
+                    raise FileNotFoundError(
+                        f"Missing {member_name} in {shard_path}"
+                    )
+                sample[suffix] = handle.read()
+
+        return load_scene_ds_obs(
+            sample,
+            depth_scale=self.scene_dataset.depth_scale,
+            load_depth=self.scene_dataset.load_depth,
+            label_format=self.scene_dataset.label_format,
+        )
 
 
 def build_fixed_heavy_loader(
@@ -89,7 +149,7 @@ def build_fixed_heavy_loader(
 
     # Heavy validation must retain every annotated car in the selected frames.
     dataset.batch_size = 1_000_000
-    subset = Subset(scene_dataset, selected_indices)
+    subset = HeavyFrameMapDataset(scene_dataset, selected_indices)
     loader = DataLoader(
         subset,
         batch_size=len(selected_indices),
