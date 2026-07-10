@@ -67,11 +67,16 @@ class PoseAwareGigaPose(GigaPose):
         values = np.asarray(batch.infos.label).astype(np.int64)
         return torch.as_tensor(values, device=device)
 
+    @staticmethod
+    def _batch_size(batch) -> int:
+        return int(batch.src_img.shape[0])
+
     def _log_metrics(
         self,
         split: str,
         metrics: dict[str, torch.Tensor],
         *,
+        batch_size: int,
         prog_bar: tuple[str, ...] = (),
     ) -> None:
         for name, value in metrics.items():
@@ -82,15 +87,46 @@ class PoseAwareGigaPose(GigaPose):
                 on_step=split == "train",
                 on_epoch=split != "train",
                 prog_bar=name in prog_bar,
+                batch_size=batch_size,
             )
 
+    @staticmethod
+    def _attach_ist_predictions_for_visualization(batch, predictions) -> None:
+        src_pts = batch.src_pts.clone().long()
+        tar_pts = batch.tar_pts.clone().long()
+        pair_patch_valid = (
+            (src_pts[..., 0] != -1)
+            & (src_pts[..., 1] != -1)
+            & (tar_pts[..., 0] != -1)
+            & (tar_pts[..., 1] != -1)
+        )
+        pred_rel_scale = torch.full(
+            pair_patch_valid.shape,
+            float("nan"),
+            dtype=predictions["scale"].dtype,
+            device=predictions["scale"].device,
+        )
+        pred_rel_inplane = torch.full(
+            (*pair_patch_valid.shape, 2),
+            float("nan"),
+            dtype=predictions["inplane"].dtype,
+            device=predictions["inplane"].device,
+        )
+        if predictions["scale"].shape[0] == int(pair_patch_valid.sum()):
+            pred_rel_scale[pair_patch_valid] = predictions["scale"]
+            pred_rel_inplane[pair_patch_valid] = predictions["inplane"]
+        setattr(batch, "pred_relScale", pred_rel_scale)
+        setattr(batch, "pred_relInplane", pred_rel_inplane)
+
     def compute_pose_aware_ist_objective(self, batch, split: str):
+        batch_size = self._batch_size(batch)
         predictions = self.ist_net(
             src_img=batch.src_img,
             tar_img=batch.tar_img,
             src_pts=batch.src_pts.clone().long(),
             tar_pts=batch.tar_pts.clone().long(),
         )
+        self._attach_ist_predictions_for_visualization(batch, predictions)
         outputs = pose_aware_ist_losses(
             pred_scale=predictions["scale"],
             pred_inplane=predictions["inplane"],
@@ -177,11 +213,13 @@ class PoseAwareGigaPose(GigaPose):
                 "monitor_translation_error_mm",
                 "monitor_rotation_error_deg",
             ),
+            batch_size=batch_size,
         )
         return total
 
     def compute_retrieval_objective(self, batch, split: str):
         """Compute patch InfoNCE and pose-aware soft template selection once."""
+        batch_size = self._batch_size(batch)
         src_features = self.ae_net(batch.src_img)
         tar_features = self.ae_net(batch.tar_img)
 
@@ -237,6 +275,7 @@ class PoseAwareGigaPose(GigaPose):
                 "loss_soft_template",
                 "soft_template_selected_rotation_deg",
             ),
+            batch_size=batch_size,
         )
         return total
 
@@ -247,9 +286,11 @@ class PoseAwareGigaPose(GigaPose):
             logger.info("Finished warm up, setting lr to %s", self.lr)
 
         total = None
+        total_batch_size = 0
         for idx_dataset, batch in enumerate(batchs):
             if batch is None:
                 continue
+            total_batch_size += self._batch_size(batch)
             dataset_loss = batch.src_img.sum() * 0.0
             if self.optim_config.nets_to_train in ("ist", "all"):
                 dataset_loss = dataset_loss + self.compute_pose_aware_ist_objective(
@@ -264,6 +305,7 @@ class PoseAwareGigaPose(GigaPose):
         if total is None:
             # This is only reachable if every collated dataset batch was None.
             total = next(self.parameters()).sum() * 0.0
+            total_batch_size = 1
         self.log(
             "train/loss",
             total,
@@ -271,6 +313,7 @@ class PoseAwareGigaPose(GigaPose):
             on_step=True,
             on_epoch=False,
             prog_bar=True,
+            batch_size=total_batch_size,
         )
         self.log(
             "total",
@@ -279,12 +322,14 @@ class PoseAwareGigaPose(GigaPose):
             on_step=True,
             on_epoch=False,
             prog_bar=True,
+            batch_size=total_batch_size,
         )
         return total
 
     def validation_step(self, batch, idx_batch):
         if batch is None:
             return None
+        batch_size = self._batch_size(batch)
         total = batch.src_img.sum() * 0.0
         if self.optim_config.nets_to_train in ("ist", "all"):
             total = total + self.compute_pose_aware_ist_objective(batch, "val")
@@ -299,5 +344,6 @@ class PoseAwareGigaPose(GigaPose):
             on_step=True,
             on_epoch=False,
             prog_bar=True,
+            batch_size=batch_size,
         )
         return total
