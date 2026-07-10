@@ -29,6 +29,7 @@ class PoseAwareGigaPose(GigaPose):
             "log_depth_weight": float(config.get("log_depth_weight", 1.0)),
             "inplane_weight": float(config.get("inplane_weight", 1.0)),
             "reprojection_weight": float(config.get("reprojection_weight", 0.1)),
+            "anti_flip_weight": float(config.get("anti_flip_weight", 0.0)),
             "optimize_pose_monitor_errors": bool(
                 config.get("optimize_pose_monitor_errors", False)
             ),
@@ -51,6 +52,7 @@ class PoseAwareGigaPose(GigaPose):
             ),
             "direct_depth_beta": float(config.get("direct_depth_beta", 0.05)),
             "direct_rotation_beta": float(config.get("direct_rotation_beta", 0.05)),
+            "anti_flip_margin": float(config.get("anti_flip_margin", 0.25)),
             "direct_translation_scale": float(
                 config.get("direct_translation_scale", 1000.0)
             ),
@@ -152,6 +154,7 @@ class PoseAwareGigaPose(GigaPose):
             ],
             direct_depth_beta=self.pose_loss_config["direct_depth_beta"],
             direct_rotation_beta=self.pose_loss_config["direct_rotation_beta"],
+            anti_flip_margin=self.pose_loss_config["anti_flip_margin"],
         )
         weighted_log_depth = (
             self.pose_loss_config["log_depth_weight"] * outputs.log_depth
@@ -162,7 +165,15 @@ class PoseAwareGigaPose(GigaPose):
         weighted_reprojection = (
             self.pose_loss_config["reprojection_weight"] * outputs.reprojection
         )
-        total = weighted_log_depth + weighted_inplane + weighted_reprojection
+        weighted_anti_flip = (
+            self.pose_loss_config["anti_flip_weight"] * outputs.anti_flip
+        )
+        total = (
+            weighted_log_depth
+            + weighted_inplane
+            + weighted_reprojection
+            + weighted_anti_flip
+        )
         direct_pose_total = (
             self.pose_loss_config["direct_translation_weight"]
             * outputs.direct_translation
@@ -194,6 +205,7 @@ class PoseAwareGigaPose(GigaPose):
                 "loss_direct_rotation": outputs.direct_rotation,
                 "loss_direct_reprojection": outputs.direct_reprojection,
                 "loss_direct_pose_total": direct_pose_total,
+                "loss_anti_flip": outputs.anti_flip,
                 "loss_ist_pose_aware": total,
                 # Human-readable metrics are detached for logging. Their
                 # normalized direct-loss counterparts above are optionally
@@ -204,6 +216,10 @@ class PoseAwareGigaPose(GigaPose):
                 "monitor_reprojection_error_px": (
                     outputs.reprojection_error_px.detach()
                 ),
+                "monitor_flip_closer_fraction": (
+                    outputs.flip_closer_fraction.detach()
+                ),
+                "monitor_flip_margin": outputs.flip_margin.detach(),
                 "valid_instances": outputs.valid_instances.detach(),
                 "valid_patch_pairs": outputs.valid_patch_pairs.detach(),
             },

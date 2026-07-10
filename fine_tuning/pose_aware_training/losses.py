@@ -22,10 +22,13 @@ class PoseAwareOutputs:
     direct_depth: torch.Tensor
     direct_rotation: torch.Tensor
     direct_reprojection: torch.Tensor
+    anti_flip: torch.Tensor
     translation_error: torch.Tensor
     rotation_error_deg: torch.Tensor
     depth_abs_error: torch.Tensor
     reprojection_error_px: torch.Tensor
+    flip_closer_fraction: torch.Tensor
+    flip_margin: torch.Tensor
     valid_instances: torch.Tensor
     valid_patch_pairs: torch.Tensor
 
@@ -146,6 +149,7 @@ def pose_aware_ist_losses(
     direct_translation_beta: float,
     direct_depth_beta: float,
     direct_rotation_beta: float,
+    anti_flip_margin: float,
 ) -> PoseAwareOutputs:
     """Compute IST losses and reconstruct monitoring-only metric poses.
 
@@ -171,10 +175,13 @@ def pose_aware_ist_losses(
             direct_depth=zero,
             direct_rotation=zero,
             direct_reprojection=zero,
+            anti_flip=zero,
             translation_error=nan,
             rotation_error_deg=nan,
             depth_abs_error=nan,
             reprojection_error_px=nan,
+            flip_closer_fraction=nan,
+            flip_margin=nan,
             valid_instances=zero.detach(),
             valid_patch_pairs=zero.detach(),
         )
@@ -204,10 +211,13 @@ def pose_aware_ist_losses(
             direct_depth=zero,
             direct_rotation=zero,
             direct_reprojection=zero,
+            anti_flip=zero,
             translation_error=nan,
             rotation_error_deg=nan,
             depth_abs_error=nan,
             reprojection_error_px=nan,
+            flip_closer_fraction=nan,
+            flip_margin=nan,
             valid_instances=zero.detach(),
             valid_patch_pairs=zero.detach(),
         )
@@ -231,7 +241,22 @@ def pose_aware_ist_losses(
 
     # 1-cos(delta angle) is bounded and has smoother gradients than acos near
     # perfect alignment.
-    inplane_loss = (1.0 - (pred_inplane * gt_cos_sin).sum(-1)).mean()
+    correct_inplane_distance = 1.0 - (pred_inplane * gt_cos_sin).sum(-1)
+    inplane_loss = correct_inplane_distance.mean()
+
+    # A negative angle is still a proper rotation and is handled above. A
+    # left/right flipped correspondence is a reflection; IST cannot represent
+    # reflections as valid poses, so we compare against a mirrored in-plane
+    # target only as a diagnostic/optional margin penalty.
+    flipped_gt_cos_sin = gt_cos_sin.clone()
+    flipped_gt_cos_sin[:, 1] = -flipped_gt_cos_sin[:, 1]
+    flipped_inplane_distance = 1.0 - (pred_inplane * flipped_gt_cos_sin).sum(-1)
+    flip_margin_values = flipped_inplane_distance - correct_inplane_distance
+    anti_flip_loss = F.relu(float(anti_flip_margin) - flip_margin_values).mean()
+    flip_closer_fraction = (
+        flipped_inplane_distance < correct_inplane_distance
+    ).to(pred_scale.dtype).mean()
+    flip_margin = flip_margin_values.mean()
 
     src_px = src_pts[pair_valid][finite].to(pred_scale.dtype) * float(patch_size)
     tar_px = tar_pts[pair_valid][finite].to(pred_scale.dtype) * float(patch_size)
@@ -340,10 +365,13 @@ def pose_aware_ist_losses(
         direct_depth=direct_depth_loss,
         direct_rotation=direct_rotation_loss,
         direct_reprojection=reprojection_loss,
+        anti_flip=anti_flip_loss,
         translation_error=translation_error,
         rotation_error_deg=torch.rad2deg(rotation_error),
         depth_abs_error=depth_abs_error,
         reprojection_error_px=reprojection_error.mean(),
+        flip_closer_fraction=flip_closer_fraction,
+        flip_margin=flip_margin,
         valid_instances=valid_instances.sum().to(pred_scale.dtype),
         valid_patch_pairs=finite.sum().to(pred_scale.dtype),
     )

@@ -93,6 +93,17 @@ def parse_args() -> argparse.Namespace:
     losses.add_argument("--inplane-weight", type=float, default=1.0)
     losses.add_argument("--reprojection-weight", type=float, default=0.1)
     losses.add_argument(
+        "--anti-flip-weight",
+        type=float,
+        default=0.0,
+        help=(
+            "Optional margin penalty that discourages patch in-plane predictions "
+            "from being closer to a mirrored/flipped target than the correct "
+            "target. The diagnostics are always logged; default 0 keeps it "
+            "monitor-only."
+        ),
+    )
+    losses.add_argument(
         "--optimize-pose-monitor-errors",
         action=argparse.BooleanOptionalAction,
         default=False,
@@ -122,6 +133,15 @@ def parse_args() -> argparse.Namespace:
     losses.add_argument("--direct-translation-beta", type=float, default=0.05)
     losses.add_argument("--direct-depth-beta", type=float, default=0.05)
     losses.add_argument("--direct-rotation-beta", type=float, default=0.05)
+    losses.add_argument(
+        "--anti-flip-margin",
+        type=float,
+        default=0.25,
+        help=(
+            "Required distance margin between the flipped in-plane target and "
+            "the correct target when --anti-flip-weight is positive."
+        ),
+    )
     losses.add_argument(
         "--direct-translation-scale",
         type=float,
@@ -206,6 +226,7 @@ def validate_args(args: argparse.Namespace) -> None:
         "log-depth": args.log_depth_weight,
         "inplane": args.inplane_weight,
         "reprojection": args.reprojection_weight,
+        "anti-flip": args.anti_flip_weight,
         "direct translation": args.direct_translation_weight,
         "direct depth": args.direct_depth_weight,
         "direct rotation": args.direct_rotation_weight,
@@ -225,6 +246,8 @@ def validate_args(args: argparse.Namespace) -> None:
     ]
     if invalid_positive:
         raise ValueError(f"Scales must be positive: {invalid_positive}")
+    if args.anti_flip_margin < 0:
+        raise ValueError("--anti-flip-margin must be nonnegative")
 
 
 def main() -> None:
@@ -281,6 +304,7 @@ def main() -> None:
         "log_depth_weight": args.log_depth_weight,
         "inplane_weight": args.inplane_weight,
         "reprojection_weight": args.reprojection_weight,
+        "anti_flip_weight": args.anti_flip_weight,
         "optimize_pose_monitor_errors": args.optimize_pose_monitor_errors,
         "direct_translation_weight": args.direct_translation_weight,
         "direct_depth_weight": args.direct_depth_weight,
@@ -293,6 +317,7 @@ def main() -> None:
         "direct_translation_beta": args.direct_translation_beta,
         "direct_depth_beta": args.direct_depth_beta,
         "direct_rotation_beta": args.direct_rotation_beta,
+        "anti_flip_margin": args.anti_flip_margin,
         "direct_translation_scale": (
             args.direct_translation_scale
             if args.direct_translation_scale is not None
@@ -399,10 +424,12 @@ def main() -> None:
     logger.info("Outputs: %s", output_dir)
     logger.info("Metric history: %s", output_dir / "pose_metrics.csv")
     logger.info(
-        "Optimized IST losses: log-depth=%.3g inplane=%.3g reprojection=%.3g",
+        "Optimized IST losses: log-depth=%.3g inplane=%.3g reprojection=%.3g "
+        "anti-flip=%.3g",
         args.log_depth_weight,
         args.inplane_weight,
         args.reprojection_weight,
+        args.anti_flip_weight,
     )
     if args.nets_to_train == "all":
         logger.info(

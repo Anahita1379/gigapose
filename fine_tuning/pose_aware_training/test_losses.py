@@ -46,6 +46,7 @@ def test_perfect_ist_prediction_has_zero_losses_and_pose_errors():
         direct_translation_beta=0.05,
         direct_depth_beta=0.05,
         direct_rotation_beta=0.05,
+        anti_flip_margin=0.25,
     )
     assert output.log_depth.item() == 0.0
     assert output.inplane.item() == 0.0
@@ -116,6 +117,7 @@ def test_nonpositive_predicted_scale_does_not_drop_inplane_supervision():
         direct_translation_beta=0.05,
         direct_depth_beta=0.05,
         direct_rotation_beta=0.05,
+        anti_flip_margin=0.25,
     )
     assert output.valid_patch_pairs.item() == 2.0
     assert torch.isfinite(output.log_depth)
@@ -167,8 +169,48 @@ def test_exact_depth_and_inplane_prediction_reconstructs_pose_metrics():
         direct_translation_beta=0.05,
         direct_depth_beta=0.05,
         direct_rotation_beta=0.05,
+        anti_flip_margin=0.25,
     )
     assert output.log_depth.item() == 0.0
     assert torch.isclose(output.depth_abs_error, torch.tensor(0.0), atol=1e-5)
     assert torch.isclose(output.translation_error, torch.tensor(0.0), atol=1e-5)
     assert torch.isclose(output.rotation_error_deg, torch.tensor(0.0), atol=1e-4)
+
+
+def test_flipped_inplane_prediction_is_detected_by_monitor():
+    angle = math.radians(30.0)
+    src_pts = torch.tensor([[[1.0, 1.0], [2.0, 2.0]]])
+    tar_pts = src_pts.clone()
+    pose, K, M = _identity_geometry(1)
+    scale = torch.ones(2, requires_grad=True)
+    # The flipped alternative for +30 degrees is -30 degrees.
+    inplane = torch.tensor(
+        [[math.cos(angle), -math.sin(angle)], [math.cos(angle), -math.sin(angle)]],
+        requires_grad=True,
+    )
+    output = pose_aware_ist_losses(
+        pred_scale=scale,
+        pred_inplane=inplane,
+        src_pts=src_pts,
+        tar_pts=tar_pts,
+        gt_scale=torch.ones(1),
+        gt_inplane=torch.full((1,), angle),
+        src_pose=pose,
+        tar_pose=pose,
+        src_K=K,
+        tar_K=K,
+        src_M=M,
+        tar_M=M,
+        patch_size=14,
+        log_depth_beta=0.1,
+        reprojection_beta=0.05,
+        direct_translation_scale=1000.0,
+        direct_depth_scale=1000.0,
+        direct_translation_beta=0.05,
+        direct_depth_beta=0.05,
+        direct_rotation_beta=0.05,
+        anti_flip_margin=0.25,
+    )
+    assert output.flip_closer_fraction.item() == 1.0
+    assert output.flip_margin.item() < 0.0
+    assert output.anti_flip.item() > 0.25

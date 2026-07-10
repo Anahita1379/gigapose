@@ -12,7 +12,8 @@ For IST-only training, the default optimized objective is:
 L_{\rm IST,base} =
 \lambda_z L_{\log\text{-depth}} +
 \lambda_\theta L_{\text{inplane}} +
-\lambda_p L_{\text{reprojection}}.
+\lambda_p L_{\text{reprojection}} +
+\lambda_f L_{\text{anti-flip}}.
 ```
 
 - `log-depth`: Smooth-L1 of
@@ -25,6 +26,9 @@ L_{\rm IST,base} =
   scale/rotation/translation mapping. The mapped template object center is
   compared with the ground-truth target object center, normalized by the
   224x224 crop diagonal, using Smooth-L1.
+- `anti-flip`: optional margin penalty that discourages mirrored in-plane patch
+  predictions. Its default weight is 0.0, so flip diagnostics are logged without
+  changing optimization unless `--anti-flip-weight` is positive.
 
 More explicitly, for each valid patch correspondence \(i\), IST predicts a
 relative scale \(\hat s_i\) and an in-plane rotation represented as a normalized
@@ -61,6 +65,69 @@ L_{\text{inplane}}
 \end{bmatrix}
 \right].
 ```
+
+Negative angles are handled naturally by the \([\cos\theta,\sin\theta]\)
+representation. A flipped prediction is different: it is a reflection, not a
+proper rotation. To detect that failure mode, the code compares each prediction
+against the correct target and a mirrored target:
+
+```math
+u_i^*
+=
+\begin{bmatrix}
+\cos\theta_i^*\\
+\sin\theta_i^*
+\end{bmatrix},
+\qquad
+u_{i,\mathrm{flip}}^*
+=
+\begin{bmatrix}
+\cos\theta_i^*\\
+-\sin\theta_i^*
+\end{bmatrix}.
+```
+
+```math
+d_i^{correct}=1-\hat u_i^\top u_i^*,
+\qquad
+d_i^{flip}=1-\hat u_i^\top u_{i,\mathrm{flip}}^*.
+```
+
+The logged flip diagnostics are:
+
+```math
+\mathrm{flip\_margin}
+=
+\frac{1}{N}\sum_i
+\left(d_i^{flip}-d_i^{correct}\right),
+```
+
+and the fraction of patch pairs where the mirrored target is closer:
+
+```math
+\mathrm{flip\_closer\_fraction}
+=
+\frac{1}{N}\sum_i
+\mathbb{1}\left[d_i^{flip}<d_i^{correct}\right].
+```
+
+Positive `flip_margin` is good: the correct target is closer than the mirrored
+one. If `--anti-flip-weight` is positive, the optimized penalty is:
+
+```math
+L_{\text{anti-flip}}
+=
+\frac{1}{N}\sum_i
+\max
+\left(
+0,\,
+m+d_i^{correct}-d_i^{flip}
+\right),
+```
+
+where \(m\) is `--anti-flip-margin`. This does not allow IST to output
+reflections; it simply penalizes patch-pair predictions that look more like the
+mirrored target than the correct one.
 
 For reprojection, each patch pair gives a 2D similarity transform from template
 crop coordinates to target crop coordinates. If \(p_i^{src}\) and
@@ -293,6 +360,8 @@ following human-readable metrics are always logged:
 - `monitor_depth_abs_error_mm`
 - `monitor_rotation_error_deg`
 - `monitor_reprojection_error_px`
+- `monitor_flip_closer_fraction`
+- `monitor_flip_margin`
 
 With the default `--no-optimize-pose-monitor-errors`, these are **not included
 in the loss**. They are dashboard metrics only. With
@@ -364,6 +433,7 @@ candidate set; a cross-batch queue would be a separate extension.
 | log-depth | 1.0 |
 | in-plane | 1.0 |
 | reprojection | 0.1 |
+| anti-flip | 0.0 |
 | optimize direct pose monitor errors | false |
 | direct translation | 0.05, used only when enabled |
 | direct depth | 0.05, used only when enabled |
@@ -388,6 +458,16 @@ python -m fine_tuning.pose_aware_training.train \
 
 If the direct losses make training noisy, turn them back off and keep using the
 base objective while watching the monitor metrics.
+
+To add the mirrored-prediction penalty, start gently:
+
+```bash
+--anti-flip-weight 0.01 \
+--anti-flip-margin 0.25
+```
+
+Before optimizing it, check `val/monitor_flip_closer_fraction`. If it is already
+near zero, you probably do not need this term.
 
 ## Where results are written
 
