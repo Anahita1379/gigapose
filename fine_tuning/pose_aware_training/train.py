@@ -17,6 +17,7 @@ from hydra import compose, initialize_config_dir
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 
 from fine_tuning.heavy_validation import (
@@ -90,8 +91,35 @@ def parse_args() -> argparse.Namespace:
 
     losses = parser.add_argument_group("pose-aware losses")
     losses.add_argument("--log-depth-weight", type=float, default=1.0)
+    losses.add_argument(
+        "--instance-log-scale-weight",
+        type=float,
+        default=0.5,
+        help=(
+            "Weight for robust loss on the per-car geometric-mean scale. "
+            "This aligns scale supervision with pose reconstruction."
+        ),
+    )
+    losses.add_argument(
+        "--scale-consistency-weight",
+        type=float,
+        default=0.05,
+        help=(
+            "Weight penalizing disagreement among patch log-scale predictions "
+            "for the same car."
+        ),
+    )
     losses.add_argument("--inplane-weight", type=float, default=1.0)
-    losses.add_argument("--reprojection-weight", type=float, default=0.1)
+    losses.add_argument(
+        "--reprojection-weight",
+        type=float,
+        default=0.0,
+        help=(
+            "Weight for aggregated per-instance center reprojection. Default 0 "
+            "keeps it monitor-only because it conflicted with scale in the "
+            "previous Assetto run."
+        ),
+    )
     losses.add_argument(
         "--anti-flip-weight",
         type=float,
@@ -168,6 +196,15 @@ def parse_args() -> argparse.Namespace:
         default="mm",
         help="Unit used by cam_t_m2c in scene_gt. Assetto datasets use mm.",
     )
+    losses.add_argument(
+        "--best-scale-checkpoints",
+        type=int,
+        default=3,
+        help=(
+            "Save this many additional best checkpoints ranked by validation "
+            "mean absolute instance log-scale error. Set 0 to disable."
+        ),
+    )
 
     heavy = parser.add_argument_group("optional dedicated heavy validation")
     heavy.add_argument(
@@ -224,6 +261,8 @@ def validate_args(args: argparse.Namespace) -> None:
         )
     nonnegative = {
         "log-depth": args.log_depth_weight,
+        "instance log-scale": args.instance_log_scale_weight,
+        "scale consistency": args.scale_consistency_weight,
         "inplane": args.inplane_weight,
         "reprojection": args.reprojection_weight,
         "anti-flip": args.anti_flip_weight,
@@ -248,6 +287,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError(f"Scales must be positive: {invalid_positive}")
     if args.anti_flip_margin < 0:
         raise ValueError("--anti-flip-margin must be nonnegative")
+    if args.best_scale_checkpoints < 0:
+        raise ValueError("--best-scale-checkpoints must be nonnegative")
 
 
 def main() -> None:
@@ -302,6 +343,8 @@ def main() -> None:
     default_depth_scale = 1000.0 if args.pose_translation_unit == "mm" else 1.0
     cfg.model.pose_loss_config = {
         "log_depth_weight": args.log_depth_weight,
+        "instance_log_scale_weight": args.instance_log_scale_weight,
+        "scale_consistency_weight": args.scale_consistency_weight,
         "inplane_weight": args.inplane_weight,
         "reprojection_weight": args.reprojection_weight,
         "anti_flip_weight": args.anti_flip_weight,
@@ -417,6 +460,19 @@ def main() -> None:
             train_interval=args.metric_csv_every,
         )
     )
+    if args.best_scale_checkpoints > 0:
+        trainer.callbacks.append(
+            ModelCheckpoint(
+                dirpath=str(output_dir / "checkpoints"),
+                filename="best-scale-step{step:06d}",
+                monitor="val/monitor_scale_abs_log_error",
+                mode="min",
+                save_top_k=args.best_scale_checkpoints,
+                save_last=False,
+                auto_insert_metric_name=False,
+                verbose=True,
+            )
+        )
     if heavy_callback is not None:
         trainer.callbacks.append(heavy_callback)
 
@@ -424,9 +480,12 @@ def main() -> None:
     logger.info("Outputs: %s", output_dir)
     logger.info("Metric history: %s", output_dir / "pose_metrics.csv")
     logger.info(
-        "Optimized IST losses: log-depth=%.3g inplane=%.3g reprojection=%.3g "
-        "anti-flip=%.3g",
+        "Optimized IST losses: balanced-log-depth=%.3g "
+        "instance-log-scale=%.3g scale-consistency=%.3g inplane=%.3g "
+        "reprojection=%.3g anti-flip=%.3g",
         args.log_depth_weight,
+        args.instance_log_scale_weight,
+        args.scale_consistency_weight,
         args.inplane_weight,
         args.reprojection_weight,
         args.anti_flip_weight,

@@ -10,22 +10,30 @@ For IST-only training, the default optimized objective is:
 
 ```math
 L_{\rm IST,base} =
-\lambda_z L_{\log\text{-depth}} +
+\lambda_z L_{\text{balanced-patch-scale}} +
+\lambda_s L_{\text{instance-scale}} +
+\lambda_c L_{\text{scale-consistency}} +
 \lambda_\theta L_{\text{inplane}} +
 \lambda_p L_{\text{reprojection}} +
 \lambda_f L_{\text{anti-flip}}.
 ```
 
-- `log-depth`: Smooth-L1 of
+- `balanced-patch-scale`: Smooth-L1 of
   `log(predicted_relative_scale) - log(gt_relative_scale)`. Since target depth
   is inversely proportional to relative scale, this is the relative log-depth
-  error up to sign.
+  error up to sign. Patch losses are averaged inside each car first, so cars
+  with more valid correspondences cannot dominate the batch.
+- `instance-scale`: robustly supervises the geometric-mean patch scale for each
+  car, which is the aggregate used by differentiable pose reconstruction.
+- `scale-consistency`: discourages patch log-scales for one car from spreading
+  around their per-car mean.
 - `inplane`: `1 - cos(predicted_angle - gt_angle)`. This is bounded and avoids
   the unstable derivative of `acos` close to a perfect prediction.
-- `reprojection`: each valid patch prediction defines a differentiable
-  scale/rotation/translation mapping. The mapped template object center is
-  compared with the ground-truth target object center, normalized by the
-  224x224 crop diagonal, using Smooth-L1.
+- `reprojection`: patch transforms are first aggregated into one predicted
+  target center per car. That center is compared with the ground-truth target
+  center, normalized by the 224x224 crop diagonal, using Smooth-L1. Its default
+  weight is 0 because the previous Assetto run showed that the old per-patch
+  reprojection objective conflicted with scale.
 - `anti-flip`: optional margin penalty that discourages mirrored in-plane patch
   predictions. Its default weight is 0.0, so flip diagnostics are logged without
   changing optimization unless `--anti-flip-weight` is positive.
@@ -37,9 +45,9 @@ relative scale \(\hat s_i\) and an in-plane rotation represented as a normalized
 \(\rho_\beta(\cdot)\):
 
 ```math
-L_{\log\text{-depth}}
+L_{\text{balanced-patch-scale}}
 =
-\frac{1}{N}\sum_i
+\frac{1}{B}\sum_b\frac{1}{N_b}\sum_{i\in\mathcal P_b}
 \rho_{\beta_z}
 \left(
 \log(\hat s_i+\epsilon)-\log(s_i^*+\epsilon)
@@ -51,6 +59,30 @@ log-depth loss up to sign. In code, non-positive predicted scales are clamped
 to a tiny positive value before `log` and geometric reconstruction. This matches
 the original log-scale loss behavior and avoids dropping the whole patch pair
 when only the predicted scale is invalid.
+
+For car (b), define the aggregate log-scale and geometric-mean scale as:
+
+```math
+\bar\ell_b=\frac{1}{N_b}\sum_{i\in\mathcal P_b}\log\hat s_{bi},
+\qquad
+\bar s_b=\exp(\bar\ell_b).
+```
+
+The additional scale objectives are:
+
+```math
+L_{\text{instance-scale}}
+=
+\frac{1}{B}\sum_b
+\rho_{\beta_z}\left(\bar\ell_b-\log s_b^*\right),
+```
+
+```math
+L_{\text{scale-consistency}}
+=
+\frac{1}{B}\sum_b\frac{1}{N_b}\sum_{i\in\mathcal P_b}
+\rho_{\beta_z}\left(\log\hat s_{bi}-\bar\ell_b\right).
+```
 
 ```math
 L_{\text{inplane}}
@@ -143,18 +175,26 @@ p_i^{tar} - \hat s_i R(\hat u_i)p_i^{src}
 \right).
 ```
 
-Let \(o^{src}\) and \(o^{tar}\) be the object-center projections in the source
-and target 224x224 crop coordinates. The optimized center reprojection term is:
+Let \(o_b^{src}\) and \(o_b^{tar}\) be the object-center projections for car
+\(b\). The patch predictions are aggregated before applying the loss:
+
+```math
+\hat o_b^{tar}
+=
+\frac{1}{N_b}\sum_{i\in\mathcal P_b}\hat A_{bi}(o_b^{src}).
+```
+
+The center reprojection term is then:
 
 ```math
 L_{\text{reprojection}}
 =
-\frac{1}{N}\sum_i
+\frac{1}{B}\sum_b
 \rho_{\beta_p}
 \left(
 \frac{
 \left\|
-\hat A_i(o^{src}) - o^{tar}
+\hat o_b^{tar} - o_b^{tar}
 \right\|_2
 }{
 224\sqrt{2}
@@ -314,9 +354,9 @@ more numerically stable near perfect alignment and near 180 degrees.
 metres, the defaults are 1.0 m.
 
 `L_direct-reprojection` is the same normalized center reprojection term as
-`L_reprojection`. Its default weight is 0.0 because `L_reprojection` is already
-part of the base objective; the extra knob exists only if you want to emphasize
-that term when the direct pose block is enabled.
+`L_reprojection`. Its default weight is 0.0. The extra knob exists only if you
+want to enable that term as part of the direct-pose block independently of the
+base `--reprojection-weight`.
 
 For `--nets-to-train all`, the objective additionally contains:
 
@@ -360,6 +400,13 @@ following human-readable metrics are always logged:
 - `monitor_depth_abs_error_mm`
 - `monitor_rotation_error_deg`
 - `monitor_reprojection_error_px`
+- `monitor_scale_signed_log_bias` (positive means systematic over-scaling)
+- `monitor_scale_abs_log_error` (used to rank best-scale checkpoints)
+- `monitor_scale_median_pred_gt_ratio` (ideal value is 1)
+- `monitor_scale_within_5pct`
+- `monitor_scale_within_10pct`
+- `monitor_scale_within_20pct`
+- `monitor_scale_log_std` (within-car patch disagreement; lower is better)
 - `monitor_flip_closer_fraction`
 - `monitor_flip_margin`
 
@@ -390,7 +437,12 @@ python -m fine_tuning.pose_aware_training.train \
   --checkpoint-interval 1000 \
   --run-name assettocorsa_pose_aware_ist \
   --logger wandb \
-  --devices 0
+  --devices 0 \
+  --log-depth-weight 1.0 \
+  --instance-log-scale-weight 0.5 \
+  --scale-consistency-weight 0.05 \
+  --inplane-weight 0.5 \
+  --reprojection-weight 0.0
 ```
 
 The InfoNCE and soft-template weights are ignored in IST-only mode because the
@@ -430,9 +482,11 @@ candidate set; a cross-batch queue would be a separate extension.
 
 | Term | Default |
 |---|---:|
-| log-depth | 1.0 |
+| balanced patch log-scale | 1.0 |
+| instance log-scale | 0.5 |
+| scale consistency | 0.05 |
 | in-plane | 1.0 |
-| reprojection | 0.1 |
+| reprojection | 0.0 |
 | anti-flip | 0.0 |
 | optimize direct pose monitor errors | false |
 | direct translation | 0.05, used only when enabled |
@@ -480,6 +534,16 @@ gigaPose_datasets/results/MY_RUN/
 ├── validation_images/
 └── heavy_validation/       # only when enabled
 ```
+
+In addition to periodic checkpoints, training keeps the best three
+`best-scale-step*.ckpt` files ranked by
+`val/monitor_scale_abs_log_error`. Change the number with
+`--best-scale-checkpoints`, or pass `--best-scale-checkpoints 0` to disable
+scale-ranked checkpointing.
+
+The lightweight IST overlay prints `pred`, `gt`, and `ratio=pred/gt` for
+relative crop scale. Red is the warped template prediction and green is the
+target mask. It remains a 2D IST diagnostic rather than a full CAD-pose render.
 
 `pose_metrics.csv` is long-form and can be plotted with:
 

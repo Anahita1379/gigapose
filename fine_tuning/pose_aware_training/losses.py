@@ -16,6 +16,8 @@ class PoseAwareOutputs:
     """Losses and reconstructed pose metrics for one IST forward pass."""
 
     log_depth: torch.Tensor
+    instance_log_scale: torch.Tensor
+    scale_consistency: torch.Tensor
     inplane: torch.Tensor
     reprojection: torch.Tensor
     direct_translation: torch.Tensor
@@ -27,6 +29,13 @@ class PoseAwareOutputs:
     rotation_error_deg: torch.Tensor
     depth_abs_error: torch.Tensor
     reprojection_error_px: torch.Tensor
+    scale_signed_log_bias: torch.Tensor
+    scale_abs_log_error: torch.Tensor
+    scale_median_ratio: torch.Tensor
+    scale_within_5pct: torch.Tensor
+    scale_within_10pct: torch.Tensor
+    scale_within_20pct: torch.Tensor
+    scale_log_std: torch.Tensor
     flip_closer_fraction: torch.Tensor
     flip_margin: torch.Tensor
     valid_instances: torch.Tensor
@@ -127,6 +136,17 @@ def _scatter_mean(
     return output / count.clamp_min(1).view(shape)
 
 
+def _instance_balanced_mean(
+    values: torch.Tensor,
+    instance_ids: torch.Tensor,
+    num_instances: int,
+    valid_instances: torch.Tensor,
+) -> torch.Tensor:
+    """Average within each instance, then give every valid instance equal weight."""
+    per_instance = _scatter_mean(values, instance_ids, num_instances)
+    return per_instance[valid_instances].mean()
+
+
 def pose_aware_ist_losses(
     *,
     pred_scale: torch.Tensor,
@@ -169,6 +189,8 @@ def pose_aware_ist_losses(
         nan = zero.detach().new_tensor(float("nan"))
         return PoseAwareOutputs(
             log_depth=zero,
+            instance_log_scale=zero,
+            scale_consistency=zero,
             inplane=zero,
             reprojection=zero,
             direct_translation=zero,
@@ -180,6 +202,13 @@ def pose_aware_ist_losses(
             rotation_error_deg=nan,
             depth_abs_error=nan,
             reprojection_error_px=nan,
+            scale_signed_log_bias=nan,
+            scale_abs_log_error=nan,
+            scale_median_ratio=nan,
+            scale_within_5pct=nan,
+            scale_within_10pct=nan,
+            scale_within_20pct=nan,
+            scale_log_std=nan,
             flip_closer_fraction=nan,
             flip_margin=nan,
             valid_instances=zero.detach(),
@@ -205,6 +234,8 @@ def pose_aware_ist_losses(
         nan = zero.detach().new_tensor(float("nan"))
         return PoseAwareOutputs(
             log_depth=zero,
+            instance_log_scale=zero,
+            scale_consistency=zero,
             inplane=zero,
             reprojection=zero,
             direct_translation=zero,
@@ -216,6 +247,13 @@ def pose_aware_ist_losses(
             rotation_error_deg=nan,
             depth_abs_error=nan,
             reprojection_error_px=nan,
+            scale_signed_log_bias=nan,
+            scale_abs_log_error=nan,
+            scale_median_ratio=nan,
+            scale_within_5pct=nan,
+            scale_within_10pct=nan,
+            scale_within_20pct=nan,
+            scale_log_std=nan,
             flip_closer_fraction=nan,
             flip_margin=nan,
             valid_instances=zero.detach(),
@@ -232,12 +270,45 @@ def pose_aware_ist_losses(
         dim=-1,
     )
 
+    counts = torch.bincount(instance_ids, minlength=num_instances)
+    valid_instances = counts > 0
+
     # Since z_target is proportional to 1/scale, this is exactly the robust
-    # relative log-depth residual up to sign.
+    # relative log-depth residual up to sign. Average patch losses inside each
+    # instance first so cars with more valid patch correspondences do not
+    # dominate the batch.
     log_depth_residual = torch.log(pred_scale_safe) - torch.log(
         gt_scale_flat.clamp_min(EPS)
     )
-    log_depth_loss = smooth_l1(log_depth_residual, log_depth_beta).mean()
+    log_depth_loss = _instance_balanced_mean(
+        smooth_l1(log_depth_residual, log_depth_beta),
+        instance_ids,
+        num_instances,
+        valid_instances,
+    )
+
+    # Optimize the same geometric-mean scale used by differentiable pose
+    # reconstruction, then discourage patch predictions for one car from
+    # spreading around that consensus value.
+    pred_log_scale = torch.log(pred_scale_safe)
+    mean_log_scale = _scatter_mean(pred_log_scale, instance_ids, num_instances)
+    gt_instance_log_scale = torch.log(gt_scale.clamp_min(EPS))
+    instance_log_residual = (
+        mean_log_scale[valid_instances]
+        - gt_instance_log_scale[valid_instances]
+    )
+    instance_log_scale_loss = smooth_l1(
+        instance_log_residual, log_depth_beta
+    ).mean()
+    centered_patch_log_scale = (
+        pred_log_scale - mean_log_scale[instance_ids]
+    )
+    scale_consistency_loss = _instance_balanced_mean(
+        smooth_l1(centered_patch_log_scale, log_depth_beta),
+        instance_ids,
+        num_instances,
+        valid_instances,
+    )
 
     # 1-cos(delta angle) is bounded and has smoother gradients than acos near
     # perfect alignment.
@@ -278,24 +349,10 @@ def pose_aware_ist_losses(
         * torch.stack([rotated_center_x, rotated_center_y], dim=-1)
         + translation_2d
     )
-    target_center_per_patch = tar_centers[instance_ids]
-    reprojection_error = torch.linalg.vector_norm(
-        predicted_center_per_patch - target_center_per_patch,
-        dim=-1,
-    )
-    crop_diagonal = 224.0 * 2.0**0.5
-    reprojection_loss = smooth_l1(
-        reprojection_error / crop_diagonal,
-        reprojection_beta,
-    ).mean()
-
     # Aggregate patch predictions to one differentiable approximate pose per
     # instance. By default the caller detaches these values for monitoring only;
     # the isolated training entry point can also opt into optimizing their
     # normalized robust losses.
-    mean_log_scale = _scatter_mean(
-        torch.log(pred_scale_safe), instance_ids, num_instances
-    )
     instance_scale = mean_log_scale.exp()
     instance_inplane = F.normalize(
         _scatter_mean(pred_inplane, instance_ids, num_instances),
@@ -305,8 +362,18 @@ def pose_aware_ist_losses(
     predicted_crop_center = _scatter_mean(
         predicted_center_per_patch, instance_ids, num_instances
     )
-    counts = torch.bincount(instance_ids, minlength=num_instances)
-    valid_instances = counts > 0
+    # Reprojection is evaluated once per instance after aggregating all patch
+    # transforms. A per-patch center penalty is biased by local perspective
+    # changes between nearby but non-identical template viewpoints.
+    reprojection_errors = torch.linalg.vector_norm(
+        predicted_crop_center[valid_instances] - tar_centers[valid_instances],
+        dim=-1,
+    )
+    crop_diagonal = 224.0 * 2.0**0.5
+    reprojection_loss = smooth_l1(
+        reprojection_errors / crop_diagonal,
+        reprojection_beta,
+    ).mean()
 
     src_z = src_pose[:, 2, 3]
     src_crop_scale = torch.linalg.vector_norm(src_M[:, :2, 0], dim=1)
@@ -357,8 +424,17 @@ def pose_aware_ist_losses(
         direct_rotation_beta,
     ).mean()
 
+    scale_ratio = instance_log_residual.exp()
+    abs_instance_log_residual = instance_log_residual.abs()
+    per_instance_log_variance = _scatter_mean(
+        centered_patch_log_scale.square(), instance_ids, num_instances
+    )
+    scale_log_std = per_instance_log_variance[valid_instances].sqrt().mean()
+
     return PoseAwareOutputs(
         log_depth=log_depth_loss,
+        instance_log_scale=instance_log_scale_loss,
+        scale_consistency=scale_consistency_loss,
         inplane=inplane_loss,
         reprojection=reprojection_loss,
         direct_translation=direct_translation_loss,
@@ -369,7 +445,20 @@ def pose_aware_ist_losses(
         translation_error=translation_error,
         rotation_error_deg=torch.rad2deg(rotation_error),
         depth_abs_error=depth_abs_error,
-        reprojection_error_px=reprojection_error.mean(),
+        reprojection_error_px=reprojection_errors.mean(),
+        scale_signed_log_bias=instance_log_residual.mean(),
+        scale_abs_log_error=abs_instance_log_residual.mean(),
+        scale_median_ratio=scale_ratio.median(),
+        scale_within_5pct=(
+            (scale_ratio - 1.0).abs() <= 0.05
+        ).to(pred_scale.dtype).mean(),
+        scale_within_10pct=(
+            (scale_ratio - 1.0).abs() <= 0.10
+        ).to(pred_scale.dtype).mean(),
+        scale_within_20pct=(
+            (scale_ratio - 1.0).abs() <= 0.20
+        ).to(pred_scale.dtype).mean(),
+        scale_log_std=scale_log_std,
         flip_closer_fraction=flip_closer_fraction,
         flip_margin=flip_margin,
         valid_instances=valid_instances.sum().to(pred_scale.dtype),

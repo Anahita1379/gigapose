@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import os
+import os.path as osp
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+from src.libVis.torch import save_tensor_to_image
 from src.models.gigaPose import GigaPose
 from src.utils.batch import gather
-from src.utils.logging import get_logger
+from src.utils.logging import get_logger, log_image
 
 from .losses import (
     pose_aware_ist_losses,
     soft_pose_aware_template_loss,
 )
+from .visualization import plot_scale_alignment_batch
 
 
 logger = get_logger(__name__)
@@ -27,8 +32,14 @@ class PoseAwareGigaPose(GigaPose):
         config = dict(pose_loss_config or {})
         self.pose_loss_config = {
             "log_depth_weight": float(config.get("log_depth_weight", 1.0)),
+            "instance_log_scale_weight": float(
+                config.get("instance_log_scale_weight", 0.5)
+            ),
+            "scale_consistency_weight": float(
+                config.get("scale_consistency_weight", 0.05)
+            ),
             "inplane_weight": float(config.get("inplane_weight", 1.0)),
-            "reprojection_weight": float(config.get("reprojection_weight", 0.1)),
+            "reprojection_weight": float(config.get("reprojection_weight", 0.0)),
             "anti_flip_weight": float(config.get("anti_flip_weight", 0.0)),
             "optimize_pose_monitor_errors": bool(
                 config.get("optimize_pose_monitor_errors", False)
@@ -120,6 +131,26 @@ class PoseAwareGigaPose(GigaPose):
         setattr(batch, "pred_relScale", pred_rel_scale)
         setattr(batch, "pred_relInplane", pred_rel_inplane)
 
+    def log_validation_ist_overlay(self, batch, idx_batch, split):
+        """Use the isolated scale-diagnostic overlay for pose-aware runs."""
+        if idx_batch != 0 and idx_batch % self.log_interval != 0:
+            return
+        vis_overlay = plot_scale_alignment_batch(batch)
+        image_dir = osp.join(self.log_dir, "validation_images")
+        os.makedirs(image_dir, exist_ok=True)
+        sample_path = osp.join(
+            image_dir,
+            f"{split}_ist_overlay_step{int(self.global_step):06d}_"
+            f"batch{idx_batch:04d}_rank{self.global_rank}.png",
+        )
+        save_tensor_to_image(vis_overlay, sample_path)
+        log_image(
+            logger=self.logger,
+            name=f"vis/{split}_ist_overlay",
+            path=sample_path,
+            step=int(self.global_step),
+        )
+
     def compute_pose_aware_ist_objective(self, batch, split: str):
         batch_size = self._batch_size(batch)
         predictions = self.ist_net(
@@ -159,6 +190,14 @@ class PoseAwareGigaPose(GigaPose):
         weighted_log_depth = (
             self.pose_loss_config["log_depth_weight"] * outputs.log_depth
         )
+        weighted_instance_log_scale = (
+            self.pose_loss_config["instance_log_scale_weight"]
+            * outputs.instance_log_scale
+        )
+        weighted_scale_consistency = (
+            self.pose_loss_config["scale_consistency_weight"]
+            * outputs.scale_consistency
+        )
         weighted_inplane = (
             self.pose_loss_config["inplane_weight"] * outputs.inplane
         )
@@ -170,6 +209,8 @@ class PoseAwareGigaPose(GigaPose):
         )
         total = (
             weighted_log_depth
+            + weighted_instance_log_scale
+            + weighted_scale_consistency
             + weighted_inplane
             + weighted_reprojection
             + weighted_anti_flip
@@ -198,6 +239,8 @@ class PoseAwareGigaPose(GigaPose):
             split,
             {
                 "loss_log_depth": outputs.log_depth,
+                "loss_instance_log_scale": outputs.instance_log_scale,
+                "loss_scale_consistency": outputs.scale_consistency,
                 "loss_inplane": outputs.inplane,
                 "loss_reprojection": outputs.reprojection,
                 "loss_direct_translation": outputs.direct_translation,
@@ -216,6 +259,25 @@ class PoseAwareGigaPose(GigaPose):
                 "monitor_reprojection_error_px": (
                     outputs.reprojection_error_px.detach()
                 ),
+                "monitor_scale_signed_log_bias": (
+                    outputs.scale_signed_log_bias.detach()
+                ),
+                "monitor_scale_abs_log_error": (
+                    outputs.scale_abs_log_error.detach()
+                ),
+                "monitor_scale_median_pred_gt_ratio": (
+                    outputs.scale_median_ratio.detach()
+                ),
+                "monitor_scale_within_5pct": (
+                    outputs.scale_within_5pct.detach()
+                ),
+                "monitor_scale_within_10pct": (
+                    outputs.scale_within_10pct.detach()
+                ),
+                "monitor_scale_within_20pct": (
+                    outputs.scale_within_20pct.detach()
+                ),
+                "monitor_scale_log_std": outputs.scale_log_std.detach(),
                 "monitor_flip_closer_fraction": (
                     outputs.flip_closer_fraction.detach()
                 ),
@@ -225,6 +287,7 @@ class PoseAwareGigaPose(GigaPose):
             },
             prog_bar=(
                 "loss_log_depth",
+                "loss_instance_log_scale",
                 "loss_inplane",
                 "monitor_translation_error_mm",
                 "monitor_rotation_error_deg",

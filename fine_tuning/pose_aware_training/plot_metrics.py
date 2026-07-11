@@ -38,6 +38,9 @@ def main() -> None:
                     "reprojection_error",
                     "loss_log_depth",
                     "loss_reprojection",
+                    "loss_instance_log_scale",
+                    "loss_scale_consistency",
+                    "monitor_scale_",
                     "loss_soft_template",
                 )
             ):
@@ -47,12 +50,14 @@ def main() -> None:
 
     if not series:
         raise RuntimeError(f"No pose-aware metrics found in {args.csv_path}")
-    figure, axes = plt.subplots(2, 2, figsize=(14, 9), constrained_layout=True)
+    figure, axes = plt.subplots(2, 3, figsize=(18, 9), constrained_layout=True)
     groups = (
         ("translation_error", "Translation error"),
         ("rotation_error", "Rotation error"),
         ("depth_abs_error", "Absolute depth error"),
         ("reprojection", "Reprojection metrics/loss"),
+        ("scale_abs_log_error", "Instance absolute log-scale error"),
+        ("scale_", "Scale diagnostics"),
     )
     for axis, (token, title) in zip(axes.flat, groups):
         for name, (steps, values) in sorted(series.items()):
