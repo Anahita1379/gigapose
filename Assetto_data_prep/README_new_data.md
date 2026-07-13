@@ -431,6 +431,36 @@ python -m fine_tuning.pose_aware_training.train \
   --reprojection-weight 0.0 \
   --anti-flip-weight 0.0 \
   --best-scale-checkpoints 3
+
+
+
+# Start from the current overall-best checkpoint and gently enable aggregated reprojection:
+  python -m fine_tuning.pose_aware_training.train \
+  --dataset-name assettocorsa_new_dataset \
+  --train-split train_pbr_web_gsam_clean \
+  --validation-split val_pbr_web_gsam_clean \
+  --checkpoint gigaPose_datasets/results/assettocorsa_pose_aware_instance_scale_test_run/checkpoints/best-scale-step011750.ckpt \
+  --nets-to-train ist \
+  --ist-lr 1e-6 \
+  --batch-size 32 \
+  --num-workers 4 \
+  --max-steps 10000 \
+  --validation-interval 250 \
+  --checkpoint-interval 1000 \
+  --run-name assettocorsa_pose_aware_instance_scale_center_refinement_redo \
+  --logger wandb \
+  --print-loss-every 50 \
+  --devices 0 \
+  --log-depth-weight 1.0 \
+  --instance-log-scale-weight 0.5 \
+  --scale-consistency-weight 0.05 \
+  --log-depth-beta 0.05 \
+  --inplane-weight 0.5 \
+  --reprojection-weight 0.02 \
+  --reprojection-beta 0.05 \
+  --anti-flip-weight 0.0
+
+  # 
 ```
 Watch these validation metrics:
 val/monitor_scale_median_pred_gt_ratio: should approach 1.0.
@@ -476,6 +506,92 @@ Validation images will be saved here:
 ```bash
 gigapose/gigaPose_datasets/results/assettocorsa_20260623_ist/validation_images/
 ```
+
+
+
+
+there is a totally new way of training, at first we update the AEnet/Dino and then use that to train the ISt: 
+```bash
+python -m fine_tuning.ot_training.train \
+  --dataset-name assettocorsa_new_dataset \
+  --train-split train_pbr_web_gsam_clean \
+  --validation-split val_pbr_web_gsam_clean \
+  --checkpoint gigaPose_datasets/results/assettocorsa_ot_ae_full_run/checkpoints/best-ot-step004750.ckpt \
+  --ae-lr 1e-6 \
+  --ae-train-mode last-blocks \
+  --ae-train-last-n-blocks 1 \
+  --batch-size 32 \
+  --num-workers 4 \
+  --max-steps 10000 \
+  --validation-interval 250 \
+  --checkpoint-interval 1000 \
+  --feature-temperature 0.07 \
+  --sinkhorn-iterations 30 \
+  --correspondence-weight 1.0 \
+  --soft-patch-reprojection-weight 0.25 \
+  --soft-affine-center-weight 0.25 \
+  --entropy-weight 0.0 \
+  --hard-match-confidence 0.05 \
+  --best-ot-checkpoints 3 \
+  --run-name assettocorsa_ot_ae_full_run_cont \
+  --logger wandb \
+  --print-loss-every 50 \
+  --devices all
+
+```
+After selecting the best OT checkpoint: we train IST: 
+```bash
+python -m fine_tuning.pose_aware_training.train \
+  --dataset-name assettocorsa_new_dataset \
+  --train-split train_pbr_web_gsam_clean \
+  --validation-split val_pbr_web_gsam_clean \
+  --checkpoint gigaPose_datasets/results/assettocorsa_ot_ae_smoke/checkpoints/best-ot-step002000.ckpt \
+  --nets-to-train ist \
+  --ist-lr 5e-6 \
+  --batch-size 32 \
+  --num-workers 4 \
+  --max-steps 12000 \
+  --validation-interval 250 \
+  --checkpoint-interval 1000 \
+  --run-name assettocorsa_ot_then_pose_aware_ist \
+  --logger wandb \
+  --print-loss-every 50 \
+  --devices 0 \
+  --log-depth-weight 1.0 \
+  --instance-log-scale-weight 0.5 \
+  --scale-consistency-weight 0.05 \
+  --log-depth-beta 0.05 \
+  --inplane-weight 0.5 \
+  --reprojection-weight 0.0
+
+
+
+python -m fine_tuning.pose_aware_training.train \
+  --dataset-name assettocorsa_new_dataset \
+  --train-split train_pbr_web_gsam_clean \
+  --validation-split val_pbr_web_gsam_clean \
+  --checkpoint gigaPose_datasets/results/assettocorsa_ot_ae_full_run/checkpoints/best-ot-step004750.ckpt \
+  --nets-to-train ist \
+  --ist-lr 5e-6 \
+  --batch-size 16 \
+  --num-workers 2 \
+  --max-steps 20000 \
+  --validation-interval 250 \
+  --checkpoint-interval 1000 \
+  --run-name assettocorsa_ot_fullrun_then_instance_scale_ist \
+  --logger wandb \
+  --print-loss-every 50 \
+  --devices all \
+  --log-depth-weight 1.0 \
+  --instance-log-scale-weight 0.5 \
+  --scale-consistency-weight 0.05 \
+  --log-depth-beta 0.05 \
+  --inplane-weight 0.75 \
+  --reprojection-weight 0.0 \
+  --anti-flip-weight 0.0 \
+  --best-scale-checkpoints 3
+```
+
 
 
 ## 4. Prepare and run inference
@@ -530,6 +646,37 @@ python -m Assetto_data_prep.filter_webdataset_by_detection_count \
 
 
 
+
+# new chcekpoints are :_____________________
+# for the  assettocorsa_pose_aware_instance_scale_center_refinement:
+
+# --checkpoint \
+# gigaPose_datasets/results/assettocorsa_pose_aware_instance_scale_center_refinement/checkpoints/best-scale-step002250.ckpt
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_new_dataset \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_pose_aware_instance_scale_center_refinement/checkpoints/best-scale-step002250.ckpt'" \
+  run_id=assettocorsa_pose_aware_instance_scale_center_refinement_benchmark_new_dataset \
+  name_exp=large_assettocorsa_pose_aware_instance_scale_center_refinement_benchmark_new_dataset
+
+
+
+# prediction is : gigaPose_datasets/results/large_assettocorsa_pose_aware_instance_scale_center_refinement_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_instance_scale_center_refinement_benchmark_new_datasetMultiHypothesis.csv
+
+ 
+
+# ----------------------------------------
+# for assettocorsa_ot_then_instance_scale_ist
+# gigaPose_datasets/results/assettocorsa_ot_then_instance_scale_ist/checkpoints/best-scale-step010250.ckpt
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_new_dataset \
+  "model.checkpoint_path='gigaPose_datasets/results/assettocorsa_ot_then_instance_scale_ist/checkpoints/best-scale-step010250.ckpt'" \
+  run_id=assettocorsa_ot_then_instance_scale_ist_benchmark_new_dataset \
+  name_exp=large_assettocorsa_ot_then_instance_scale_ist_benchmark_new_dataset 
+
+# prediction is : gigaPose_datasets/results/large_assettocorsa_ot_then_instance_scale_ist_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_ot_then_instance_scale_ist_benchmark_new_datasetMultiHypothesis.csv
+
+
+# --------------------------------------------------
 # gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_pose_aware_ist_new_dataset/checkpoints/last.ckpt
   python test.py \
   test_dataset_name=assettocorsa_benchmark_new_dataset \
@@ -538,12 +685,81 @@ python -m Assetto_data_prep.filter_webdataset_by_detection_count \
   name_exp=large_assettocorsa_pose_aware_ist_benchmark_new_dataset 
 
 
+# prediction is : gigaPose_datasets/results/new_dataset_ckeckpoints/large_assettocorsa_pose_aware_ist_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_ist_benchmark_new_datasetMultiHypothesis.csv
+
+# ------------------------------------------------------------
+#  assettocorsa_ist_penultimate_last_ae_corrected ISTlr5e6
+# gigaPose_datasets/results/last_picks/assettocorsa_ist_penultimate_last_ae_corrected_good/checkpoints/last.ckpt
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_new_dataset \
+  "model.checkpoint_path='gigaPose_datasets/results/last_picks/assettocorsa_ist_penultimate_last_ae_corrected_good/checkpoints/last.ckpt'" \
+  run_id=assettocorsa_ist_penultimate_last_ae_benchmark_new_dataset \
+  name_exp=large_assettocorsa_ist_penultimate_last_ae_benchmark_new_dataset 
+
+# prediction is: gigaPose_datasets/results/large_assettocorsa_ist_penultimate_last_ae_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_ist_penultimate_last_ae_benchmark_new_datasetMultiHypothesis.csv
+
+
+--------------------------------------------------------------
+# gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_pose_aware_instance_scale_center_refinement_redo/checkpoints/best-scale-step006250.ckpt
+
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_new_dataset \
+  "model.checkpoint_path='gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_pose_aware_instance_scale_center_refinement_redo/checkpoints/best-scale-step006250.ckpt'" \
+  run_id=assettocorsa_pose_aware_instance_scale_center_refinement_redo_benchmark_new_dataset \
+  name_exp=large_assettocorsa_pose_aware_instance_scale_center_refinement_redo_benchmark_new_dataset
+# prediction is: gigapose/gigaPose_datasets/results/large_assettocorsa_pose_aware_instance_scale_center_refinement_redo_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_instance_scale_center_refinement_redo_benchmark_new_datasetMultiHypothesis.csv
+
+# --------------------------------------------------------
+# gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_translation_rotation_residual/checkpoints/best-residual-step010000.ckpt
+
+# This is the new testing:
+  python test.py \
+  test_dataset_name=assettocorsa_benchmark_new_dataset \
+  "model.checkpoint_path='gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_translation_rotation_residual/checkpoints/best-residual-step010000.ckpt'" \
+  run_id=assettocorsa_translation_rotation_residual_benchmark_new_dataset \
+  name_exp=large_assettocorsa_translation_rotation_residual_benchmark_new_dataset
+
+
+python -m fine_tuning.residual_pose_training.infer \
+  --dataset-name assettocorsa_benchmark_new_dataset \
+  --checkpoint gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_translation_rotation_residual/checkpoints/best-residual-step010000.ckpt \
+  --run-name assettocorsa_translation_rotation_residual_benchmark_new_dataset \
+  --batch-size 8 \
+  --num-workers 4 \
+  --devices 0 \
+  --apply-residual \
+  --rotation-residual \
+  --max-rotation-deg 20 \
+  --max-center-offset-px 56 \
+  --max-log-depth-residual 0.5
+
+
+# --------------------------
+python -m fine_tuning.evaluate_pose_errors_by_distance \
+  --model IST_pose_aware_center_refine=gigaPose_datasets/results/large_assettocorsa_pose_aware_instance_scale_center_refinement_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_instance_scale_center_refinement_benchmark_new_datasetMultiHypothesis.csv  \
+  --model OT_IST=gigaPose_datasets/results/large_assettocorsa_ot_then_instance_scale_ist_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_ot_then_instance_scale_ist_benchmark_new_datasetMultiHypothesis.csv \
+  --model IST_AE_older=gigaPose_datasets/results/large_assettocorsa_ist_penultimate_last_ae_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_ist_penultimate_last_ae_benchmark_new_datasetMultiHypothesis.csv   \
+  --model IST_pose_aware_center_refine_redo=gigaPose_datasets/results/large_assettocorsa_pose_aware_instance_scale_center_refinement_redo_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_instance_scale_center_refinement_redo_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --distance-bin-m 10 \
+  --max-distance-m 120 \
+  --output-dir gigaPose_datasets/results/new_dataset_ckeckpoints/metrics/IST_new_dataset_july11_compare3/model_distance_comparison
+
+
+
+# remove IST_only_retrain, IST_pose_aware
+# --model IST_pose_aware=gigaPose_datasets/results/new_dataset_ckeckpoints/large_assettocorsa_pose_aware_ist_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_ist_benchmark_new_datasetMultiHypothesis.csv \
+# --model IST_only_retrain=gigaPose_datasets/results/large_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_datasetMultiHypothesis.csv \
+# -------------------------------------------------------
 # gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_pose_aware_ist_direct_pose_soft_antiflip_test_run4_new_dataset/checkpoints/last.ckpt
   python test.py \
   test_dataset_name=assettocorsa_benchmark_new_dataset \
   "model.checkpoint_path='gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_pose_aware_ist_direct_pose_soft_antiflip_test_run4_new_dataset/checkpoints/last.ckpt'" \
   run_id=assettocorsa_pose_aware_ist_direct_pose_soft_antiflip_test_run4_benchmark_new_dataset \
   name_exp=large_assettocorsa_pose_aware_ist_direct_pose_soft_antiflip_test_run4_benchmark_new_dataset
+
+
 
 
 # gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_ist_only_july8_heavy_val_actual_run_new_dataset/checkpoints/last.ckpt
@@ -554,6 +770,8 @@ python -m Assetto_data_prep.filter_webdataset_by_detection_count \
   name_exp=large_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_dataset
 
 
+
+# pred: gigaPose_datasets/results/large_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_datasetMultiHypothesis.csv
 
   python -m fine_tuning.overlay_gigapose_predictions \
   --predictions /home/anahita/gigapose/gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
@@ -579,6 +797,19 @@ python -m fine_tuning.compare_gigapose_predictions \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
   --split test \
   --output-dir fine_tuning/prediction_gt_comparison
+
+
+
+  python -m fine_tuning.evaluate_gigapose_models \
+  --model IST_pose_aware=gigaPose_datasets/results/new_dataset_ckeckpoints/large_assettocorsa_pose_aware_ist_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_ist_benchmark_new_datasetMultiHypothesis.csv  \
+  --model IST_direct_pose=gigaPose_datasets/results/new_dataset_ckeckpoints/large_assettocorsa_pose_aware_ist_direct_pose_soft_antiflip_test_run4_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_ist_direct_pose_soft_antiflip_test_run4_benchmark_new_datasetMultiHypothesis.csv  \
+  --model Ist_heavy_val=gigaPose_datasets/results/large_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --rendered-iou \
+  --output-dir gigaPose_datasets/results/new_dataset_ckeckpoints/metrics/IST_new_dataset_july10
+
+
 ```
 
 it writes:
@@ -588,16 +819,37 @@ fine_tuning/prediction_gt_comparison/summary_metrics.csv
 fine_tuning/prediction_gt_comparison/summary_metrics.json
 ```
 
+Compare numerical performance over distance
+```bash
+python -m fine_tuning.evaluate_pose_errors_by_distance \
+  --model IST_pose_aware=gigaPose_datasets/results/new_dataset_ckeckpoints/large_assettocorsa_pose_aware_ist_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_ist_benchmark_new_datasetMultiHypothesis.csv  \
+  --model IST_direct_pose=gigaPose_datasets/results/new_dataset_ckeckpoints/large_assettocorsa_pose_aware_ist_direct_pose_soft_antiflip_test_run4_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_pose_aware_ist_direct_pose_soft_antiflip_test_run4_benchmark_new_datasetMultiHypothesis.csv  \
+  --model Ist_heavy_val=gigaPose_datasets/results/large_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_assettocorsa_ist_only_july8_heavy_val_actual_run_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --distance-bin-m 5 \
+  --max-distance-m 100 \
+  --output-dir gigaPose_datasets/results/new_dataset_ckeckpoints/metrics/IST_new_dataset_july10/model_distance_comparison 
+```
+
 After running the comparison script, run:
 ```bash
 python -m fine_tuning.plot_prediction_comparison \
   --comparison-dir fine_tuning/prediction_gt_comparison
+
+  or 
+
+  python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/new_dataset_ckeckpoints/metrics/IST_new_dataset_july10/all_instance_metrics.csv --comparison-dir gigaPose_datasets/results/new_dataset_ckeckpoints/metrics/IST_new_dataset_july10  --output-dir gigaPose_datasets/results/new_dataset_ckeckpoints/metrics/IST_new_dataset_july10/plots
+
+  python -m fine_tuning.plot_model_summary \
+  --metrics-dir gigaPose_datasets/results/new_dataset_ckeckpoints/metrics/IST_new_dataset_july10
 ```
 It reads:
 ```bash
 fine_tuning/prediction_gt_comparison/per_instance_metrics.csv
 ```
-
+<!-- gigapose/gigaPose_datasets/results/final_results/metrics/IST_AE_July6_2047 -->
+<!-- gigapose/gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last -->
 and writes plots to:
 ```bash
 fine_tuning/prediction_gt_comparison/plots
@@ -610,6 +862,9 @@ python -m fine_tuning.plot_prediction_comparison \
   --output-dir fine_tuning/prediction_gt_comparison/plots
 
   python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/last_picks/metrics/all_models/all_instance_metrics.csv   --comparison-dir gigaPose_datasets/results/last_picks/metrics/all_models   --output-dir gigaPose_datasets/results/last_picks/metrics/all_models/plots
+
+
+  python -m fine_tuning.plot_prediction_comparison   --input-csv gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last/all_instance_metrics.csv   --comparison-dir gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last  --output-dir gigaPose_datasets/results/last_picks/metrics/IST_AE_run2_vs_last/plots
 
   python -m fine_tuning.plot_model_summary \
   --metrics-dir gigaPose_datasets/results/last_picks/metrics/all_models
@@ -660,6 +915,7 @@ Now this command can split both .csv and .npz files:
 # gigaPose_datasets/results/final_results/large_assettocorsa_older_corrected_IST_only_benchmark/predictions
 # gigaPose_datasets/results/final_results/large_assettocorsa_older_ist_2layerAE_benchmark/predictions
 # gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions
+```bash
 python -m fine_tuning.split_predictions_by_camera \
   --predictions gigaPose_datasets/results/final_results/large_assettocorsa_original_benchmark/predictions \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark
@@ -730,4 +986,131 @@ This writes the `test/` shards, centered CAD, targets, GT poses, frame map, and
 The generated masks depend on ground-truth poses. This is an oracle pipeline
 check, not an unbiased inference benchmark. For a real evaluation, replace the
 detection JSON with boxes and masks predicted independently from RGB.
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------------------
+something new again:
+new tarinig packages: residual_pose_training
+
+
+Start with translation only and freeze the already-good IST:
+```bash
+python -m fine_tuning.residual_pose_training.train \
+  --dataset-name assettocorsa_new_dataset \
+  --train-split train_pbr_web_gsam_clean \
+  --validation-split val_pbr_web_gsam_clean \
+  --checkpoint gigaPose_datasets/results/assettocorsa_pose_aware_instance_scale_center_refinement_redo/checkpoints/best-scale-step006250.ckpt \
+  --nets-to-train ist \
+  --no-train-ist \
+  --residual-lr 1e-4 \
+  --batch-size 32 \
+  --num-workers 4 \
+  --max-steps 10000 \
+  --validation-interval 250 \
+  --checkpoint-interval 1000 \
+  --run-name assettocorsa_translation_rotation_residual \
+  --logger wandb \
+  --print-loss-every 50 \
+  --devices 0 \
+  --residual-center-weight 1.0 \
+  --residual-log-depth-weight 1.0 \
+  --residual-translation-weight 0.05 \
+  --residual-regularization-weight 0.001 \
+  --rotation-residual \
+  --residual-rotation-weight 0.25 \
+  --max-rotation-deg 20 \
+  --heavy-validation \
+  --heavy-validation-interval 1000 \
+  --heavy-validation-images 4
+```
+ <!-- --no-rotation-residual \ -->
+Enable rotation refinement:
+For a separate experiment, add:
+```bash
+--rotation-residual \
+--residual-rotation-weight 0.25 \
+--max-rotation-deg 20
+```
+
+Watch:
+val/monitor_baseline_translation_error_mm
+val/monitor_refined_translation_error_mm
+val/monitor_translation_improvement_mm
+
+val/monitor_baseline_depth_error_mm
+val/monitor_refined_depth_error_mm
+val/monitor_depth_improvement_mm
+
+val/monitor_baseline_center_error_px
+val/monitor_refined_center_error_px
+val/monitor_center_improvement_px
+
+val/monitor_baseline_rotation_error_deg
+val/monitor_refined_rotation_error_deg 
+
+Positive improvement means the residual head improved the original IST estimate.
+
+
+
+End-to-end inference:
+Use the new inference script, not the ordinary test.py, because the original model does not know how to apply these heads:
+```bash
+python -m fine_tuning.residual_pose_training.infer \
+  --dataset-name assettocorsa_benchmark \
+  --checkpoint gigaPose_datasets/results/assettocorsa_translation_residual/checkpoints/best-residual-stepXXXXXX.ckpt \
+  --run-name assettocorsa_translation_residual_benchmark \
+  --batch-size 16 \
+  --num-workers 4 \
+  --devices 0 \
+  --no-rotation-residual \
+  --max-center-offset-px 56 \
+  --max-log-depth-residual 0.5
+```
+
+  For a rotation-enabled checkpoint, use:
+  ```bash
+  --rotation-residual \
+--max-rotation-deg 20
+```
+
+Run refined inference with:
+python -m fine_tuning.residual_pose_training.infer \
+  --dataset-name assettocorsa_benchmark \
+  --checkpoint gigaPose_datasets/results/assettocorsa_translation_residual/checkpoints/best-residual-stepXXXXXX.ckpt \
+  --run-name assettocorsa_translation_residual_benchmark \
+  --batch-size 16 \
+  --num-workers 4 \
+  --devices 0 \
+  --apply-residual \
+  --rotation-residual \
+  --max-rotation-deg 20 \
+  --max-center-offset-px 56 \
+  --max-log-depth-residual 0.5
+
+For a rotation-enabled model:
+--rotation-residual \
+--max-rotation-deg 20
+--no-rotation-residual \
+
+You can also generate a controlled baseline from the exact same checkpoint:
+python -m fine_tuning.residual_pose_training.infer \
+  --dataset-name assettocorsa_benchmark \
+  --checkpoint gigaPose_datasets/results/assettocorsa_translation_residual/checkpoints/best-residual-stepXXXXXX.ckpt \
+  --run-name assettocorsa_translation_residual_disabled_benchmark \
+  --batch-size 16 \
+  --num-workers 4 \
+  --devices 0 \
+  --no-apply-residual \
+  --no-rotation-residual
+
 

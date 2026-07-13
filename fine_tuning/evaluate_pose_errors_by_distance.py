@@ -37,7 +37,12 @@ import numpy as np
 from fine_tuning.compare_gigapose_predictions import evaluate_method, load_gt, write_csv
 
 
-POSE_METRICS = ("translation_error_mm", "rotation_error_deg")
+# ``evaluate_method`` reports translation errors in millimeters because that is
+# the native BOP pose unit.  This distance-focused report exposes the same
+# values in meters so its plots are easier to read for long-range Assetto data.
+# The original ``translation_error_mm`` field is retained in the per-instance
+# CSV for compatibility with the other evaluation tools.
+POSE_METRICS = ("translation_error_m", "rotation_error_deg")
 
 
 def parse_model(value: str) -> tuple[str, Path]:
@@ -160,6 +165,9 @@ def add_gt_distance_and_camera(
         gt_t = np.asarray(gt["t_mm"], dtype=float).reshape(3)
         row["gt_distance_m"] = float(np.linalg.norm(gt_t) * 0.001)
         row["gt_depth_m"] = float(gt_t[2] * 0.001)
+        row["translation_error_m"] = (
+            finite_float(row.get("translation_error_mm")) * 0.001
+        )
         row["camera_id"] = camera_map.get(key, "unknown_camera")
 
 
@@ -258,10 +266,10 @@ def write_markdown_summary(
     overall_cols = [
         ("method", "model", 0),
         ("evaluated_instances", "n", 0),
-        ("translation_error_mm_mean", "t mean mm", 1),
-        ("translation_error_mm_variance", "t variance", 1),
-        ("translation_error_mm_std", "t std mm", 1),
-        ("translation_error_mm_median", "t median mm", 1),
+        ("translation_error_m_mean", "t mean m", 3),
+        ("translation_error_m_variance", "t variance m²", 3),
+        ("translation_error_m_std", "t std m", 3),
+        ("translation_error_m_median", "t median m", 3),
         ("rotation_error_deg_mean", "R mean deg", 2),
         ("rotation_error_deg_variance", "R variance", 2),
         ("rotation_error_deg_std", "R std deg", 2),
@@ -271,9 +279,9 @@ def write_markdown_summary(
         ("method", "model", 0),
         ("camera_id", "camera", 0),
         ("evaluated_instances", "n", 0),
-        ("translation_error_mm_mean", "t mean mm", 1),
-        ("translation_error_mm_variance", "t variance", 1),
-        ("translation_error_mm_median", "t median mm", 1),
+        ("translation_error_m_mean", "t mean m", 3),
+        ("translation_error_m_variance", "t variance m²", 3),
+        ("translation_error_m_median", "t median m", 3),
         ("rotation_error_deg_mean", "R mean deg", 2),
         ("rotation_error_deg_variance", "R variance", 2),
         ("rotation_error_deg_median", "R median deg", 2),
@@ -283,8 +291,8 @@ def write_markdown_summary(
         ("camera_id", "camera", 0),
         ("distance_bin", "GT distance", 0),
         ("evaluated_instances", "n", 0),
-        ("translation_error_mm_median", "t median mm", 1),
-        ("translation_error_mm_mean", "t mean mm", 1),
+        ("translation_error_m_median", "t median m", 3),
+        ("translation_error_m_mean", "t mean m", 3),
         ("rotation_error_deg_median", "R median deg", 2),
         ("rotation_error_deg_mean", "R mean deg", 2),
     ]
@@ -321,7 +329,7 @@ def import_matplotlib():
 def plot_summary_bars(rows: list[dict[str, Any]], output_dir: Path, fmt: str, dpi: int) -> None:
     plt = import_matplotlib()
     metrics = [
-        ("translation_error_mm", "Translation error (mm)"),
+        ("translation_error_m", "Translation error (m)"),
         ("rotation_error_deg", "Rotation error (deg)"),
     ]
     stats = [
@@ -353,9 +361,9 @@ def plot_camera_bars(rows: list[dict[str, Any]], output_dir: Path, fmt: str, dpi
     plt = import_matplotlib()
     cameras = sorted({str(row.get("camera_id", "unknown_camera")) for row in rows})
     metrics = [
-        ("translation_error_mm_median", "Translation median (mm)"),
+        ("translation_error_m_median", "Translation median (m)"),
         ("rotation_error_deg_median", "Rotation median (deg)"),
-        ("translation_error_mm_variance", "Translation variance"),
+        ("translation_error_m_variance", "Translation variance (m²)"),
         ("rotation_error_deg_variance", "Rotation variance"),
     ]
     for metric, ylabel in metrics:
@@ -412,7 +420,7 @@ def plot_error_vs_distance(
 ) -> None:
     plt = import_matplotlib()
     metrics = [
-        ("translation_error_mm", "Translation error (mm)"),
+        ("translation_error_m", "Translation error (m)"),
         ("rotation_error_deg", "Rotation error (deg)"),
     ]
     cameras = ["all", *sorted({str(row.get("camera_id", "unknown_camera")) for row in instance_rows})]
@@ -471,7 +479,7 @@ def plot_binned_error_bars(
 ) -> None:
     plt = import_matplotlib()
     metrics = [
-        ("translation_error_mm", "Translation error (mm)"),
+        ("translation_error_m", "Translation error (m)"),
         ("rotation_error_deg", "Rotation error (deg)"),
     ]
     stats = [
@@ -638,7 +646,7 @@ def plot_error_vs_distance_per_model(
 ) -> None:
     plt = import_matplotlib()
     metrics = [
-        ("translation_error_mm", "Translation error (mm)"),
+        ("translation_error_m", "Translation error (m)"),
         ("rotation_error_deg", "Rotation error (deg)"),
     ]
     cameras = ["all", *sorted({str(row.get("camera_id", "unknown_camera")) for row in instance_rows})]
@@ -757,9 +765,9 @@ def main() -> None:
     for row in overall:
         print(
             f"{row['method']}: n={row['evaluated_instances']} "
-            f"t_mean={row.get('translation_error_mm_mean', float('nan')):.1f}mm "
-            f"t_var={row.get('translation_error_mm_variance', float('nan')):.1f} "
-            f"t_med={row.get('translation_error_mm_median', float('nan')):.1f}mm "
+            f"t_mean={row.get('translation_error_m_mean', float('nan')):.3f}m "
+            f"t_var={row.get('translation_error_m_variance', float('nan')):.4f}m^2 "
+            f"t_med={row.get('translation_error_m_median', float('nan')):.3f}m "
             f"R_mean={row.get('rotation_error_deg_mean', float('nan')):.2f}deg "
             f"R_var={row.get('rotation_error_deg_variance', float('nan')):.2f} "
             f"R_med={row.get('rotation_error_deg_median', float('nan')):.2f}deg"
