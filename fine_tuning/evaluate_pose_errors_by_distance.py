@@ -10,7 +10,9 @@ GT and writes:
 - distance-bin summary;
 - Markdown tables;
 - comparison plots for mean/median/variance;
-- translation/rotation error vs GT distance plots.
+- translation/rotation error vs GT distance plots;
+- confidence-filtered translation error vs distance plots;
+- confidence-threshold summaries including retained-prediction coverage.
 
 Example:
 
@@ -19,7 +21,8 @@ python -m fine_tuning.evaluate_pose_errors_by_distance \
   --model finetune=path/to/finetune.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark \
   --split test \
-  --output-dir gigaPose_datasets/results/final_results/metrics/pose_distance
+  --output-dir gigaPose_datasets/results/final_results/metrics/pose_distance \
+  --confidence-thresholds 0.0 0.1 0.2 0.3 0.4 0.5
 """
 
 from __future__ import annotations
@@ -92,6 +95,25 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.30,
         help="Alpha for per-instance scatter plots.",
+    )
+    parser.add_argument(
+        "--min-confidence",
+        type=float,
+        default=None,
+        help=(
+            "Optional minimum prediction score for the ordinary summaries and "
+            "plots. The confidence-threshold sweep always starts from all rows."
+        ),
+    )
+    parser.add_argument(
+        "--confidence-thresholds",
+        type=float,
+        nargs="+",
+        default=[0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5],
+        help=(
+            "Prediction-score thresholds for plots_vs_confidence. Predictions "
+            "with score below a threshold are omitted."
+        ),
     )
     return parser.parse_args()
 
@@ -183,6 +205,30 @@ def filter_rows(rows: list[dict[str, Any]], cameras: set[str] | None, max_distan
     return out
 
 
+def filter_by_confidence(
+    rows: list[dict[str, Any]], minimum: float | None
+) -> list[dict[str, Any]]:
+    """Keep finite-score predictions at or above ``minimum``."""
+
+    if minimum is None:
+        return list(rows)
+    return [
+        row
+        for row in rows
+        if np.isfinite(finite_float(row.get("score")))
+        and finite_float(row.get("score")) >= minimum
+    ]
+
+
+def validate_confidence_args(args: argparse.Namespace) -> list[float]:
+    if args.min_confidence is not None and not math.isfinite(args.min_confidence):
+        raise ValueError("--min-confidence must be finite")
+    thresholds = sorted(set(float(value) for value in args.confidence_thresholds))
+    if not thresholds or not all(math.isfinite(value) for value in thresholds):
+        raise ValueError("--confidence-thresholds must contain finite values")
+    return thresholds
+
+
 def overall_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -231,6 +277,82 @@ def distance_bin_summary(rows: list[dict[str, Any]], bin_width_m: float) -> list
             items,
         )
         out.append(summary)
+    return out
+
+
+def confidence_threshold_summary(
+    rows: list[dict[str, Any]], thresholds: list[float]
+) -> list[dict[str, Any]]:
+    """Summarize conditional pose accuracy and retained coverage per model."""
+
+    methods = sorted({str(row["method"]) for row in rows})
+    out: list[dict[str, Any]] = []
+    for threshold in thresholds:
+        for method in methods:
+            method_rows = [row for row in rows if str(row["method"]) == method]
+            selected = filter_by_confidence(method_rows, threshold)
+            total = len(method_rows)
+            summary = summarize_group(
+                {
+                    "method": method,
+                    "confidence_threshold": threshold,
+                    "total_instances": total,
+                    "retained_instances": len(selected),
+                    "retained_fraction": len(selected) / total if total else 0.0,
+                },
+                selected,
+            )
+            summary.update(metric_stats(selected, "score"))
+            out.append(summary)
+    return out
+
+
+def confidence_distance_bin_summary(
+    rows: list[dict[str, Any]],
+    thresholds: list[float],
+    bin_width_m: float,
+) -> list[dict[str, Any]]:
+    """Distance-bin summaries for every model, camera, and score threshold."""
+
+    methods = sorted({str(row["method"]) for row in rows})
+    camera_ids = sorted(
+        {str(row.get("camera_id", "unknown_camera")) for row in rows}
+    )
+    out: list[dict[str, Any]] = []
+    for threshold in thresholds:
+        threshold_rows = filter_by_confidence(rows, threshold)
+        for method in methods:
+            method_rows = [
+                row for row in threshold_rows if str(row["method"]) == method
+            ]
+            for camera_id in ["all", *camera_ids]:
+                camera_rows = [
+                    row
+                    for row in method_rows
+                    if camera_id == "all"
+                    or str(row.get("camera_id", "unknown_camera")) == camera_id
+                ]
+                grouped: dict[int, list[dict[str, Any]]] = defaultdict(list)
+                for row in camera_rows:
+                    distance = finite_float(row.get("gt_distance_m"))
+                    if np.isfinite(distance):
+                        grouped[int(math.floor(distance / bin_width_m))].append(row)
+                for bin_idx, items in sorted(grouped.items()):
+                    start = bin_idx * bin_width_m
+                    end = start + bin_width_m
+                    out.append(
+                        summarize_group(
+                            {
+                                "method": method,
+                                "camera_id": camera_id,
+                                "confidence_threshold": threshold,
+                                "distance_bin_start_m": start,
+                                "distance_bin_end_m": end,
+                                "distance_bin": distance_bin_label(start, end),
+                            },
+                            items,
+                        )
+                    )
     return out
 
 
@@ -702,11 +824,230 @@ def plot_error_vs_distance_per_model(
                 plt.close(fig)
 
 
+def safe_filename_component(value: Any) -> str:
+    return str(value).replace("/", "_").replace(" ", "_").replace(".", "p")
+
+
+def plot_translation_error_vs_confidence(
+    threshold_rows: list[dict[str, Any]],
+    output_dir: Path,
+    fmt: str,
+    dpi: int,
+) -> None:
+    """Plot translation accuracy and prediction coverage vs score cutoff."""
+
+    plt = import_matplotlib()
+    methods = sorted({str(row["method"]) for row in threshold_rows})
+    panels = [
+        ("translation_error_m_mean", "Translation mean (m)"),
+        ("translation_error_m_median", "Translation median (m)"),
+        ("translation_error_m_variance", "Translation variance (m²)"),
+        ("retained_fraction", "Retained prediction fraction"),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=(12, 9), sharex=True)
+    for ax, (key, ylabel) in zip(axes.flat, panels):
+        for method in methods:
+            rows = sorted(
+                (
+                    row
+                    for row in threshold_rows
+                    if str(row["method"]) == method
+                ),
+                key=lambda row: finite_float(row["confidence_threshold"]),
+            )
+            x = np.asarray(
+                [finite_float(row["confidence_threshold"]) for row in rows]
+            )
+            y = np.asarray([finite_float(row.get(key)) for row in rows])
+            valid = np.isfinite(x) & np.isfinite(y)
+            ax.plot(x[valid], y[valid], marker="o", linewidth=2, label=method)
+        ax.set_ylabel(ylabel)
+        ax.grid(alpha=0.25)
+    for ax in axes[-1]:
+        ax.set_xlabel("Minimum prediction score")
+    axes[0, 0].legend(fontsize="small")
+    fig.suptitle("Translation accuracy and coverage vs confidence threshold")
+    fig.tight_layout()
+    fig.savefig(
+        output_dir / f"translation_error_vs_confidence_threshold.{fmt}", dpi=dpi
+    )
+    plt.close(fig)
+
+
+def plot_translation_vs_distance_by_confidence(
+    distance_rows: list[dict[str, Any]],
+    threshold_rows: list[dict[str, Any]],
+    output_dir: Path,
+    fmt: str,
+    dpi: int,
+) -> None:
+    """Plot binned translation statistics conditioned on prediction score."""
+
+    plt = import_matplotlib()
+    methods = sorted({str(row["method"]) for row in threshold_rows})
+    thresholds = sorted(
+        {finite_float(row["confidence_threshold"]) for row in threshold_rows}
+    )
+    cameras = sorted({str(row["camera_id"]) for row in distance_rows})
+    stats = [
+        ("median", "Translation median (m)"),
+        ("mean", "Translation mean (m)"),
+        ("variance", "Translation variance (m²)"),
+    ]
+
+    # For each model, show how raising its score threshold changes the distance
+    # curve. This is the clearest view of the accuracy/coverage tradeoff.
+    for method in methods:
+        for camera_id in cameras:
+            fig, axes = plt.subplots(3, 1, figsize=(9, 12), sharex=True)
+            plotted = False
+            for threshold in thresholds:
+                rows = sorted(
+                    (
+                        row
+                        for row in distance_rows
+                        if str(row["method"]) == method
+                        and str(row["camera_id"]) == camera_id
+                        and abs(
+                            finite_float(row["confidence_threshold"]) - threshold
+                        )
+                        < 1e-12
+                    ),
+                    key=lambda row: finite_float(row["distance_bin_start_m"]),
+                )
+                if not rows:
+                    continue
+                x = np.asarray(
+                    [
+                        0.5
+                        * (
+                            finite_float(row["distance_bin_start_m"])
+                            + finite_float(row["distance_bin_end_m"])
+                        )
+                        for row in rows
+                    ]
+                )
+                retained = sum(int(row["evaluated_instances"]) for row in rows)
+                label = f"score≥{threshold:g} (n={retained})"
+                for ax, (stat, _) in zip(axes, stats):
+                    y = np.asarray(
+                        [
+                            finite_float(row.get(f"translation_error_m_{stat}"))
+                            for row in rows
+                        ]
+                    )
+                    valid = np.isfinite(x) & np.isfinite(y)
+                    if valid.any():
+                        ax.plot(
+                            x[valid],
+                            y[valid],
+                            marker="o",
+                            linewidth=1.8,
+                            label=label,
+                        )
+                        plotted = True
+            if not plotted:
+                plt.close(fig)
+                continue
+            for ax, (_, ylabel) in zip(axes, stats):
+                ax.set_ylabel(ylabel)
+                ax.grid(alpha=0.25)
+            axes[-1].set_xlabel("GT distance to car (m)")
+            axes[0].legend(fontsize="small", ncols=2)
+            fig.suptitle(
+                f"{method}: translation vs distance by confidence ({camera_id})"
+            )
+            fig.tight_layout()
+            fig.savefig(
+                output_dir
+                / (
+                    f"{safe_filename_component(method)}_translation_vs_distance_"
+                    f"by_confidence_{safe_filename_component(camera_id)}.{fmt}"
+                ),
+                dpi=dpi,
+            )
+            plt.close(fig)
+
+    # For each cutoff, compare all models on the same retained-confidence set.
+    for threshold in thresholds:
+        for camera_id in cameras:
+            fig, axes = plt.subplots(3, 1, figsize=(9, 12), sharex=True)
+            plotted = False
+            for method in methods:
+                rows = sorted(
+                    (
+                        row
+                        for row in distance_rows
+                        if str(row["method"]) == method
+                        and str(row["camera_id"]) == camera_id
+                        and abs(
+                            finite_float(row["confidence_threshold"]) - threshold
+                        )
+                        < 1e-12
+                    ),
+                    key=lambda row: finite_float(row["distance_bin_start_m"]),
+                )
+                if not rows:
+                    continue
+                x = np.asarray(
+                    [
+                        0.5
+                        * (
+                            finite_float(row["distance_bin_start_m"])
+                            + finite_float(row["distance_bin_end_m"])
+                        )
+                        for row in rows
+                    ]
+                )
+                for ax, (stat, _) in zip(axes, stats):
+                    y = np.asarray(
+                        [
+                            finite_float(row.get(f"translation_error_m_{stat}"))
+                            for row in rows
+                        ]
+                    )
+                    valid = np.isfinite(x) & np.isfinite(y)
+                    if valid.any():
+                        ax.plot(
+                            x[valid],
+                            y[valid],
+                            marker="o",
+                            linewidth=2,
+                            label=method,
+                        )
+                        plotted = True
+            if not plotted:
+                plt.close(fig)
+                continue
+            for ax, (_, ylabel) in zip(axes, stats):
+                ax.set_ylabel(ylabel)
+                ax.grid(alpha=0.25)
+            axes[-1].set_xlabel("GT distance to car (m)")
+            axes[0].legend(fontsize="small")
+            fig.suptitle(
+                f"Model comparison at score≥{threshold:g} ({camera_id})"
+            )
+            fig.tight_layout()
+            fig.savefig(
+                output_dir
+                / (
+                    "models_translation_vs_distance_"
+                    f"score_ge_{safe_filename_component(f'{threshold:g}')}_"
+                    f"{safe_filename_component(camera_id)}.{fmt}"
+                ),
+                dpi=dpi,
+            )
+            plt.close(fig)
+
+
 def main() -> None:
     args = parse_args()
+    confidence_thresholds = validate_confidence_args(args)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     plots_dir = args.output_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
+    confidence_dir = args.output_dir / "plots_vs_confidence"
+    confidence_dir.mkdir(parents=True, exist_ok=True)
 
     gt_by_image, K_by_image = load_gt(args.dataset_dir, args.split, load_masks=False)
     camera_map = load_camera_map(args.dataset_dir)
@@ -727,10 +1068,20 @@ def main() -> None:
 
     cameras = set(args.camera) if args.camera else None
     all_rows = filter_rows(all_rows, cameras, args.max_distance_m)
+    confidence_source_rows = list(all_rows)
+    all_rows = filter_by_confidence(all_rows, args.min_confidence)
 
     overall = overall_summary(all_rows)
     by_camera = camera_summary(all_rows)
     by_distance = distance_bin_summary(all_rows, args.distance_bin_m)
+    by_confidence = confidence_threshold_summary(
+        confidence_source_rows, confidence_thresholds
+    )
+    confidence_by_distance = confidence_distance_bin_summary(
+        confidence_source_rows,
+        confidence_thresholds,
+        args.distance_bin_m,
+    )
 
     write_csv(args.output_dir / "pose_instance_errors.csv", all_rows)
     write_csv(args.output_dir / "pose_overall_summary.csv", overall)
@@ -740,6 +1091,37 @@ def main() -> None:
     (args.output_dir / "pose_camera_summary.json").write_text(json.dumps(by_camera, indent=2))
     (args.output_dir / "pose_distance_bin_summary.json").write_text(json.dumps(by_distance, indent=2))
     write_markdown_summary(args.output_dir / "pose_summary.md", overall, by_camera, by_distance)
+
+    write_csv(confidence_dir / "confidence_threshold_summary.csv", by_confidence)
+    write_csv(
+        confidence_dir / "confidence_distance_bin_summary.csv",
+        confidence_by_distance,
+    )
+    (confidence_dir / "confidence_threshold_summary.json").write_text(
+        json.dumps(by_confidence, indent=2)
+    )
+    (confidence_dir / "confidence_distance_bin_summary.json").write_text(
+        json.dumps(confidence_by_distance, indent=2)
+    )
+    (confidence_dir / "confidence_run_config.json").write_text(
+        json.dumps(
+            {
+                "score_column": "score",
+                "score_interpretation": (
+                    "GigaPose RANSAC inlier score (summed inlier weights divided "
+                    "by the number of candidate patches); higher is more "
+                    "confident, but it is not a calibrated probability."
+                ),
+                "threshold_rule": "score >= confidence_threshold",
+                "confidence_thresholds": confidence_thresholds,
+                "ordinary_report_min_confidence": args.min_confidence,
+                "source_instances_before_confidence_filter": len(
+                    confidence_source_rows
+                ),
+            },
+            indent=2,
+        )
+    )
 
     plot_summary_bars(overall, plots_dir, args.plot_format, args.dpi)
     plot_camera_bars(by_camera, plots_dir, args.plot_format, args.dpi)
@@ -760,8 +1142,26 @@ def main() -> None:
         args.dpi,
         args.scatter_alpha,
     )
+    plot_translation_error_vs_confidence(
+        by_confidence,
+        confidence_dir,
+        args.plot_format,
+        args.dpi,
+    )
+    plot_translation_vs_distance_by_confidence(
+        confidence_by_distance,
+        by_confidence,
+        confidence_dir,
+        args.plot_format,
+        args.dpi,
+    )
 
     print(f"Evaluated {len(args.model)} model(s), {len(all_rows)} pose instances")
+    if args.min_confidence is not None:
+        print(
+            f"Ordinary reports kept score >= {args.min_confidence:g}: "
+            f"{len(all_rows)}/{len(confidence_source_rows)} instances"
+        )
     for row in overall:
         print(
             f"{row['method']}: n={row['evaluated_instances']} "
@@ -772,6 +1172,11 @@ def main() -> None:
             f"R_var={row.get('rotation_error_deg_variance', float('nan')):.2f} "
             f"R_med={row.get('rotation_error_deg_median', float('nan')):.2f}deg"
         )
+    print(
+        "Confidence sweep: "
+        + ", ".join(f"score>={value:g}" for value in confidence_thresholds)
+    )
+    print(f"Wrote confidence-conditioned plots to {confidence_dir}")
     print(f"Wrote {args.output_dir}")
 
 
