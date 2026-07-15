@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from fine_tuning.early_stopping import pose_score
 from fine_tuning.pose_aware_training.losses import pose_aware_ist_losses
 from fine_tuning.pose_aware_training.model import PoseAwareGigaPose
 from src.utils.logging import get_logger
@@ -304,6 +305,20 @@ class ResidualPoseGigaPose(PoseAwareGigaPose):
         total = base_total + residual_total
 
         to_mm = self.residual_config["translation_to_mm"]
+        baseline_translation_error_mm = (
+            residual_outputs.baseline_translation_error * to_mm
+        )
+        refined_translation_error_mm = (
+            residual_outputs.refined_translation_error * to_mm
+        )
+        baseline_pose_score = pose_score(
+            baseline_translation_error_mm,
+            residual_outputs.baseline_rotation_error_deg,
+        )
+        refined_pose_score = pose_score(
+            refined_translation_error_mm,
+            residual_outputs.refined_rotation_error_deg,
+        )
         self._log_metrics(
             split,
             {
@@ -322,10 +337,10 @@ class ResidualPoseGigaPose(PoseAwareGigaPose):
                 "loss_pose_residual_total": residual_total,
                 "loss_combined": total,
                 "monitor_baseline_translation_error_mm": (
-                    residual_outputs.baseline_translation_error * to_mm
+                    baseline_translation_error_mm
                 ).detach(),
                 "monitor_refined_translation_error_mm": (
-                    residual_outputs.refined_translation_error * to_mm
+                    refined_translation_error_mm
                 ).detach(),
                 "monitor_baseline_depth_error_mm": (
                     residual_outputs.baseline_depth_error * to_mm
@@ -339,6 +354,8 @@ class ResidualPoseGigaPose(PoseAwareGigaPose):
                 "monitor_refined_rotation_error_deg": (
                     residual_outputs.refined_rotation_error_deg.detach()
                 ),
+                "monitor_baseline_pose_score": baseline_pose_score.detach(),
+                "monitor_refined_pose_score": refined_pose_score.detach(),
                 "monitor_baseline_center_error_px": (
                     residual_outputs.baseline_center_error_px.detach()
                 ),
@@ -386,6 +403,7 @@ class ResidualPoseGigaPose(PoseAwareGigaPose):
                 "monitor_refined_translation_error_mm",
                 "monitor_refined_depth_error_mm",
                 "monitor_refined_rotation_error_deg",
+                "monitor_refined_pose_score",
             ),
             batch_size=batch_size,
         )

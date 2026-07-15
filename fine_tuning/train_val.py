@@ -19,6 +19,11 @@ import pytorch_lightning as pl
 import torch
 from torch.utils.data import DataLoader
 
+from fine_tuning.early_stopping import (
+    add_early_stopping_args,
+    configure_early_stopping,
+    validate_early_stopping_args,
+)
 from fine_tuning.heavy_validation import (
     HeavyValidationCallback,
     build_fixed_heavy_loader,
@@ -88,7 +93,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--heavy-validation-images", type=int, default=4)
     parser.add_argument("--heavy-validation-seed", type=int, default=20260707)
     parser.add_argument("--heavy-validation-mesh", type=Path, default=None)
-    return parser.parse_args()
+    add_early_stopping_args(
+        parser,
+        default_monitor=None,
+        default_mode="min",
+        default_patience=16,
+        default_min_delta=1e-4,
+        default_start_step=2000,
+    )
+    args = parser.parse_args()
+    if args.early_stopping_monitor is None:
+        args.early_stopping_monitor = (
+            "val/matching" if args.nets_to_train == "ae" else "val/loss"
+        )
+    return args
 
 
 def make_dataset_config(
@@ -145,6 +163,7 @@ def main() -> None:
         category=UserWarning,
     )
     args = parse_args()
+    validate_early_stopping_args(args)
     pl.seed_everything(args.seed)
     if not args.checkpoint.is_file():
         raise FileNotFoundError(f"Pretrained checkpoint not found: {args.checkpoint}")
@@ -194,6 +213,8 @@ def main() -> None:
         cfg.model.testing_metric.patch_threshold = args.match_patch_threshold
     cfg.callback.checkpoint.dirpath = str(output_dir / "checkpoints")
     cfg.callback.checkpoint.every_n_train_steps = args.checkpoint_interval
+    if args.early_stopping:
+        cfg.callback.checkpoint.save_last = False
     configure_logger(cfg, args, output_dir)
     os.makedirs(output_dir, exist_ok=True)
 
@@ -270,6 +291,12 @@ def main() -> None:
     trainer = instantiate(cfg.machine.trainer)
     if args.print_loss_every > 0:
         trainer.callbacks.append(LossPrintCallback(args.print_loss_every))
+    configure_early_stopping(
+        trainer,
+        args,
+        output_dir,
+        logger=logger,
+    )
     if heavy_callback is not None:
         trainer.callbacks.append(heavy_callback)
 

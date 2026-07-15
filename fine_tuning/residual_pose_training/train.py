@@ -14,6 +14,11 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 
+from fine_tuning.early_stopping import (
+    add_early_stopping_args,
+    configure_early_stopping,
+    validate_early_stopping_args,
+)
 from fine_tuning.heavy_validation import (
     HeavyValidationCallback,
     build_fixed_heavy_loader,
@@ -124,6 +129,14 @@ def parse_args() -> argparse.Namespace:
     heavy.add_argument("--heavy-validation-images", type=int, default=4)
     heavy.add_argument("--heavy-validation-seed", type=int, default=20260707)
     heavy.add_argument("--heavy-validation-mesh", type=Path, default=None)
+    add_early_stopping_args(
+        parser,
+        default_monitor="val/monitor_refined_pose_score",
+        default_mode="min",
+        default_patience=16,
+        default_min_delta=0.01,
+        default_start_step=2000,
+    )
     return parser.parse_args()
 
 
@@ -155,6 +168,7 @@ def make_dataset_config(
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    validate_early_stopping_args(args)
     if not args.checkpoint.is_file():
         raise FileNotFoundError(args.checkpoint)
     positive = {
@@ -236,6 +250,8 @@ def main() -> None:
     cfg.machine.trainer.log_every_n_steps = args.log_every_n_steps
     cfg.callback.checkpoint.dirpath = str(output_dir / "checkpoints")
     cfg.callback.checkpoint.every_n_train_steps = args.checkpoint_interval
+    if args.early_stopping:
+        cfg.callback.checkpoint.save_last = False
     configure_logger(cfg, args, output_dir)
 
     cfg.model._target_ = (
@@ -381,6 +397,12 @@ def main() -> None:
                 verbose=True,
             )
         )
+    configure_early_stopping(
+        trainer,
+        args,
+        output_dir,
+        logger=logger,
+    )
     if heavy_callback is not None:
         trainer.callbacks.append(heavy_callback)
 

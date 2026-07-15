@@ -16,6 +16,7 @@ class PoseMetricHistoryCallback(pl.Callback):
         "monitor_translation_error_mm",
         "monitor_depth_abs_error_mm",
         "monitor_rotation_error_deg",
+        "monitor_pose_score",
         "monitor_reprojection_error_px",
         "monitor_scale_",
         "soft_template_selected_rotation_deg",

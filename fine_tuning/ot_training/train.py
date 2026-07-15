@@ -19,6 +19,11 @@ import pytorch_lightning as pl
 from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader
 
+from fine_tuning.early_stopping import (
+    add_early_stopping_args,
+    configure_early_stopping,
+    validate_early_stopping_args,
+)
 from fine_tuning.train import LossPrintCallback, parse_devices, parse_int_list
 from fine_tuning.train_val import configure_logger
 from src.utils.logging import get_logger
@@ -115,6 +120,14 @@ def parse_args() -> argparse.Namespace:
             "top-1 OT correspondence accuracy. Set 0 to disable."
         ),
     )
+    add_early_stopping_args(
+        parser,
+        default_monitor="val/monitor_ot_gt_top1_accuracy",
+        default_mode="max",
+        default_patience=12,
+        default_min_delta=0.001,
+        default_start_step=2000,
+    )
     return parser.parse_args()
 
 
@@ -145,6 +158,7 @@ def make_dataset_config(
 
 
 def validate_args(args: argparse.Namespace) -> None:
+    validate_early_stopping_args(args)
     if not args.checkpoint.is_file():
         raise FileNotFoundError(f"Pretrained checkpoint not found: {args.checkpoint}")
     if args.validation_interval <= 0:
@@ -213,6 +227,8 @@ def main() -> None:
     cfg.machine.trainer.log_every_n_steps = args.log_every_n_steps
     cfg.callback.checkpoint.dirpath = str(output_dir / "checkpoints")
     cfg.callback.checkpoint.every_n_train_steps = args.checkpoint_interval
+    if args.early_stopping:
+        cfg.callback.checkpoint.save_last = False
     configure_logger(cfg, args, output_dir)
 
     cfg.model._target_ = "fine_tuning.ot_training.model.OTGigaPose"
@@ -273,6 +289,12 @@ def main() -> None:
                 verbose=True,
             )
         )
+    configure_early_stopping(
+        trainer,
+        args,
+        output_dir,
+        logger=logger,
+    )
 
     logger.info("OT AE training outputs: %s", output_dir)
     logger.info(

@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from fine_tuning.early_stopping import pose_score
 from src.libVis.torch import save_tensor_to_image
 from src.models.gigaPose import GigaPose
 from src.utils.batch import gather
@@ -235,6 +236,10 @@ class PoseAwareGigaPose(GigaPose):
             outputs.depth_abs_error
             * self.pose_loss_config["translation_to_mm"]
         )
+        monitor_pose_score = pose_score(
+            translation_error_mm,
+            outputs.rotation_error_deg,
+        )
         self._log_metrics(
             split,
             {
@@ -256,6 +261,7 @@ class PoseAwareGigaPose(GigaPose):
                 "monitor_translation_error_mm": translation_error_mm.detach(),
                 "monitor_depth_abs_error_mm": depth_error_mm.detach(),
                 "monitor_rotation_error_deg": outputs.rotation_error_deg.detach(),
+                "monitor_pose_score": monitor_pose_score.detach(),
                 "monitor_reprojection_error_px": (
                     outputs.reprojection_error_px.detach()
                 ),
@@ -291,6 +297,7 @@ class PoseAwareGigaPose(GigaPose):
                 "loss_inplane",
                 "monitor_translation_error_mm",
                 "monitor_rotation_error_deg",
+                "monitor_pose_score",
             ),
             batch_size=batch_size,
         )
@@ -420,8 +427,8 @@ class PoseAwareGigaPose(GigaPose):
             "val/loss",
             total,
             sync_dist=True,
-            on_step=True,
-            on_epoch=False,
+            on_step=False,
+            on_epoch=True,
             prog_bar=True,
             batch_size=batch_size,
         )

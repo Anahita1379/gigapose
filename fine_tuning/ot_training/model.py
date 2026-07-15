@@ -174,8 +174,8 @@ class OTGigaPose(GigaPose):
             "val/loss",
             total,
             sync_dist=True,
-            on_step=True,
-            on_epoch=False,
+            on_step=False,
+            on_epoch=True,
             prog_bar=True,
             batch_size=batch_size,
         )

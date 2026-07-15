@@ -149,6 +149,8 @@ class GigaPose(pl.LightningModule):
         - Negative are patches from different correspondences
         """
         device = batch.src_img.device
+        batch_size = int(batch.src_img.shape[0])
+        is_training = split == "train"
         # get the query and ref features
         src_feat = self.ae_net(batch.src_img)
         tar_feat = self.ae_net(batch.tar_img)
@@ -184,9 +186,10 @@ class GigaPose(pl.LightningModule):
                 name,
                 metric_value,
                 sync_dist=True,
-                on_step=True,
-                on_epoch=False,
+                on_step=is_training,
+                on_epoch=not is_training,
                 prog_bar=prog_bar,
+                batch_size=batch_size,
             )
         return loss
 
@@ -196,6 +199,10 @@ class GigaPose(pl.LightningModule):
         - Positive are patches from the same correspondence
         - Negative are patches from different correspondences
         """
+        # Validation metrics must be full-loader aggregates rather than the
+        # value from whichever batch happened to run last.
+        batch_size = int(batch.src_img.shape[0])
+        is_training = split == "train"
         # get the query and ref features
         num_patches = batch.src_pts.shape[1]
         H, W = np.sqrt(num_patches).astype(int), np.sqrt(num_patches).astype(int)
@@ -238,9 +245,10 @@ class GigaPose(pl.LightningModule):
             f"{split}/valid_patch_pairs",
             num_patch_pairs.float(),
             sync_dist=True,
-            on_step=True,
-            on_epoch=False,
+            on_step=is_training,
+            on_epoch=not is_training,
             prog_bar=False,
+            batch_size=batch_size,
         )
         if preds["inplane"].shape[0] != src_pts.shape[0]:
             gt_relInplane = repeat(gt_relInplane, "b -> b 1 H W", H=H, W=W)
@@ -258,25 +266,28 @@ class GigaPose(pl.LightningModule):
                     f"{split}/{metric_name}",
                     zero.detach() if metric_name.endswith("err") else zero,
                     sync_dist=True,
-                    on_step=True,
-                    on_epoch=False,
+                    on_step=is_training,
+                    on_epoch=not is_training,
                     prog_bar=metric_name in ["inp", "scale"],
+                    batch_size=batch_size,
                 )
             self.log(
                 f"{split}/valid_regression_fraction",
                 zero.detach(),
                 sync_dist=True,
-                on_step=True,
-                on_epoch=False,
+                on_step=is_training,
+                on_epoch=not is_training,
                 prog_bar=False,
+                batch_size=batch_size,
             )
             self.log(
                 f"{split}/invalid_regression_fraction",
                 torch.ones_like(zero).detach(),
                 sync_dist=True,
-                on_step=True,
-                on_epoch=False,
+                on_step=is_training,
+                on_epoch=not is_training,
                 prog_bar=False,
+                batch_size=batch_size,
             )
             logger.info(
                 "Skipping %s regression batch with zero valid patch correspondences",
@@ -309,17 +320,19 @@ class GigaPose(pl.LightningModule):
             f"{split}/valid_regression_fraction",
             valid_fraction,
             sync_dist=True,
-            on_step=True,
-            on_epoch=False,
+            on_step=is_training,
+            on_epoch=not is_training,
             prog_bar=False,
+            batch_size=batch_size,
         )
         self.log(
             f"{split}/invalid_regression_fraction",
             invalid_fraction,
             sync_dist=True,
-            on_step=True,
-            on_epoch=False,
+            on_step=is_training,
+            on_epoch=not is_training,
             prog_bar=False,
+            batch_size=batch_size,
         )
         if not valid.all():
             num_invalid = int((~valid).sum().detach().cpu())
@@ -354,9 +367,10 @@ class GigaPose(pl.LightningModule):
                     f"{split}/{metric_name}",
                     metric_value,
                     sync_dist=True,
-                    on_step=True,
-                    on_epoch=False,
+                    on_step=is_training,
+                    on_epoch=not is_training,
                     prog_bar=metric_name in ["inp", "scale"],
+                    batch_size=batch_size,
                 )
             return loss
 
@@ -392,13 +406,16 @@ class GigaPose(pl.LightningModule):
                 name,
                 metric_value,
                 sync_dist=True,
-                on_step=True,
-                on_epoch=False,
+                on_step=is_training,
+                on_epoch=not is_training,
                 prog_bar=prog_bar,
+                batch_size=batch_size,
             )
         return loss
 
     def training_step(self, batchs, idx_batch):
+        
+        # batch_size = int(batchs.src_img.shape[0])
         if self.trainer.global_step < self.optim_config.warm_up_steps:
             self.warm_up_lr()
         elif self.trainer.global_step == self.optim_config.warm_up_steps:
@@ -406,10 +423,12 @@ class GigaPose(pl.LightningModule):
 
         loss = 0
         times = {}
+        total_batch_size = 0
 
         for idx_dataset, batch in enumerate(batchs):
             if batch is None:
                 continue
+            total_batch_size += int(batch.src_img.shape[0])
             if idx_batch % self.log_interval == 0:
                 vis_pts = plot_keypoints_batch(batch)
                 sample_path = f"{self.log_dir}/sample_rank{self.global_rank}.png"
@@ -433,6 +452,8 @@ class GigaPose(pl.LightningModule):
                 loss += loss_["infoNCE"]
                 times[f"infoNCE_{idx_dataset}"] = self.timer.toc()
 
+        if total_batch_size == 0:
+            return None
         for time_name, time_value in times.items():
             self.log(
                 time_name,
@@ -454,10 +475,10 @@ class GigaPose(pl.LightningModule):
         self.log(
             "train/loss",
             loss,
-            sync_dist=True,
             on_step=True,
-            on_epoch=False,
-            prog_bar=False,
+            on_epoch=True,
+            sync_dist=True,
+            batch_size=max(total_batch_size, 1),
         )
         return loss
 
@@ -499,8 +520,34 @@ class GigaPose(pl.LightningModule):
         )
 
     def validate_contrast_loss(self, batch, idx_batch, split):
+        batch_size = int(batch.src_img.shape[0])
         src_feat = self.ae_net(batch.src_img)
         tar_feat = self.ae_net(batch.tar_img)
+
+        src_selected = gather(src_feat, batch.src_pts.clone().long())
+        tar_selected = gather(tar_feat, batch.tar_pts.clone().long())
+        if src_selected.shape[0] == 0:
+            info_nce = src_feat.sum() * 0.0
+        else:
+            labels = torch.arange(
+                src_selected.shape[0],
+                dtype=torch.long,
+                device=src_feat.device,
+            )
+            info_nce = self.training_loss.contrast_loss(
+                src_selected,
+                tar_selected,
+                labels,
+            )
+        self.log(
+            f"{split}/infoNCE",
+            info_nce,
+            sync_dist=True,
+            on_step=False,
+            on_epoch=True,
+            prog_bar=False,
+            batch_size=batch_size,
+        )
 
         preds = self.testing_metric.val(
             src_feat=src_feat,
@@ -520,46 +567,55 @@ class GigaPose(pl.LightningModule):
             f"{split}/pred_matches",
             pred_match_counts.mean(),
             sync_dist=True,
-            on_step=True,
-            on_epoch=False,
+            on_step=False,
+            on_epoch=True,
             prog_bar=True,
+            batch_size=batch_size,
         )
         if hasattr(preds, "score"):
             self.log(
                 f"{split}/match_score_max",
                 preds.score.max(dim=1).values.mean(),
                 sync_dist=True,
-                on_step=True,
-                on_epoch=False,
+                on_step=False,
+                on_epoch=True,
                 prog_bar=False,
+                batch_size=batch_size,
             )
             self.log(
                 f"{split}/match_score_mean",
                 preds.score.mean(),
                 sync_dist=True,
-                on_step=True,
-                on_epoch=False,
+                on_step=False,
+                on_epoch=True,
                 prog_bar=False,
+                batch_size=batch_size,
             )
 
         # monitor the distance between the gt and the predicted matches for same target patches
         mask = torch.logical_and(
             batch.tar_pts[:, :, 1] != -1, batch.pred_tar_pts[:, :, 1] != -1
         )
-        if mask.any():
+        match_count = int(mask.sum())
+        if match_count > 0:
             distance = (batch.tar_pts[mask] - batch.pred_tar_pts[mask]).norm(dim=1).mean()
         else:
-            distance = batch.tar_pts.new_tensor(float("nan"))
+            distance = batch.tar_pts.new_zeros((), dtype=torch.float32)
         self.log(
             f"{split}/matching",
             distance,
             sync_dist=True,
-            on_step=True,
-            on_epoch=False,
+            on_step=False,
+            on_epoch=True,
             prog_bar=True,
+            # ``distance`` is a mean over valid patch matches. A zero weight
+            # excludes no-match batches while keeping all DDP ranks in the
+            # same synchronization call.
+            batch_size=match_count,
         )
 
         self.log_validation_keypoints(batch, idx_batch, split, type_data="pred")
+        return {"infoNCE": info_nce, "matching": distance}
 
     def validation_step(self, batch, idx_batch):
         if batch is None:
@@ -571,15 +627,17 @@ class GigaPose(pl.LightningModule):
             self.log_validation_keypoints(batch, idx_batch, "val", type_data="gt")
             self.log_validation_ist_overlay(batch, idx_batch, "val")
         if self.optim_config.nets_to_train in ["ae", "all"]:
-            _ = self.validate_contrast_loss(batch, idx_batch, "val")
+            loss_ = self.validate_contrast_loss(batch, idx_batch, "val")
+            loss += loss_["infoNCE"]
         self.log_heavy_validation_cad_overlay(batch, idx_batch)
         self.log(
             "val/loss",
             loss,
             sync_dist=True,
-            on_step=True,
-            on_epoch=False,
+            on_step=False,
+            on_epoch=True,
             prog_bar=True,
+            batch_size=int(batch.src_img.shape[0]),
         )
         return loss
 
