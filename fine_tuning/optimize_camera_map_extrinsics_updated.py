@@ -7,6 +7,7 @@ This script uses selected samples produced by:
 Expected selected CSV columns:
 
     T_gigapose_cam_obj
+    T_gigapose_aligned_epnp_obj  # preferred when present
     T_epnp_obj
     epnp_label_path
 
@@ -26,14 +27,16 @@ optimized model is:
     T_map_object_raw ≈ T_map_cam_optimized @ T_gigapose_cam_obj
     T_map_cam_optimized = exp(delta) @ T_map_cam_initial
 
-When the GigaPose CAD frame differs from the EPnP centered-object frame, pass
-the right-side transform from the original selector:
+When the GigaPose CAD frame differs from the EPnP centered-object frame, the
+updated optimizer automatically uses ``T_gigapose_aligned_epnp_obj`` when that
+column is already present. Alternatively, pass the right-side transform from
+the original selector:
 
     T_gigapose_aligned = T_gigapose @ X_right
 
-The optimizer then uses ``T_gigapose_aligned`` everywhere and embeds
-``X_right`` in ``optimized_extrinsics.json`` so downstream selection can reuse
-the identical convention.
+The optimizer then uses ``T_gigapose_aligned`` everywhere. It refuses an
+explicit aligned pose plus an external transform, preventing accidental double
+alignment.
 
 For the ARCL/Assetto real folders, the ego vehicle moves, so each frame has its
 own ``t_map_lidar`` metadata.  In that case use ``--use-sample-metadata`` and
@@ -103,6 +106,19 @@ def parse_args() -> argparse.Namespace:
             "How to apply --gigapose-frame-transform-json. If omitted, read "
             "frame_transform_side from that JSON. Use 'right' for "
             "T_aligned = T_gigapose @ X."
+        ),
+    )
+    parser.add_argument(
+        "--gigapose-pose-source",
+        choices=("auto", "aligned", "raw"),
+        default="auto",
+        help=(
+            "Which GigaPose pose from the selected-samples CSV to optimize. "
+            "'auto' (recommended) uses T_gigapose_aligned_epnp_obj when that "
+            "column exists, otherwise T_gigapose_cam_obj. 'aligned' requires "
+            "the aligned column. 'raw' explicitly uses the unaligned prediction. "
+            "When --gigapose-frame-transform-json is supplied, the raw pose is "
+            "used and transformed exactly once."
         ),
     )
     parser.add_argument(
@@ -215,10 +231,11 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.0,
         help=(
-            "Weight for an image-plane center residual. In --use-sample-metadata "
-            "mode, this projects T_map_object_raw through the current extrinsic "
-            "and keeps it close to the selected GigaPose projected center. "
-            "Set to 0 to disable."
+            "Squared-loss coefficient for the image-plane center residual. "
+            "The least-squares residual is multiplied by sqrt(weight). In "
+            "--use-sample-metadata or --use-epnp-label-extrinsics mode, this "
+            "projects the map pose through the current extrinsic and keeps it "
+            "close to the selected GigaPose projected center. Set to 0 to disable."
         ),
     )
     parser.add_argument(
@@ -278,8 +295,9 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=10.0,
         help=(
-            "Prior weight on changing the extrinsic translation. Larger values "
-            "keep translation closer to the initial extrinsic."
+            "Squared-loss coefficient for changing the extrinsic translation; "
+            "the residual is multiplied by sqrt(weight). Larger values keep "
+            "translation closer to the initial extrinsic."
         ),
     )
     parser.add_argument(
@@ -287,7 +305,8 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=1.0,
         help=(
-            "Prior weight on changing the extrinsic rotation. Lower than "
+            "Squared-loss coefficient for changing the extrinsic rotation; the "
+            "residual is multiplied by sqrt(weight). Use a lower value than "
             "translation-prior-weight if rotation is expected to be less reliable."
         ),
     )
@@ -382,6 +401,47 @@ def apply_gigapose_frame_transform(
     if side == "right":
         return T_gigapose @ transform
     raise ValueError(f"Unknown GigaPose frame-transform side: {side!r}")
+
+
+def selected_csv_fieldnames(path: Path) -> list[str]:
+    with path.open(newline="") as handle:
+        reader = csv.DictReader(handle)
+        return list(reader.fieldnames or [])
+
+
+def resolve_gigapose_pose_source(
+    path: Path,
+    requested_source: str,
+    external_transform: np.ndarray | None,
+) -> tuple[str, bool]:
+    """Choose one pose convention once for the complete optimization run."""
+
+    fieldnames = selected_csv_fieldnames(path)
+    has_raw = "T_gigapose_cam_obj" in fieldnames
+    has_aligned = "T_gigapose_aligned_epnp_obj" in fieldnames
+    if not has_raw:
+        raise ValueError(f"{path} is missing required column T_gigapose_cam_obj")
+
+    if external_transform is not None:
+        if requested_source == "aligned":
+            raise ValueError(
+                "--gigapose-pose-source aligned cannot be combined with "
+                "--gigapose-frame-transform-json; that would apply alignment twice."
+            )
+        return "raw_csv_plus_external_transform", has_aligned
+
+    if requested_source == "aligned":
+        if not has_aligned:
+            raise ValueError(
+                f"{path} does not contain T_gigapose_aligned_epnp_obj. "
+                "Use --gigapose-pose-source raw or provide a frame-transform JSON."
+            )
+        return "aligned_csv", has_aligned
+    if requested_source == "raw":
+        return "raw_csv", has_aligned
+    if requested_source != "auto":
+        raise ValueError(f"Unknown GigaPose pose source: {requested_source!r}")
+    return ("aligned_csv" if has_aligned else "raw_csv"), has_aligned
 
 
 def normalize_translation(t: np.ndarray, unit: str) -> np.ndarray:
@@ -524,6 +584,80 @@ def project_origin(
         projection_model,
     )
     return uv[0], bool(valid[0])
+
+
+def loss_weight_scale(weight: float) -> float:
+    """Convert a loss coefficient into its least-squares residual multiplier."""
+
+    return math.sqrt(weight)
+
+
+def image_center_residual(
+    T_candidate_cam_obj: np.ndarray,
+    T_gigapose_cam_obj: np.ndarray,
+    sample: dict[str, Any],
+    image_center_weight: float,
+    image_center_sigma_px: float,
+    projection_model: str,
+) -> np.ndarray:
+    """Return exactly two weighted residuals without rewarding invalid depth."""
+
+    if image_center_weight <= 0 or sample.get("K") is None:
+        return np.zeros(2, dtype=float)
+
+    uv_candidate, candidate_valid = project_origin(
+        T_candidate_cam_obj,
+        sample["K"],
+        sample.get("D"),
+        sample.get("distortion_model", "pinhole"),
+        projection_model,
+    )
+    uv_gigapose, gigapose_valid = project_origin(
+        T_gigapose_cam_obj,
+        sample["K"],
+        sample.get("D"),
+        sample.get("distortion_model", "pinhole"),
+        projection_model,
+    )
+    weight_scale = loss_weight_scale(image_center_weight)
+    if (
+        candidate_valid
+        and gigapose_valid
+        and np.isfinite(uv_candidate).all()
+        and np.isfinite(uv_gigapose).all()
+    ):
+        return (
+            (uv_candidate - uv_gigapose)
+            / image_center_sigma_px
+            * weight_scale
+        )
+
+    # Returning zero for an invalid trial projection makes moving the object
+    # behind the camera artificially attractive. Keep a fixed-length residual
+    # and make the penalty grow smoothly with negative depth instead.
+    candidate_z = float(T_candidate_cam_obj[2, 3])
+    gigapose_z = float(T_gigapose_cam_obj[2, 3])
+    min_depth = min(candidate_z, gigapose_z)
+    depth_violation_m = max(0.0, -min_depth / 1000.0)
+    penalty = weight_scale * (10.0 + depth_violation_m)
+    return np.full(2, penalty, dtype=float)
+
+
+def correction_prior_residuals(
+    xi: np.ndarray,
+    translation_sigma_mm: float,
+    translation_prior_weight: float,
+    rotation_prior_weight: float,
+) -> list[float]:
+    """Priors whose CLI weights are coefficients in the squared loss."""
+
+    rotation = xi[:3] * loss_weight_scale(rotation_prior_weight)
+    translation = (
+        xi[3:6]
+        / translation_sigma_mm
+        * loss_weight_scale(translation_prior_weight)
+    )
+    return [*rotation.tolist(), *translation.tolist()]
 
 
 def translation_component_indices(components: str) -> list[int]:
@@ -774,6 +908,7 @@ def load_pose_from_label_data(
 def load_selected_samples(
     path: Path,
     max_samples: int | None,
+    gigapose_pose_source: str,
     gigapose_frame_transform: np.ndarray | None,
     gigapose_frame_transform_side: str | None,
     epnp_map_pose_key: str | None,
@@ -789,15 +924,32 @@ def load_selected_samples(
     session_z_scale: float,
 ) -> list[dict[str, Any]]:
     rows = []
+    malformed_count = 0
+    malformed_examples: list[str] = []
     with path.open(newline="") as f:
-        for row in csv.DictReader(f):
+        for row_number, row in enumerate(csv.DictReader(f), start=2):
             try:
                 T_giga_raw = text_to_matrix(row["T_gigapose_cam_obj"])
-                T_giga = apply_gigapose_frame_transform(
-                    T_giga_raw,
-                    gigapose_frame_transform,
-                    gigapose_frame_transform_side,
-                )
+                if gigapose_pose_source == "aligned_csv":
+                    value = row.get("T_gigapose_aligned_epnp_obj")
+                    if not value:
+                        raise ValueError(
+                            "Selected aligned pose source, but this row has no "
+                            "T_gigapose_aligned_epnp_obj value."
+                        )
+                    T_giga = text_to_matrix(value)
+                elif gigapose_pose_source == "raw_csv":
+                    T_giga = T_giga_raw
+                elif gigapose_pose_source == "raw_csv_plus_external_transform":
+                    T_giga = apply_gigapose_frame_transform(
+                        T_giga_raw,
+                        gigapose_frame_transform,
+                        gigapose_frame_transform_side,
+                    )
+                else:
+                    raise ValueError(
+                        f"Unknown resolved GigaPose pose source: {gigapose_pose_source}"
+                    )
                 label_data = {}
                 if epnp_map_pose_key:
                     label_path = label_path_from_row(
@@ -861,13 +1013,25 @@ def load_selected_samples(
                         "distortion_model": distortion_model,
                     }
             except Exception as exc:
-                print(f"Skipping malformed selected sample: {exc}")
+                if (
+                    gigapose_pose_source == "aligned_csv"
+                    and not row.get("T_gigapose_aligned_epnp_obj")
+                ):
+                    raise ValueError(
+                        f"{path}:{row_number} is missing the aligned GigaPose "
+                        "pose required by this run. Refusing to mix aligned and "
+                        "raw pose conventions."
+                    ) from exc
+                malformed_count += 1
+                if len(malformed_examples) < 5:
+                    malformed_examples.append(f"row {row_number}: {exc}")
                 continue
             rows.append(
                 {
                     **row,
                     "T_gigapose_cam_obj": T_giga,
                     "T_gigapose_cam_obj_raw": T_giga_raw,
+                    "gigapose_pose_source": gigapose_pose_source,
                     "T_target_obj": T_target,
                     "target_pose_path": str(label_path),
                     "source_csv_epnp_label_path": row.get("epnp_label_path", ""),
@@ -878,11 +1042,24 @@ def load_selected_samples(
             )
             if max_samples is not None and len(rows) >= max_samples:
                 break
+    if malformed_count:
+        print(
+            f"Skipped {malformed_count} malformed selected samples. "
+            f"First {len(malformed_examples)} errors:"
+        )
+        for example in malformed_examples:
+            print(f"  {example}")
     if not rows:
         if epnp_map_pose_key:
+            example_text = (
+                f" First error: {malformed_examples[0]}"
+                if malformed_examples
+                else ""
+            )
             raise ValueError(
                 f"No valid selected samples found in {path}. Check that each "
                 f"epnp_label_path exists and contains {epnp_map_pose_key}."
+                f"{example_text}"
             )
         raise ValueError(f"No valid selected samples found in {path}")
     if use_sample_metadata and image_center_map_z_mode in ("session_lidar_offset", "session_lidar_affine"):
@@ -925,10 +1102,14 @@ def residual_vector(
         residuals.extend(t_res.tolist())
         residuals.extend(r_res.tolist())
 
-    # Priors on changing the extrinsic itself. Translation prior is intentionally
-    # stronger by default.
-    residuals.extend((xi[:3] * rotation_prior_weight).tolist())
-    residuals.extend(((xi[3:6] / translation_sigma_mm) * translation_prior_weight).tolist())
+    residuals.extend(
+        correction_prior_residuals(
+            xi,
+            translation_sigma_mm,
+            translation_prior_weight,
+            rotation_prior_weight,
+        )
+    )
     return np.asarray(residuals, dtype=float)
 
 
@@ -960,32 +1141,28 @@ def residual_vector_sample_metadata(
         residuals.extend(r_res.tolist())
 
         if image_center_weight > 0:
-            # least_squares requires the residual vector length to stay fixed
-            # for every optimizer step. A projection can become invalid for a
-            # trial update, so always append exactly two image residual values.
-            uv_res = np.zeros(2, dtype=float)
-            if sample.get("K") is not None:
-                T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get("T_target_obj_image", T_gt)
-                uv_map, map_valid = project_origin(
+            T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get(
+                "T_target_obj_image", T_gt
+            )
+            residuals.extend(
+                image_center_residual(
                     T_cam_obj_from_map,
-                    sample["K"],
-                    sample.get("D"),
-                    sample.get("distortion_model", "pinhole"),
-                    projection_model,
-                )
-                uv_giga, giga_valid = project_origin(
                     sample["T_gigapose_cam_obj"],
-                    sample["K"],
-                    sample.get("D"),
-                    sample.get("distortion_model", "pinhole"),
+                    sample,
+                    image_center_weight,
+                    image_center_sigma_px,
                     projection_model,
-                )
-                if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
-                    uv_res = ((uv_map - uv_giga) / image_center_sigma_px) * image_center_weight
-            residuals.extend(uv_res.tolist())
+                ).tolist()
+            )
 
-    residuals.extend((xi[:3] * rotation_prior_weight).tolist())
-    residuals.extend(((xi[3:6] / translation_sigma_mm) * translation_prior_weight).tolist())
+    residuals.extend(
+        correction_prior_residuals(
+            xi,
+            translation_sigma_mm,
+            translation_prior_weight,
+            rotation_prior_weight,
+        )
+    )
     return np.asarray(residuals, dtype=float)
 
 
@@ -1016,29 +1193,26 @@ def residual_vector_epnp_label_extrinsics(
         residuals.extend(r_res.tolist())
 
         if image_center_weight > 0:
-            uv_res = np.zeros(2, dtype=float)
-            if sample.get("K") is not None:
-                T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ T_gt
-                uv_map, map_valid = project_origin(
+            T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ T_gt
+            residuals.extend(
+                image_center_residual(
                     T_cam_obj_from_map,
-                    sample["K"],
-                    sample.get("D"),
-                    sample.get("distortion_model", "pinhole"),
-                    projection_model,
-                )
-                uv_giga, giga_valid = project_origin(
                     sample["T_gigapose_cam_obj"],
-                    sample["K"],
-                    sample.get("D"),
-                    sample.get("distortion_model", "pinhole"),
+                    sample,
+                    image_center_weight,
+                    image_center_sigma_px,
                     projection_model,
-                )
-                if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
-                    uv_res = ((uv_map - uv_giga) / image_center_sigma_px) * image_center_weight
-            residuals.extend(uv_res.tolist())
+                ).tolist()
+            )
 
-    residuals.extend((xi[:3] * rotation_prior_weight).tolist())
-    residuals.extend(((xi[3:6] / translation_sigma_mm) * translation_prior_weight).tolist())
+    residuals.extend(
+        correction_prior_residuals(
+            xi,
+            translation_sigma_mm,
+            translation_prior_weight,
+            rotation_prior_weight,
+        )
+    )
     return np.asarray(residuals, dtype=float)
 
 
@@ -1054,6 +1228,7 @@ def compute_sample_errors(T_map_cam: np.ndarray, samples: list[dict[str, Any]]) 
                 "im_id": sample.get("im_id", ""),
                 "instance_id": sample.get("instance_id", ""),
                 "score": sample.get("score", ""),
+                "gigapose_pose_source": sample.get("gigapose_pose_source", ""),
                 "translation_error_mm": float(np.linalg.norm(T_pred[:3, 3] - T_gt[:3, 3])),
                 "rotation_error_deg": rotation_error_deg(T_pred[:3, :3], T_gt[:3, :3]),
             }
@@ -1098,6 +1273,7 @@ def compute_sample_metadata_errors(
                 "im_id": sample.get("im_id", ""),
                 "instance_id": sample.get("instance_id", ""),
                 "score": sample.get("score", ""),
+                "gigapose_pose_source": sample.get("gigapose_pose_source", ""),
                 "metadata_path": sample.get("metadata_path", ""),
                 "target_pose_path": sample.get("target_pose_path", ""),
                 "target_pose_key": sample.get("target_pose_key", ""),
@@ -1145,6 +1321,7 @@ def compute_sample_epnp_label_extrinsic_errors(
                 "im_id": sample.get("im_id", ""),
                 "instance_id": sample.get("instance_id", ""),
                 "score": sample.get("score", ""),
+                "gigapose_pose_source": sample.get("gigapose_pose_source", ""),
                 "target_pose_path": sample.get("target_pose_path", ""),
                 "source_csv_epnp_label_path": sample.get("source_csv_epnp_label_path", ""),
                 "target_pose_key": sample.get("target_pose_key", ""),
@@ -1169,7 +1346,102 @@ def summarize_errors(rows: list[dict[str, Any]], prefix: str) -> dict[str, float
         out[f"{prefix}_{key}_mean"] = float(np.mean(vals))
         out[f"{prefix}_{key}_median"] = float(np.median(vals))
         out[f"{prefix}_{key}_p90"] = float(np.percentile(vals, 90))
+        out[f"{prefix}_{key}_valid_samples"] = int(vals.size)
     return out
+
+
+def summarize_gigapose_pose_inputs(samples: list[dict[str, Any]]) -> dict[str, float]:
+    raw_selected_translation = []
+    raw_selected_rotation = []
+    selected_epnp_translation = []
+    selected_epnp_rotation = []
+    raw_epnp_translation = []
+    raw_epnp_rotation = []
+
+    for sample in samples:
+        raw = sample["T_gigapose_cam_obj_raw"]
+        selected = sample["T_gigapose_cam_obj"]
+        raw_selected_translation.append(
+            float(np.linalg.norm(raw[:3, 3] - selected[:3, 3]))
+        )
+        raw_selected_rotation.append(
+            rotation_error_deg(raw[:3, :3], selected[:3, :3])
+        )
+        epnp = sample.get("T_epnp_camera_obj")
+        if epnp is not None:
+            selected_epnp_translation.append(
+                float(np.linalg.norm(selected[:3, 3] - epnp[:3, 3]))
+            )
+            selected_epnp_rotation.append(
+                rotation_error_deg(selected[:3, :3], epnp[:3, :3])
+            )
+            raw_epnp_translation.append(
+                float(np.linalg.norm(raw[:3, 3] - epnp[:3, 3]))
+            )
+            raw_epnp_rotation.append(
+                rotation_error_deg(raw[:3, :3], epnp[:3, :3])
+            )
+
+    def add_stats(
+        output: dict[str, float], name: str, values: list[float]
+    ) -> None:
+        if not values:
+            return
+        array = np.asarray(values, dtype=float)
+        output[f"{name}_mean"] = float(np.mean(array))
+        output[f"{name}_median"] = float(np.median(array))
+        output[f"{name}_p90"] = float(np.percentile(array, 90))
+
+    output: dict[str, float] = {}
+    add_stats(
+        output,
+        "input_raw_to_selected_translation_mm",
+        raw_selected_translation,
+    )
+    add_stats(
+        output,
+        "input_raw_to_selected_rotation_deg",
+        raw_selected_rotation,
+    )
+    add_stats(
+        output,
+        "input_selected_to_epnp_translation_mm",
+        selected_epnp_translation,
+    )
+    add_stats(
+        output,
+        "input_selected_to_epnp_rotation_deg",
+        selected_epnp_rotation,
+    )
+    add_stats(
+        output,
+        "input_raw_to_epnp_translation_mm",
+        raw_epnp_translation,
+    )
+    add_stats(
+        output,
+        "input_raw_to_epnp_rotation_deg",
+        raw_epnp_rotation,
+    )
+    return output
+
+
+def validate_optimization_args(args: argparse.Namespace) -> None:
+    if args.translation_sigma_mm <= 0:
+        raise ValueError("--translation-sigma-mm must be positive")
+    if args.rotation_sigma_deg <= 0:
+        raise ValueError("--rotation-sigma-deg must be positive")
+    if args.image_center_sigma_px <= 0:
+        raise ValueError("--image-center-sigma-px must be positive")
+    for name in (
+        "image_center_weight",
+        "translation_prior_weight",
+        "rotation_prior_weight",
+    ):
+        if float(getattr(args, name)) < 0:
+            raise ValueError(f"--{name.replace('_', '-')} must be non-negative")
+    if args.max_samples is not None and args.max_samples <= 0:
+        raise ValueError("--max-samples must be positive when provided")
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -1193,6 +1465,12 @@ def main() -> None:
         ) from exc
 
     args = parse_args()
+    validate_optimization_args(args)
+    if args.use_sample_metadata and args.use_epnp_label_extrinsics:
+        raise SystemExit(
+            "Use either --use-sample-metadata or "
+            "--use-epnp-label-extrinsics, not both."
+        )
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     (
@@ -1203,9 +1481,29 @@ def main() -> None:
         args.gigapose_frame_transform_json,
         args.gigapose_frame_transform_side,
     )
+    gigapose_pose_source, aligned_column_present = resolve_gigapose_pose_source(
+        args.selected_samples,
+        args.gigapose_pose_source,
+        gigapose_frame_transform,
+    )
+    gigapose_pose_column = {
+        "aligned_csv": "T_gigapose_aligned_epnp_obj",
+        "raw_csv": "T_gigapose_cam_obj",
+        "raw_csv_plus_external_transform": (
+            "T_gigapose_cam_obj + external frame transform"
+        ),
+    }[gigapose_pose_source]
+    print(
+        "GigaPose optimization pose source:",
+        gigapose_pose_source,
+        "(aligned CSV column present:",
+        aligned_column_present,
+        ")",
+    )
     samples = load_selected_samples(
         args.selected_samples,
         args.max_samples,
+        gigapose_pose_source,
         gigapose_frame_transform,
         gigapose_frame_transform_side,
         args.epnp_map_pose_key,
@@ -1220,8 +1518,38 @@ def main() -> None:
         args.image_center_map_z_mode,
         args.session_z_scale,
     )
-    if args.use_sample_metadata and args.use_epnp_label_extrinsics:
-        raise SystemExit("Use either --use-sample-metadata or --use-epnp-label-extrinsics, not both.")
+
+    intrinsics_samples = sum(sample.get("K") is not None for sample in samples)
+    valid_gigapose_depth_samples = sum(
+        float(sample["T_gigapose_cam_obj"][2, 3]) > 1e-6
+        for sample in samples
+    )
+    if args.image_center_weight > 0 and (
+        args.use_sample_metadata or args.use_epnp_label_extrinsics
+    ):
+        if intrinsics_samples == 0:
+            raise ValueError(
+                "--image-center-weight is positive, but none of the selected "
+                "samples contains camera intrinsics."
+            )
+        if intrinsics_samples < len(samples):
+            print(
+                "WARNING:",
+                len(samples) - intrinsics_samples,
+                "samples have no camera intrinsics and will not contribute an "
+                "image-center residual.",
+            )
+        if valid_gigapose_depth_samples < len(samples):
+            print(
+                "WARNING:",
+                len(samples) - valid_gigapose_depth_samples,
+                "selected GigaPose poses have non-positive center depth.",
+            )
+    elif args.image_center_weight > 0:
+        print(
+            "WARNING: --image-center-weight is ignored in static "
+            "T_map_cam mode."
+        )
 
     if args.use_sample_metadata:
         T_initial = np.eye(4, dtype=float)
@@ -1304,9 +1632,45 @@ def main() -> None:
     write_csv(args.output_dir / "errors_before_optimization.csv", before_rows)
     write_csv(args.output_dir / "errors_after_optimization.csv", after_rows)
 
+    before_summary = summarize_errors(before_rows, "before")
+    after_summary = summarize_errors(after_rows, "after")
+    input_pose_summary = summarize_gigapose_pose_inputs(samples)
+    warnings: list[str] = []
+    if aligned_column_present and gigapose_pose_source == "raw_csv":
+        warnings.append(
+            "The selected CSV contains aligned GigaPose poses, but raw poses "
+            "were explicitly requested. This is usually wrong for EPnP-frame "
+            "extrinsic optimization."
+        )
+    if not result.success:
+        warnings.append(f"Optimizer did not report success: {result.message}")
+    for metric in (
+        "translation_error_mm_median",
+        "rotation_error_deg_median",
+        "image_center_error_px_median",
+    ):
+        before_value = before_summary.get(f"before_{metric}")
+        after_value = after_summary.get(f"after_{metric}")
+        if (
+            before_value is not None
+            and after_value is not None
+            and after_value > before_value
+        ):
+            warnings.append(
+                f"{metric} increased from {before_value:.6g} to "
+                f"{after_value:.6g}."
+            )
+
     extrinsics = {
         "description": "Optimized map-to-camera extrinsic correction from selected GigaPose/EPnPv2 samples.",
         "translation_unit": "mm",
+        "gigapose_pose_source": gigapose_pose_source,
+        "gigapose_pose_column": gigapose_pose_column,
+        "aligned_gigapose_column_present": aligned_column_present,
+        "loss_weight_semantics": (
+            "CLI weights are squared-loss coefficients; residuals are multiplied "
+            "by sqrt(weight)."
+        ),
         "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
         "camera_pose_source": args.epnp_camera_pose_key if args.use_epnp_label_extrinsics else None,
         "epnp_label_root_override": (
@@ -1330,6 +1694,7 @@ def main() -> None:
         "T_map_cam_optimized": T_optimized.tolist() if not args.use_sample_metadata and not args.use_epnp_label_extrinsics else None,
         "T_lidar_camera_correction_left_multiply": T_delta.tolist() if args.use_sample_metadata else None,
         "T_epnp_label_camera_correction_left_multiply": T_delta.tolist() if args.use_epnp_label_extrinsics else None,
+        "correction_rotation_rotvec_rad": xi[:3].tolist(),
         "correction_rotation_rpy_like_vector_rad": xi[:3].tolist(),
         "correction_translation_mm": xi[3:6].tolist(),
         "image_center_weight": args.image_center_weight,
@@ -1346,7 +1711,8 @@ def main() -> None:
                 "EPnP-label-extrinsics mode: for each frame, derive "
                 "T_map_cam_initial_i = T_map_object_raw_i @ inv(T_camera_object_i), then apply "
                 "T_map_cam_optimized_i = T_epnp_label_camera_correction_left_multiply @ "
-                "T_map_cam_initial_i."
+                "T_map_cam_initial_i. GigaPose poses are first put into the "
+                "EPnP object-frame convention using gigapose_pose_source."
                 if args.use_epnp_label_extrinsics
                 else "Use T_map_cam_optimized as camera-to-map transform if your pipeline expects T_map_cam."
             )
@@ -1359,7 +1725,16 @@ def main() -> None:
         "optimizer_success": bool(result.success),
         "optimizer_message": result.message,
         "optimizer_cost": float(result.cost),
+        "optimizer_nfev": int(result.nfev),
+        "optimizer_optimality": float(result.optimality),
         "robust_loss": args.robust_loss,
+        "gigapose_pose_source": gigapose_pose_source,
+        "gigapose_pose_column": gigapose_pose_column,
+        "aligned_gigapose_column_present": aligned_column_present,
+        "loss_weight_semantics": (
+            "CLI weights are squared-loss coefficients; residuals are multiplied "
+            "by sqrt(weight)."
+        ),
         "target_pose_source": args.epnp_map_pose_key or "selected_csv:T_epnp_obj",
         "camera_pose_source": args.epnp_camera_pose_key if args.use_epnp_label_extrinsics else None,
         "epnp_label_root_override": (
@@ -1383,14 +1758,22 @@ def main() -> None:
         "projection_model": args.projection_model,
         "translation_prior_weight": args.translation_prior_weight,
         "rotation_prior_weight": args.rotation_prior_weight,
+        "samples_with_intrinsics": intrinsics_samples,
+        "samples_with_positive_gigapose_center_depth": (
+            valid_gigapose_depth_samples
+        ),
         "correction_translation_norm_mm": float(np.linalg.norm(xi[3:6])),
         "correction_rotation_norm_deg": float(np.degrees(np.linalg.norm(xi[:3]))),
-        **summarize_errors(before_rows, "before"),
-        **summarize_errors(after_rows, "after"),
+        **input_pose_summary,
+        **before_summary,
+        **after_summary,
+        "warnings": warnings,
     }
     (args.output_dir / "optimization_report.json").write_text(json.dumps(report, indent=2))
 
     print(json.dumps(report, indent=2))
+    for warning in warnings:
+        print(f"WARNING: {warning}")
     print(f"Wrote optimized extrinsics to {args.output_dir / 'optimized_extrinsics.json'}")
 
 
