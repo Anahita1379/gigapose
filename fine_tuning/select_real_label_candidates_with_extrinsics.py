@@ -19,12 +19,12 @@ If the optimizer produced the left correction ``D``, this script uses
 
 and compares ``M_gigapose_opt`` with ``M``, where ``G`` is the raw GigaPose
 camera-object prediction and ``X_right`` is the object/CAD-frame alignment
-embedded in the optimized extrinsics. Equivalently, it compares ``G_aligned``
-with the corrected camera-frame EPnP pose ``inv(C_opt) @ M``.
+estimated or loaded exactly like the original selector. Equivalently, it
+compares ``G_aligned`` with the corrected camera-frame EPnP pose
+``inv(C_opt) @ M``.
 
-The frame transform must be applied during extrinsic fitting and selection.
-``optimize_camera_map_extrinsics.py`` therefore stores the transform and side
-inside ``optimized_extrinsics.json``, and this script reuses them automatically.
+The frame transform is independent of the optimized-extrinsics file. Existing
+extrinsics can therefore be reused without rerunning the optimizer.
 
 Typical use::
 
@@ -37,6 +37,8 @@ Typical use::
       --epnp-key-prefix image_ \
       --match-key image_stem \
       --optimized-extrinsics /path/to/optimized_extrinsics.json \
+      --frame-transform-side right \
+      --frame-transform-refine-iterations 5 \
       --epnp-map-pose-key T_map_object_raw \
       --epnp-camera-pose-key T_camera_object_centered \
       --epnp-translation-unit m \
@@ -108,6 +110,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--frame-transform-json",
+        type=Path,
+        default=None,
+        help=(
+            "Optional precomputed GigaPose-to-EPnP frame transform. If omitted, "
+            "estimate it from one-to-one prediction/label matches exactly like "
+            "select_real_label_candidates."
+        ),
+    )
+    parser.add_argument(
         "--epnp-map-pose-key",
         default="T_map_object_raw",
         help="Map-object pose field in every EPnP label.",
@@ -148,32 +160,32 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
-    # Accept the old command-line options so an existing command can be adapted
-    # by changing the module and adding --optimized-extrinsics.  They are not
-    # part of the extrinsics-aware calculation.
     parser.add_argument(
         "--frame-transform-side",
         choices=("left", "right"),
-        default=None,
-        help=argparse.SUPPRESS,
+        default="left",
+        help=(
+            "How to align GigaPose with EPnP. Use 'right' for "
+            "T_aligned = T_gigapose @ X."
+        ),
     )
     parser.add_argument(
         "--frame-transform-refine-iterations",
         type=int,
         default=0,
-        help=argparse.SUPPRESS,
+        help="Re-estimate the frame transform from inlier one-to-one pairs.",
     )
     parser.add_argument(
         "--frame-transform-inlier-translation-mm",
         type=float,
         default=None,
-        help=argparse.SUPPRESS,
+        help="Translation inlier threshold used during transform refinement.",
     )
     parser.add_argument(
         "--frame-transform-inlier-rotation-deg",
         type=float,
         default=None,
-        help=argparse.SUPPRESS,
+        help="Rotation inlier threshold used during transform refinement.",
     )
     return parser.parse_args()
 
@@ -216,42 +228,6 @@ def load_extrinsic_correction(path: Path) -> tuple[np.ndarray, dict[str, Any], P
     correction = np.asarray(value, dtype=float).reshape(4, 4)
     rigid_transform_checks(correction, key)
     return correction, data, resolved
-
-
-def load_embedded_gigapose_frame_transform(
-    extrinsics: dict[str, Any],
-    requested_side: str | None,
-) -> tuple[np.ndarray | None, str | None]:
-    value = extrinsics.get("T_gigapose_frame_transform")
-    stored_side = extrinsics.get("gigapose_frame_transform_side")
-    if value is None:
-        if stored_side is not None:
-            raise ValueError(
-                "optimized_extrinsics.json records a GigaPose frame-transform "
-                "side but does not contain T_gigapose_frame_transform"
-            )
-        if requested_side is not None:
-            raise ValueError(
-                "This optimized extrinsic was fitted without an embedded "
-                f"{requested_side!r} GigaPose frame transform. Rerun "
-                "optimize_camera_map_extrinsics with "
-                "--gigapose-frame-transform-json before using that alignment."
-            )
-        return None, None
-
-    if stored_side not in ("left", "right"):
-        raise ValueError(
-            "optimized_extrinsics.json contains T_gigapose_frame_transform but "
-            f"has invalid gigapose_frame_transform_side={stored_side!r}"
-        )
-    if requested_side is not None and requested_side != stored_side:
-        raise ValueError(
-            f"Requested frame-transform side {requested_side!r}, but the "
-            f"extrinsic was fitted with {stored_side!r}"
-        )
-    transform = np.asarray(value, dtype=float).reshape(4, 4)
-    rigid_transform_checks(transform, "T_gigapose_frame_transform")
-    return transform, str(stored_side)
 
 
 def records_from_path(path: Path) -> list[dict[str, Any]]:
@@ -330,6 +306,7 @@ def load_epnp_extrinsic_labels(
                         "match_key": key,
                         "T_map_object": T_map_object,
                         "T_camera_object_original": T_camera_object,
+                        "T_epnp": T_camera_object,
                         "T_map_camera_initial": T_map_camera_initial,
                     }
                 )
@@ -408,9 +385,11 @@ def make_candidate_rows(
                         "score": pred["score"],
                         "epnp_label_path": label["epnp_label_path"],
                         "epnp_record_index": label["epnp_record_index"],
-                        # These are the errors used for ranking and selection.
-                        "translation_error_mm": optimized_t,
-                        "rotation_error_deg": optimized_r,
+                        # These camera-frame errors are used for ranking and
+                        # selection and are exactly what the unchanged
+                        # visualization script draws.
+                        "translation_error_mm": camera_t,
+                        "rotation_error_deg": camera_r,
                         # These expose the before/after comparison explicitly.
                         "raw_translation_error_mm": raw_t,
                         "raw_rotation_error_deg": raw_r,
@@ -430,10 +409,12 @@ def make_candidate_rows(
                         "T_gigapose_aligned_epnp_obj": base.matrix_to_text(
                             T_gigapose
                         ),
-                        # Preserve the original selector's camera-frame EPnP
-                        # column for downstream tools that already consume it.
+                        # Preserve the original selector's column contract, but
+                        # put the extrinsics-corrected camera pose here so
+                        # visualize_epnp_gigapose_comparison draws the same two
+                        # poses used to calculate the reported errors.
                         "T_epnp_obj": base.matrix_to_text(
-                            T_camera_object_original
+                            T_camera_object_optimized
                         ),
                         "T_epnp_camera_obj_original": base.matrix_to_text(
                             T_camera_object_original
@@ -496,26 +477,8 @@ def main() -> None:
         args.epnp_map_pose_unit = args.epnp_translation_unit
         args.epnp_camera_pose_unit = args.epnp_translation_unit
 
-    if (
-        args.frame_transform_refine_iterations > 0
-        or args.frame_transform_inlier_translation_mm is not None
-        or args.frame_transform_inlier_rotation_deg is not None
-    ):
-        print(
-            "NOTE: legacy frame-transform refinement options are ignored. The "
-            "exact fixed transform embedded during extrinsic optimization is "
-            "reused; it is not re-estimated during selection."
-        )
-
     correction, extrinsics_data, extrinsics_path = load_extrinsic_correction(
         args.optimized_extrinsics
-    )
-    (
-        gigapose_frame_transform,
-        gigapose_frame_transform_side,
-    ) = load_embedded_gigapose_frame_transform(
-        extrinsics_data,
-        args.frame_transform_side,
     )
     dates = tuple(args.date or base.DEFAULT_DATES)
     frame_map = base.load_frame_map(args.frame_map, args.dataset_dir)
@@ -557,12 +520,54 @@ def main() -> None:
     for row in labels:
         epnp_by_key[str(row["match_key"])].append(row)
 
+    if args.frame_transform_json is not None:
+        gigapose_frame_transform = base.load_frame_transform(
+            args.frame_transform_json
+        )
+        estimated_pairs = 0
+        refinement_history: list[dict[str, Any]] = []
+    else:
+        one_to_one = base.initial_one_to_one_pairs(
+            preds_by_key, epnp_by_key
+        )
+        gigapose_frame_transform = base.estimate_frame_transform(
+            one_to_one, args.frame_transform_side
+        )
+        estimated_pairs = len(one_to_one)
+        inlier_translation = (
+            args.frame_transform_inlier_translation_mm
+            if args.frame_transform_inlier_translation_mm is not None
+            else args.max_translation_error_mm
+        )
+        inlier_rotation = (
+            args.frame_transform_inlier_rotation_deg
+            if args.frame_transform_inlier_rotation_deg is not None
+            else args.max_rotation_error_deg
+        )
+        (
+            gigapose_frame_transform,
+            refinement_history,
+        ) = base.refine_frame_transform(
+            one_to_one,
+            args.frame_transform_side,
+            gigapose_frame_transform,
+            args.frame_transform_refine_iterations,
+            inlier_translation,
+            inlier_rotation,
+        )
+    base.save_frame_transform(
+        args.output_dir / "frame_transform_gigapose_to_epnp.json",
+        gigapose_frame_transform,
+        estimated_pairs,
+        args.frame_transform_side,
+    )
+
     all_candidates = make_candidate_rows(
         preds_by_key,
         epnp_by_key,
         correction,
         gigapose_frame_transform,
-        gigapose_frame_transform_side,
+        args.frame_transform_side,
         args.max_candidates_per_key,
         extrinsics_path,
     )
@@ -585,10 +590,10 @@ def main() -> None:
     shared_keys = set(preds_by_key) & set(epnp_by_key)
     report: dict[str, Any] = {
         "description": (
-            "Selection errors use the optimized EPnP-label camera extrinsic. "
-            "translation_error_mm and rotation_error_deg are optimized errors; "
-            "original_* errors include the embedded GigaPose frame alignment "
-            "but not the extrinsic correction; raw_* errors include neither."
+            "Selection applies the same estimated/loaded GigaPose-to-EPnP "
+            "frame transform as select_real_label_candidates, then compares it "
+            "with the extrinsics-corrected EPnP camera pose. The primary errors "
+            "and visualization columns describe those same camera-frame poses."
         ),
         "source_root": str(args.source_root),
         "dates": dates,
@@ -600,14 +605,17 @@ def main() -> None:
         "epnp_camera_pose_key": args.epnp_camera_pose_key,
         "epnp_map_pose_unit": args.epnp_map_pose_unit,
         "epnp_camera_pose_unit": args.epnp_camera_pose_unit,
-        "gigapose_frame_transform_applied": (
-            gigapose_frame_transform is not None
+        "frame_transform_side": args.frame_transform_side,
+        "frame_transform_source": (
+            str(args.frame_transform_json)
+            if args.frame_transform_json is not None
+            else "estimated_from_current_one_to_one_pairs"
         ),
-        "gigapose_frame_transform_side": gigapose_frame_transform_side,
-        "gigapose_frame_transform_source": extrinsics_data.get(
-            "gigapose_frame_transform_source"
+        "frame_transform_estimated_from_one_to_one_pairs": estimated_pairs,
+        "frame_transform_refine_iterations": (
+            args.frame_transform_refine_iterations
         ),
-        "legacy_frame_transform_refinement_applied": False,
+        "frame_transform_refinement_history": refinement_history,
         "min_score": args.min_score,
         "max_translation_error_mm": args.max_translation_error_mm,
         "max_rotation_error_deg": args.max_rotation_error_deg,
@@ -660,8 +668,9 @@ def main() -> None:
     ):
         print(
             "WARNING: Corrected map-frame and camera-frame diagnostics differ "
-            "more than expected. Selection still uses the map-frame error, which "
-            "matches the extrinsic optimizer's objective. Inspect the two "
+            "more than expected. Selection uses the corrected camera-frame "
+            "error so it remains identical to the visualization comparison. "
+            "Inspect the two "
             "map_camera_*_disagreement fields for non-rigid/noisy input matrices."
         )
     print(json.dumps(report, indent=2))
