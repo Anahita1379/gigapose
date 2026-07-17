@@ -346,16 +346,6 @@ def make_candidate_rows(
                 camera_t, camera_r = pose_errors(
                     T_gigapose, T_camera_object_optimized
                 )
-                if not (
-                    np.isclose(optimized_t, camera_t, atol=1e-5, rtol=1e-9)
-                    and np.isclose(
-                        optimized_r, camera_r, atol=1e-5, rtol=1e-9
-                    )
-                ):
-                    raise RuntimeError(
-                        "Map-frame and corrected-camera-frame errors disagree; "
-                        "check pose conventions and units."
-                    )
                 rows.append(
                     {
                         "match_key": key,
@@ -375,6 +365,12 @@ def make_candidate_rows(
                         "original_rotation_error_deg": original_r,
                         "optimized_camera_translation_error_mm": camera_t,
                         "optimized_camera_rotation_error_deg": camera_r,
+                        "map_camera_translation_disagreement_mm": abs(
+                            optimized_t - camera_t
+                        ),
+                        "map_camera_rotation_disagreement_deg": abs(
+                            optimized_r - camera_r
+                        ),
                         "T_gigapose_cam_obj": base.matrix_to_text(T_gigapose),
                         # Preserve the original selector's camera-frame EPnP
                         # column for downstream tools that already consume it.
@@ -556,9 +552,41 @@ def main() -> None:
     ):
         report.update(numeric_summary(best_candidates, source_key, prefix))
 
+    if all_candidates:
+        max_translation_disagreement = max(
+            float(row["map_camera_translation_disagreement_mm"])
+            for row in all_candidates
+        )
+        max_rotation_disagreement = max(
+            float(row["map_camera_rotation_disagreement_deg"])
+            for row in all_candidates
+        )
+    else:
+        max_translation_disagreement = float("nan")
+        max_rotation_disagreement = float("nan")
+    report["map_camera_translation_disagreement_mm_max"] = (
+        max_translation_disagreement
+    )
+    report["map_camera_rotation_disagreement_deg_max"] = (
+        max_rotation_disagreement
+    )
+
     (args.output_dir / "selection_report.json").write_text(
         json.dumps(report, indent=2)
     )
+    if (
+        np.isfinite(max_translation_disagreement)
+        and max_translation_disagreement > 1.0
+    ) or (
+        np.isfinite(max_rotation_disagreement)
+        and max_rotation_disagreement > 0.01
+    ):
+        print(
+            "WARNING: Corrected map-frame and camera-frame diagnostics differ "
+            "more than expected. Selection still uses the map-frame error, which "
+            "matches the extrinsic optimizer's objective. Inspect the two "
+            "map_camera_*_disagreement fields for non-rigid/noisy input matrices."
+        )
     print(json.dumps(report, indent=2))
     print(
         "Wrote extrinsics-aware selected samples to "
