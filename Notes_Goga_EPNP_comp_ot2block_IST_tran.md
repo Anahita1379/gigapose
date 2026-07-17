@@ -663,7 +663,7 @@ python -m fine_tuning.select_real_label_candidates_with_extrinsics \
   --max-rotation-error-deg 20 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics
 
-
+gigapose/gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/selected_samples.csv
 python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
