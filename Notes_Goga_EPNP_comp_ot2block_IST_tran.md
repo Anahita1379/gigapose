@@ -637,6 +637,30 @@ After running and getting the optimized entrinsics, we rerun the lable selection
 but this time, with the optimized extrinsic values: 
 
 
+I guess we need to rerun the optimization:
+```bash
+python -m fine_tuning.optimize_camera_map_extrinsics_updated \
+  --selected-samples gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization/selected_samples.csv \
+  --gigapose-frame-transform-json gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization/frame_transform_gigapose_to_epnp.json \
+  --gigapose-frame-transform-side right \
+  --use-epnp-label-extrinsics \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-key T_camera_object_centered \
+  --epnp-camera-pose-unit m \
+  --translation-residual-components xyz \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 5 \
+  --image-center-sigma-px 50 \
+  --projection-model metadata \
+  --translation-prior-weight 1000 \
+  --rotation-prior-weight 20 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/extrinsic_optimization_right_aligned
+```
+
+
 ```bash
 
 # 20260505v1 Done, need to do the other cameras
