@@ -23,7 +23,7 @@ for each camera seperately and for the predictions:
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --epnp-translation-unit m \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
@@ -50,7 +50,7 @@ python -m fine_tuning.select_real_label_candidates \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --epnp-translation-unit m \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_rear_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
@@ -77,7 +77,7 @@ python -m fine_tuning.select_real_label_candidates \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --epnp-translation-unit m \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
@@ -108,7 +108,7 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v2_rear_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
 
@@ -138,7 +138,7 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v0_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
 
@@ -164,7 +164,7 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v0_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
 
@@ -196,7 +196,7 @@ python -m fine_tuning.select_real_label_candidates \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
 
@@ -223,7 +223,7 @@ python -m fine_tuning.select_real_label_candidates \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v1v4_rear_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
 
@@ -247,7 +247,7 @@ python -m fine_tuning.select_real_label_candidates \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
 
@@ -283,7 +283,7 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
 
@@ -310,7 +310,7 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization
 
@@ -668,7 +668,6 @@ python -m fine_tuning.optimize_camera_map_extrinsics_updated \
 # rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/rear/EPnPv2_gt_mesh_z_hybrid_labels
 # stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 # gigapose/
-
 python -m fine_tuning.select_real_label_candidates_with_extrinsics \
   --gigapose-predictions gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
@@ -678,16 +677,21 @@ python -m fine_tuning.select_real_label_candidates_with_extrinsics \
   --epnp-key-prefix image_ \
   --match-key image_stem \
   --optimized-extrinsics gigaPose_datasets/results/real_world_ot2_IST_tran/extrinsic_optimization_front_epnp_hybrid_xyz/optimized_extrinsics.json \
+  --frame-transform-side right \
+  --frame-transform-refine-iterations 5 \
+  --frame-transform-inlier-translation-mm 5000 \
+  --frame-transform-inlier-rotation-deg 60 \
   --epnp-map-pose-key T_map_object_raw \
   --epnp-camera-pose-key T_camera_object_centered \
   --epnp-map-pose-unit m \
   --epnp-camera-pose-unit m \
   --min-score 0.05 \
   --max-translation-error-mm 2000 \
-  --max-rotation-error-deg 20 \
+  --max-rotation-error-deg 30 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics
 
 gigapose/gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/selected_samples.csv
+
 python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
