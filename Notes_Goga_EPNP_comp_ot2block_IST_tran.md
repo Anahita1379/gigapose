@@ -18,7 +18,7 @@ for each camera seperately and for the predictions:
   --epnp-strip-trailing-instance-id \
   --epnp-key-prefix image_ \
   --match-key image_stem \
-  --frame-transform-side right \
+  --frame-transform-side left \
   --frame-transform-refine-iterations 5 \
   --frame-transform-inlier-translation-mm 5000 \
   --frame-transform-inlier-rotation-deg 60 \
@@ -29,13 +29,13 @@ for each camera seperately and for the predictions:
   --max-pitch-error-deg 10 \
   --max-yaw-error-deg 15 \
   --epnp-translation-unit m \
-  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new_left
 
 
 python -m fine_tuning.visualize_epnp_gigapose_comparison \
-  --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/selected_samples.csv \
+  --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new_left/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
-  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/visual_overlays \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new_left/visual_overlays \
   --max-images 100 \
   --draw-mask-bbox
 
