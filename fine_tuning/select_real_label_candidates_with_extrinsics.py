@@ -151,6 +151,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-score", type=float, default=0.05)
     parser.add_argument("--max-translation-error-mm", type=float, default=2000.0)
     parser.add_argument("--max-rotation-error-deg", type=float, default=30.0)
+    parser.add_argument("--max-roll-error-deg", type=float, default=None)
+    parser.add_argument("--max-pitch-error-deg", type=float, default=None)
+    parser.add_argument("--max-yaw-error-deg", type=float, default=None)
     parser.add_argument("--max-candidates-per-key", type=int, default=20)
     parser.add_argument(
         "--output-dir",
@@ -374,6 +377,12 @@ def make_candidate_rows(
                 camera_t, camera_r = pose_errors(
                     T_gigapose, T_camera_object_optimized
                 )
+                roll_error, pitch_error, yaw_error = (
+                    base.rotation_error_rpy_deg(
+                        T_gigapose[:3, :3],
+                        T_camera_object_optimized[:3, :3],
+                    )
+                )
                 rows.append(
                     {
                         "match_key": key,
@@ -390,6 +399,9 @@ def make_candidate_rows(
                         # visualization script draws.
                         "translation_error_mm": camera_t,
                         "rotation_error_deg": camera_r,
+                        "roll_error_deg": roll_error,
+                        "pitch_error_deg": pitch_error,
+                        "yaw_error_deg": yaw_error,
                         # These expose the before/after comparison explicitly.
                         "raw_translation_error_mm": raw_t,
                         "raw_rotation_error_deg": raw_r,
@@ -473,6 +485,14 @@ def main() -> None:
 
     if args.max_candidates_per_key < 1:
         raise ValueError("--max-candidates-per-key must be positive")
+    for name in (
+        "max_roll_error_deg",
+        "max_pitch_error_deg",
+        "max_yaw_error_deg",
+    ):
+        value = getattr(args, name)
+        if value is not None and value < 0:
+            raise ValueError(f"--{name.replace('_', '-')} must be nonnegative")
     if args.epnp_translation_unit is not None:
         args.epnp_map_pose_unit = args.epnp_translation_unit
         args.epnp_camera_pose_unit = args.epnp_translation_unit
@@ -579,6 +599,18 @@ def main() -> None:
         <= args.max_translation_error_mm
         and float(row["rotation_error_deg"])
         <= args.max_rotation_error_deg
+        and (
+            args.max_roll_error_deg is None
+            or float(row["roll_error_deg"]) <= args.max_roll_error_deg
+        )
+        and (
+            args.max_pitch_error_deg is None
+            or float(row["pitch_error_deg"]) <= args.max_pitch_error_deg
+        )
+        and (
+            args.max_yaw_error_deg is None
+            or float(row["yaw_error_deg"]) <= args.max_yaw_error_deg
+        )
     ]
 
     base.write_csv(args.output_dir / "all_candidate_pairs.csv", all_candidates)
@@ -619,6 +651,9 @@ def main() -> None:
         "min_score": args.min_score,
         "max_translation_error_mm": args.max_translation_error_mm,
         "max_rotation_error_deg": args.max_rotation_error_deg,
+        "max_roll_error_deg": args.max_roll_error_deg,
+        "max_pitch_error_deg": args.max_pitch_error_deg,
+        "max_yaw_error_deg": args.max_yaw_error_deg,
         "loaded_predictions_after_score_filter": len(predictions),
         "loaded_epnp_labels": len(labels),
         "epnp_label_skip_counts": label_skip_counts,

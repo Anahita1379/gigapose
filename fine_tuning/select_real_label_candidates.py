@@ -146,6 +146,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-score", type=float, default=0.05)
     parser.add_argument("--max-translation-error-mm", type=float, default=2000.0)
     parser.add_argument("--max-rotation-error-deg", type=float, default=30.0)
+    parser.add_argument("--max-roll-error-deg", type=float, default=None)
+    parser.add_argument("--max-pitch-error-deg", type=float, default=None)
+    parser.add_argument("--max-yaw-error-deg", type=float, default=None)
     parser.add_argument(
         "--frame-transform-refine-iterations",
         type=int,
@@ -222,6 +225,26 @@ def rotation_error_deg(pred_R: np.ndarray, gt_R: np.ndarray) -> float:
     delta = pred_R @ gt_R.T
     cos_theta = (np.trace(delta) - 1.0) * 0.5
     return float(np.degrees(np.arccos(np.clip(cos_theta, -1.0, 1.0))))
+
+
+def rotation_error_rpy_deg(
+    pred_R: np.ndarray, gt_R: np.ndarray
+) -> tuple[float, float, float]:
+    """Return absolute object-frame roll, pitch, yaw errors using ZYX Euler order."""
+    relative = np.asarray(gt_R, dtype=float).reshape(3, 3).T @ np.asarray(
+        pred_R, dtype=float
+    ).reshape(3, 3)
+    horizontal = math.hypot(float(relative[0, 0]), float(relative[1, 0]))
+    pitch = math.atan2(-float(relative[2, 0]), horizontal)
+    if horizontal > 1e-9:
+        roll = math.atan2(float(relative[2, 1]), float(relative[2, 2]))
+        yaw = math.atan2(float(relative[1, 0]), float(relative[0, 0]))
+    else:
+        roll = math.atan2(-float(relative[1, 2]), float(relative[1, 1]))
+        yaw = 0.0
+    return tuple(
+        float(abs(np.degrees(angle))) for angle in (roll, pitch, yaw)
+    )
 
 
 def load_prediction_rows(path: Path) -> list[dict[str, Any]]:
@@ -749,6 +772,9 @@ def make_candidate_rows(
             )
             for label in labels:
                 T_epnp = label["T_epnp"]
+                roll_error, pitch_error, yaw_error = rotation_error_rpy_deg(
+                    T_pred_aligned[:3, :3], T_epnp[:3, :3]
+                )
                 rows.append(
                     {
                         "match_key": key,
@@ -766,6 +792,9 @@ def make_candidate_rows(
                         "rotation_error_deg": rotation_error_deg(
                             T_pred_aligned[:3, :3], T_epnp[:3, :3]
                         ),
+                        "roll_error_deg": roll_error,
+                        "pitch_error_deg": pitch_error,
+                        "yaw_error_deg": yaw_error,
                         "T_gigapose_cam_obj": matrix_to_text(pred["T_gigapose"]),
                         "T_gigapose_aligned_epnp_obj": matrix_to_text(T_pred_aligned),
                         "T_epnp_obj": matrix_to_text(T_epnp),
@@ -819,6 +848,14 @@ def summarize(rows: list[dict[str, Any]], selected: list[dict[str, Any]]) -> dic
 
 def main() -> None:
     args = parse_args()
+    for name in (
+        "max_roll_error_deg",
+        "max_pitch_error_deg",
+        "max_yaw_error_deg",
+    ):
+        value = getattr(args, name)
+        if value is not None and value < 0:
+            raise ValueError(f"--{name.replace('_', '-')} must be nonnegative")
     dates = tuple(args.date or DEFAULT_DATES)
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -894,6 +931,18 @@ def main() -> None:
         for row in best_candidates
         if float(row["translation_error_mm"]) <= args.max_translation_error_mm
         and float(row["rotation_error_deg"]) <= args.max_rotation_error_deg
+        and (
+            args.max_roll_error_deg is None
+            or float(row["roll_error_deg"]) <= args.max_roll_error_deg
+        )
+        and (
+            args.max_pitch_error_deg is None
+            or float(row["pitch_error_deg"]) <= args.max_pitch_error_deg
+        )
+        and (
+            args.max_yaw_error_deg is None
+            or float(row["yaw_error_deg"]) <= args.max_yaw_error_deg
+        )
     ]
 
     write_csv(args.output_dir / "all_candidate_pairs.csv", all_candidates)
@@ -912,6 +961,9 @@ def main() -> None:
         "min_score": args.min_score,
         "max_translation_error_mm": args.max_translation_error_mm,
         "max_rotation_error_deg": args.max_rotation_error_deg,
+        "max_roll_error_deg": args.max_roll_error_deg,
+        "max_pitch_error_deg": args.max_pitch_error_deg,
+        "max_yaw_error_deg": args.max_yaw_error_deg,
         "loaded_predictions_after_score_filter": len(predictions),
         "loaded_epnp_labels": len(labels),
         **summarize(all_candidates, selected),
