@@ -555,7 +555,18 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/extrinsic_optimization_stereo_left_epnp_hybrid_xyz
 
 ```
+  After it runs, plot it with:
+  ```bash
+python -m fine_tuning.plot_extrinsic_optimization \
+  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_metadata_xy_image \
+  --selected-samples gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv
+  ```
 
+It draws projected CAD boxes on the actual images:
+red = map pose projected using original metadata extrinsic
+blue = map pose projected using optimized extrinsic
+green = selected GigaPose pose, optional
+yellow = detector bbox, optional
 
 For visualization of that new run:
 Key point: for this EPnP-label-only mode, use: 
@@ -619,243 +630,120 @@ python -m fine_tuning.plot_extrinsic_optimization \
 ```
 
   
-
-
-<!-- Then the combined file can be used here:
-```bash
-python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data_IST_AE/combined_front_selected_samples.csv \
-
-```
-
-Then run extrinsic optimization using the map pose key:
-```bash
-python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data_IST_AE/combined_front_selected_samples.csv \
-  --use-sample-metadata \
-  --epnp-map-pose-key T_map_object_raw \
-  --epnp-map-pose-unit auto \
-  --translation-residual-components xy \
-  --translation-sigma-mm 1000 \
-  --rotation-sigma-deg 10 \
-  --image-center-weight 5 \
-  --image-center-sigma-px 50 \
-  --image-center-map-z-mode session_lidar_offset \
-  --translation-prior-weight 5000 \
-  --rotation-prior-weight 100 \
-  --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data_IST_AE/extrinsic_optimization_stereo_left_metadata_xy_session_z
-```
 Important: the candidate selection still uses T_camera_object_centered internally for camera-frame GigaPose-vs-EPnP agreement. But because the selected CSV keeps epnp_label_path, the optimizer can then open the same JSON and read T_map_object_raw
 
 
-a more strict version: 
+After running and getting the optimized entrinsics, we rerun the lable selection code, 
+but this time, with the optimized extrinsic values: 
+
+
 ```bash
-python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data/combined_front_selected_samples.csv \
-  --use-sample-metadata \
+
+# 20260505v1 Done, need to do the other cameras
+# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/rear/EPnPv2_gt_mesh_z_hybrid_labels
+# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
+# gigapose/
+
+python -m fine_tuning.select_real_label_candidates_with_extrinsics \
+  --gigapose-predictions gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --optimized-extrinsics gigaPose_datasets/results/real_world_ot2_IST_tran/extrinsic_optimization_front_epnp_hybrid_xyz/optimized_extrinsics.json \
   --epnp-map-pose-key T_map_object_raw \
-  --epnp-map-pose-unit auto \
-  --translation-residual-components xy \
-  --translation-sigma-mm 1000 \
-  --rotation-sigma-deg 10 \
-  --image-center-weight 10 \
-  --image-center-sigma-px 40 \
-  --image-center-map-z-mode session_lidar_offset \
-  --translation-prior-weight 5000 \
-  --rotation-prior-weight 500 \
-  --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_session_z_strict
+  --epnp-camera-pose-key T_camera_object_centered \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --min-score 0.05 \
+  --max-translation-error-mm 2000 \
+  --max-rotation-error-deg 20 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison \
+  --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/visual_overlays \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+
+
+python -m fine_tuning.select_real_label_candidates_with_extrinsics \
+  --gigapose-predictions gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_rear_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_rear_gsam_v4-test_large_real_20260505v1_rear_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_rear_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/rear/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --optimized-extrinsics gigaPose_datasets/results/real_world_ot2_IST_tran/extrinsic_optimization_rear_epnp_hybrid_xyz/optimized_extrinsics.json \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-camera-pose-key T_camera_object_centered \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --min-score 0.05 \
+  --max-translation-error-mm 2000 \
+  --max-rotation-error-deg 20 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_rear_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison \
+  --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_rear_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_rear_gsam_v4 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_rear_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/visual_overlays \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+python -m fine_tuning.select_real_label_candidates_with_extrinsics \
+  --gigapose-predictions gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_stereo_left_gsam_v4-test_large_real_20260505v1_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_rear_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --optimized-extrinsics gigaPose_datasets/results/real_world_ot2_IST_tran/extrinsic_optimization_rear_epnp_hybrid_xyz/optimized_extrinsics.json \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-camera-pose-key T_camera_object_centered \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --min-score 0.05 \
+  --max-translation-error-mm 2000 \
+  --max-rotation-error-deg 20 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison \
+  --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_stereo_left_gsam_v4 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_with_optimized_extrinsics/visual_overlays \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+---------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
 ```
 
 
 
-  After it runs, plot it with:
-  ```bash
-python -m fine_tuning.plot_extrinsic_optimization \
-  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_metadata_xy_image \
-  --selected-samples gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv
-  ```
 
 
-
-It draws projected CAD boxes on the actual images:
-red = map pose projected using original metadata extrinsic
-blue = map pose projected using optimized extrinsic
-green = selected GigaPose pose, optional
-yellow = detector bbox, optional
-  ```bash
-python -m fine_tuning.visualize_extrinsic_optimization_on_images \
-  --selected-samples gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
-  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_session_z_w10 \
-  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_session_z_w10/image_overlays \
-  --map-z-mode session_lidar_offset \
-  --draw-gigapose \
-  --draw-detection-bbox \
-  --write-debug-projections \
-  --max-images 200
-
-  ```
-
-
-What it does for each selected sample:
-Original:
-T_cam_obj = inverse(t_map_lidar @ t_lidar_camera_prior) @ T_map_object_raw
-
-Optimized:
-T_cam_obj = inverse(t_map_lidar @ correction @ t_lidar_camera_prior) @ T_map_object_raw
-
-Then it projects the CAD box into the image using the metadata camera intrinsics.
-
-
-for stereo_left, we hav esome problems. 
-Stereo-left is not fisheye/equidistant here — it is: distortion_model: plumb_bob with pretty strong distortion coefficients.
-
-For stereo-left, some selected labels may be based on uncertain pose, not true transponder ground truth. That can add noise. But since blue center is already close numerically, the visual mismatch is more likely projection distortion than optimization.
-
-So, need to change approach and use a clener selected_samples by checking: 
-metadata source quality
-ground_truth_pose_missing
-export_pose_source
-map-projected center vs GigaPose center
-map-projected depth vs GigaPose depth
-map-projected center vs detector bbox center
-session_lidar_offset z handling
-metadata projection model, including plumb_bob and equidistant
-
-For stereo-left, I’d first run the less strict/depth-based version:
-
-```bash
-python -m fine_tuning.filter_selected_samples_for_optimization \
-  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
-  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed_new \
-  --map-z-mode session_lidar_offset \
-  --projection-model metadata \
-  --max-depth-diff-m 15 \
-  --max-relative-depth-diff 0.25 \
-  --max-center-diff-px 150 \
-  --max-bbox-center-diff-px 120 
-  
-  ```
-
-It writes:
-selected_samples_clean.csv
-rejected_samples.csv
-all_sample_diagnostics.csv
-filter_report.json -->
-
-
-
-
-If you want to be stricter and use only true GT-style metadata, run:
-  ```bash
-python -m fine_tuning.filter_selected_samples_for_optimization \
-  --input gigaPose_datasets/results/real_world_data/combined_stereo_left_selected_samples.csv \
-  --output-dir gigaPose_datasets/results/real_world_data/stereo_left_filtered_gt_only \
-  --map-z-mode session_lidar_offset \
-  --projection-model metadata \
-  --reject-ground-truth-missing \
-  --allowed-export-pose-source ground_truth_pose \
-  --max-depth-diff-m 15 \
-  --max-relative-depth-diff 0.25 \
-  --max-center-diff-px 120 \
-  --max-bbox-center-diff-px 120
-
-
-  python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_gt_only/selected_samples_clean.csv \
-  --use-sample-metadata \
-  --epnp-map-pose-key T_map_object_raw \
-  --epnp-map-pose-unit auto \
-  --projection-model metadata \
-  --translation-residual-components xy \
-  --translation-sigma-mm 1000 \
-  --rotation-sigma-deg 10 \
-  --image-center-weight 5 \
-  --image-center-sigma-px 50 \
-  --image-center-map-z-mode session_lidar_offset \
-  --translation-prior-weight 5000 \
-  --rotation-prior-weight 100 \
-  --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_gt_only
-  ```
-
-
-Then optimize using the clean file:
-```bash
-python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed/selected_samples_clean.csv \
-  --use-sample-metadata \
-  --epnp-map-pose-key T_map_object_raw \
-  --epnp-map-pose-unit auto \
-  --projection-model metadata \
-  --translation-residual-components xy \
-  --translation-sigma-mm 1000 \
-  --rotation-sigma-deg 10 \
-  --image-center-weight 5 \
-  --image-center-sigma-px 50 \
-  --image-center-map-z-mode session_lidar_offset \
-  --translation-prior-weight 5000 \
-  --rotation-prior-weight 100 \
-  --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_relaxed_metadata
-  
-
-
-
-  python -m fine_tuning.optimize_camera_map_extrinsics \
-  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed_new/selected_samples_clean.csv \
-  --use-sample-metadata \
-  --epnp-map-pose-key T_map_object_raw \
-  --epnp-map-pose-unit auto \
-  --projection-model metadata \
-  --translation-residual-components xy \
-  --translation-sigma-mm 1000 \
-  --rotation-sigma-deg 10 \
-  --image-center-weight 5 \
-  --image-center-sigma-px 35 \
-  --image-center-map-z-mode session_lidar_offset \
-  --translation-prior-weight 5000 \
-  --rotation-prior-weight 50 \
-  --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_new_metadata
-  ```
-
-  
-
-  then, we can visualize: 
-  --projection-model metadata  
-  ```bash
-python -m fine_tuning.visualize_extrinsic_optimization_on_images \
-  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_relaxed_new/selected_samples_clean.csv \
-  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_new_metadata \
-  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_new_metadata/image_overlays_metadata_projection \
-  --map-z-mode session_lidar_offset \
-  --projection-model metadata \
-  --draw-gigapose \
-  --draw-detection-bbox \
-  --write-debug-projections \
-  --max-images 100
-
-
-  python -m fine_tuning.visualize_extrinsic_optimization_on_images \
-  --selected-samples gigaPose_datasets/results/real_world_data/stereo_left_filtered_gt_only/selected_samples_clean.csv \
-  --optimization-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_gt_only \
-  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --output-dir gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_gt_only/image_overlays_metadata_projection_pinhole \
-  --map-z-mode session_lidar_offset \
-  --projection-model pinhole \
-  --draw-gigapose \
-  --draw-detection-bbox \
-  --write-debug-projections \
-  --max-images 100
-  ```
-
-
-
-final folders for the optimized extrinsics are: 
-Front: gigapose/gigaPose_datasets/results/real_world_data/extrinsic_optimization_front_metadata_xy_session_z_ggod
-Rear: gigapose/gigaPose_datasets/results/real_world_data/extrinsic_optimization_rear_metadata_xy_session_z_good?
-Stereo_left: gigapose/gigaPose_datasets/results/real_world_data/extrinsic_optimization_stereo_left_filtered_relaxed_metadata_good 
