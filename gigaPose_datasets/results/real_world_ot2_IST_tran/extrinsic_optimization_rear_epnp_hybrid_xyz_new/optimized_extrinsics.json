@@ -1,0 +1,80 @@
+{
+  "description": "Optimized map-to-camera extrinsic correction from selected GigaPose/EPnPv2 samples.",
+  "translation_unit": "mm",
+  "target_pose_source": "T_map_object_raw",
+  "camera_pose_source": "T_camera_object_centered",
+  "epnp_label_root_override": null,
+  "epnp_label_dir_name": "EPnPv2_gt_mesh_z_hybrid_labels",
+  "optimization_mode": "epnp_label_camera_extrinsics",
+  "T_map_cam_initial": null,
+  "T_correction_left_multiply": [
+    [
+      0.9999994852865216,
+      0.000564102798415837,
+      0.0008433354757504487,
+      -0.06566950370788381
+    ],
+    [
+      -0.0005634186449224162,
+      0.9999995122043664,
+      -0.000811264728465285,
+      -0.23887532873542913
+    ],
+    [
+      -0.0008437927010786491,
+      0.0008107891599654536,
+      0.9999993153171735,
+      1.1206189438822787
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "T_map_cam_optimized": null,
+  "T_lidar_camera_correction_left_multiply": null,
+  "T_epnp_label_camera_correction_left_multiply": [
+    [
+      0.9999994852865216,
+      0.000564102798415837,
+      0.0008433354757504487,
+      -0.06566950370788381
+    ],
+    [
+      -0.0005634186449224162,
+      0.9999995122043664,
+      -0.000811264728465285,
+      -0.23887532873542913
+    ],
+    [
+      -0.0008437927010786491,
+      0.0008107891599654536,
+      0.9999993153171735,
+      1.1206189438822787
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "correction_rotation_rpy_like_vector_rad": [
+    0.0008110271722751333,
+    0.0008435643256237172,
+    -0.0005637608801979376
+  ],
+  "correction_translation_mm": [
+    -0.06566950370788381,
+    -0.23887532873542913,
+    1.1206189438822787
+  ],
+  "image_center_weight": 5.0,
+  "image_center_sigma_px": 50.0,
+  "image_center_map_z_mode": "raw",
+  "session_z_scale": 1.0,
+  "projection_model": "metadata",
+  "note": "EPnP-label-extrinsics mode: for each frame, derive T_map_cam_initial_i = T_map_object_raw_i @ inv(T_camera_object_i), then apply T_map_cam_optimized_i = T_epnp_label_camera_correction_left_multiply @ T_map_cam_initial_i."
+}
