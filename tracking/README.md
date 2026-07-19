@@ -143,14 +143,14 @@ Example using the included Assetto inference paths:
 
 ```bash
 python -m tracking.run_tracking \
-  --predictions gigaPose_datasets/results/large_assettocorsa_assettocorsa_inference_run/predictions/large-pbrreal-rgb-mmodel_assettocorsa_inference-test_assettocorsa_assettocorsa_inference_runMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_inference \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
   --split test \
-  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
   --config tracking/configs/default.json \
   --output-dir gigaPose_datasets/results/tracking_smoke \
-  --max-frames 20 \
+  --max-frames 100 \
   --save-overlays \
+  --no-depth \
   --overwrite
 ```
 
