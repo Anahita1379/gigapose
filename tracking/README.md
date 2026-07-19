@@ -166,7 +166,8 @@ treated as zero error.
 
 Inspect:
 
-- `overlays/*.jpg`: colored CAD silhouette/edge, yellow observed detection bbox;
+- `overlays/*.jpg`: red original top-1 GigaPose CAD/bbox, green tracked
+  CAD/bbox, and yellow observed detection bbox;
 - `tracked_predictions.csv`: final pose and tracking confidence;
 - `candidate_diagnostics.csv`: state, source, all evidence terms, timing;
 - `resolved_tracker_config.json`: exact settings used;
@@ -177,6 +178,11 @@ The overlay label is:
 ```text
 T<track id> <state> <confidence> <winning hypothesis source>
 ```
+
+The red GigaPose bbox is derived from the CAD silhouette rendered at the raw
+top-1 GigaPose pose because the standard MultiHypothesis CSV does not contain a
+bbox column. The green bbox is derived from the final tracked CAD silhouette.
+This makes center, depth/scale, and rotation changes directly visible.
 
 ## Step 3: tune deterministic recovery before learning
 

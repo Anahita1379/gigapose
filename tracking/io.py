@@ -190,14 +190,21 @@ class WebDatasetSequence:
         if not frame_map_path.is_file():
             raise FileNotFoundError(f"Missing sequential frame map: {frame_map_path}")
         rows = json.loads(frame_map_path.read_text())
+        mapping_path = self.split_dir / "key_to_shard.json"
+        self.key_to_shard = (
+            json.loads(mapping_path.read_text()) if mapping_path.is_file() else {}
+        )
         self.rows = [
             row
             for row in rows
-            if scene_id is None or int(row["scene_id"]) == int(scene_id)
+            if (scene_id is None or int(row["scene_id"]) == int(scene_id))
+            and (
+                not self.key_to_shard
+                or f"{int(row['scene_id']):06d}_{int(row['im_id']):06d}"
+                in self.key_to_shard
+            )
         ]
         self.rows.sort(key=lambda row: (int(row["scene_id"]), int(row["im_id"])))
-        mapping_path = self.split_dir / "key_to_shard.json"
-        self.key_to_shard = json.loads(mapping_path.read_text()) if mapping_path.is_file() else {}
 
     def __len__(self) -> int:
         return len(self.rows)

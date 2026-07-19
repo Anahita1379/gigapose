@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,7 @@ from tracking.geometry import (
 )
 from tracking.io import (
     PredictionCSVProvider,
+    WebDatasetSequence,
     decode_uncompressed_rle,
     merge_prediction_group_sets,
 )
@@ -26,6 +28,7 @@ from tracking.refinement import CandidateRefiner
 from tracking.scoring import CandidateScorer
 from tracking.tracker import AdaptivePoseTracker
 from tracking.types import Detection, FrameData, PoseHypothesis, Track, TrackMode
+from tracking.visualization import save_tracking_overlay
 
 
 class SquareRenderer:
@@ -74,6 +77,28 @@ class GeometryTests(unittest.TestCase):
 
 
 class PredictionIOTests(unittest.TestCase):
+    def test_webdataset_sequence_excludes_keys_removed_from_split(self):
+        with tempfile.TemporaryDirectory() as folder:
+            dataset_dir = Path(folder)
+            split_dir = dataset_dir / "test"
+            split_dir.mkdir()
+            (dataset_dir / "frame_map.json").write_text(
+                json.dumps(
+                    [
+                        {"scene_id": 1, "im_id": 1},
+                        {"scene_id": 1, "im_id": 2},
+                    ]
+                )
+            )
+            (split_dir / "key_to_shard.json").write_text(
+                json.dumps({"000001_000001": 0})
+            )
+
+            sequence = WebDatasetSequence(dataset_dir, "test", load_depth=False)
+
+            self.assertEqual(len(sequence), 1)
+            self.assertEqual(int(sequence.rows[0]["im_id"]), 1)
+
     def test_multi_hypothesis_grouping_and_mm_conversion(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "predictions.csv"
@@ -189,6 +214,35 @@ class ScoringAndTrackerTests(unittest.TestCase):
         second = tracker.process_frame(second_frame, [])
         self.assertEqual(len(second.instances), 1)
         self.assertEqual(first.instances[0].track.track_id, second.instances[0].track.track_id)
+
+    def test_overlay_compares_original_and_tracked_cad(self):
+        config = TrackerConfig()
+        config.refinement.lost_iterations = 0
+        config.hypotheses.add_flip_when_uncertain = False
+        scorer = CandidateScorer(SquareRenderer(), config)
+        tracker = AdaptivePoseTracker(config, CandidateRefiner(scorer, config))
+        original = PoseHypothesis(
+            pose_from_rt(np.eye(3), [0, 0, 1]),
+            "gigapose",
+            0.9,
+        )
+        result = tracker.process_frame(self.frame, [[original]])
+        original_mask, _ = SquareRenderer().render(
+            original.pose, self.K, self.frame.image.shape[:2]
+        )
+
+        with tempfile.TemporaryDirectory() as folder:
+            output_path = Path(folder) / "overlay.png"
+            save_tracking_overlay(
+                self.frame,
+                result,
+                output_path,
+                original_gigapose={0: (original, original_mask)},
+            )
+
+            output = cv2.imread(str(output_path))
+            self.assertIsNotNone(output)
+            self.assertEqual(output.shape[:2], self.frame.image.shape[:2])
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import torch
 
+from tracking.association import assign_prediction_groups
 from tracking.config import TrackerConfig
 from tracking.io import (
     PredictionCSVProvider,
@@ -157,9 +158,12 @@ def main() -> None:
             if args.max_frames is not None and frame_index >= args.max_frames:
                 break
             frames_processed += 1
+            gigapose_groups = predictions.groups_for_frame(
+                frame.scene_id, frame.im_id
+            )
             groups = merge_prediction_group_sets(
                 [
-                    predictions.groups_for_frame(frame.scene_id, frame.im_id),
+                    gigapose_groups,
                     *[
                         provider.groups_for_frame(frame.scene_id, frame.im_id)
                         for provider in auxiliary_predictions
@@ -184,12 +188,35 @@ def main() -> None:
                     )
                 )
             if args.save_overlays and frame_index % args.overlay_every == 0:
+                original_assignments = assign_prediction_groups(
+                    gigapose_groups,
+                    frame.detections,
+                    frame.K,
+                    frame.image.shape[:2],
+                )
+                original_gigapose = {}
+                for detection_index, group in original_assignments.items():
+                    if not group:
+                        continue
+                    original_mask, _ = renderer.render(
+                        group[0].pose,
+                        frame.K,
+                        frame.image.shape[:2],
+                    )
+                    detection_id = int(
+                        frame.detections[detection_index].detection_id
+                    )
+                    original_gigapose[detection_id] = (
+                        group[0],
+                        original_mask,
+                    )
                 save_tracking_overlay(
                     frame,
                     result,
                     args.output_dir
                     / "overlays"
                     / f"{frame.scene_id:06d}_{frame.im_id:06d}.jpg",
+                    original_gigapose=original_gigapose,
                 )
             if (frame_index + 1) % 25 == 0 or frame_index + 1 == total_frames:
                 print(f"tracked {frame_index + 1}/{total_frames} frames")
