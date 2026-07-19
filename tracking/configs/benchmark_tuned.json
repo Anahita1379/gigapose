@@ -1,0 +1,75 @@
+{
+  "score": {
+    "feature": 0.15,
+    "silhouette": 2.0,
+    "edge": 0.75,
+    "depth": 0.5,
+    "bbox": 0.75,
+    "motion": 0.12
+  },
+  "state": {
+    "high_confidence": 0.67,
+    "low_confidence": 0.35,
+    "lost_after_misses": 2,
+    "delete_after_misses": 12,
+    "safety_interval": 15,
+    "min_score_margin": 0.03,
+    "max_track_age_without_global": 30
+  },
+  "hypotheses": {
+    "top_k_relocalization": 5,
+    "top_k_uncertain": 3,
+    "add_flip_when_uncertain": true,
+    "flip_axis": "z",
+    "center_offsets_px": [-24.0, 24.0],
+    "log_depth_offsets": [-0.12, 0.12],
+    "translation_offsets_m": [-0.2, 0.2],
+    "yaw_offsets_deg": [-8.0, 8.0],
+    "deduplicate_translation_m": 0.02,
+    "deduplicate_rotation_deg": 1.0
+  },
+  "refinement": {
+    "normal_iterations": 1,
+    "uncertain_iterations": 2,
+    "lost_iterations": 3,
+    "normal_beam": 1,
+    "uncertain_beam": 2,
+    "lost_beam": 3,
+    "center_step_px": 12.0,
+    "log_depth_step": 0.06,
+    "rotation_step_deg": 4.0,
+    "step_decay": 0.55,
+    "refine_full_rotation": false
+  },
+  "flow": {
+    "enabled": true,
+    "max_corners": 160,
+    "quality_level": 0.01,
+    "min_distance_px": 5.0,
+    "window_size": 21,
+    "pyramid_levels": 3,
+    "min_points": 8,
+    "ransac_threshold_px": 3.0,
+    "min_inlier_ratio": 0.35
+  },
+  "association": {
+    "iou_weight": 0.65,
+    "center_weight": 0.35,
+    "max_center_distance_frac": 0.3,
+    "min_iou": 0.01,
+    "max_cost": 0.95
+  },
+  "temporal": {
+    "window_size": 5,
+    "robust_velocity": true
+  },
+  "render_scale": 0.5,
+  "render_crop_padding_frac": 0.75,
+  "render_crop_min_side_px": 96,
+  "min_render_pixels": 20,
+  "max_edge_distance_px": 50.0,
+  "depth_truncation_m": 3.0,
+  "motion_translation_scale_m": 1.5,
+  "motion_rotation_scale_deg": 35.0,
+  "reset_on_scene_change": true
+}
