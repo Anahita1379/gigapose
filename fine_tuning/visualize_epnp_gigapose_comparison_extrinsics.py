@@ -1,23 +1,25 @@
-"""Visualize extrinsics-corrected EPnP and GigaPose poses without frame mixing.
+"""Visualize extrinsics-corrected EPnP and aligned GigaPose poses.
 
 This is the extrinsics-aware counterpart of
 ``fine_tuning.visualize_epnp_gigapose_comparison``. The original visualizer is
 left unchanged.
 
-The candidate selector compares poses after an optional frame alignment:
+The candidate selector compares poses after an empirical frame alignment:
 
     right alignment: T_gigapose_aligned = T_gigapose_raw @ X
 
-For a right-side alignment, directly rendering the original GigaPose CAD with
-``T_gigapose_aligned`` is incorrect because that pose expects points in the
-EPnP object frame. This visualizer instead renders both boxes in the native
-GigaPose CAD frame:
+That fitted ``X`` may absorb prediction bias as well as a true object-frame
+difference. In particular, it can contain metres of translation, so it must
+not be treated as a physical CAD-coordinate transform.
 
-    GigaPose: T_gigapose_raw
-    EPnP:     T_epnp_corrected @ inv(X)
+This visualizer explicitly centers the CAD vertices and renders both comparison
+poses in the centered object convention:
 
-The transform is recovered exactly from each CSV row's raw and aligned
-GigaPose poses, so the normal command does not need another transform file.
+    GigaPose: T_gigapose_aligned
+    EPnP:     T_epnp_corrected
+
+The raw/aligned poses are still used to reconstruct and validate ``X`` for
+diagnostics, but ``X`` is never applied to mesh vertices or the EPnP pose.
 """
 
 from __future__ import annotations
@@ -82,11 +84,11 @@ def aligned_pose_for_row(row: dict[str, str]) -> np.ndarray:
     return base.text_to_matrix(value)
 
 
-def native_cad_poses(
+def centered_comparison_poses(
     row: dict[str, str],
     frame_transform_side: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-    """Return raw GigaPose, corrected EPnP, alignment X, and consistency error."""
+    """Return aligned GigaPose, corrected EPnP, X, and consistency error."""
 
     raw_value = row.get("T_gigapose_cam_obj")
     epnp_value = row.get("T_epnp_obj")
@@ -101,23 +103,17 @@ def native_cad_poses(
 
     if frame_transform_side == "right":
         X = np.linalg.inv(T_raw) @ T_aligned
-        T_epnp_native = T_epnp @ np.linalg.inv(X)
         reconstructed = T_raw @ X
-        T_gigapose_native = T_raw
     elif frame_transform_side == "left":
         X = T_aligned @ np.linalg.inv(T_raw)
-        # A left transform changes the camera-frame convention rather than the
-        # object/CAD convention. Render the aligned prediction and EPnP pose.
-        T_epnp_native = T_epnp
         reconstructed = X @ T_raw
-        T_gigapose_native = T_aligned
     else:
         raise ValueError(
             f"Unknown frame-transform side: {frame_transform_side!r}"
         )
 
     consistency = float(np.max(np.abs(reconstructed - T_aligned)))
-    return T_gigapose_native, T_epnp_native, X, consistency
+    return T_aligned, T_epnp, X, consistency
 
 
 def keep_row(row: dict[str, str], args: argparse.Namespace) -> bool:
@@ -138,7 +134,16 @@ def main() -> None:
     vertices_mm = base.read_ply_vertices(mesh_path)
     if vertices_mm is None:
         raise ValueError(f"Could not read mesh vertices from {mesh_path}")
-    corners_mm = base.bbox_corners_from_vertices(vertices_mm)
+    mesh_min_mm = vertices_mm.min(axis=0)
+    mesh_max_mm = vertices_mm.max(axis=0)
+    mesh_center_mm = 0.5 * (mesh_min_mm + mesh_max_mm)
+    centered_vertices_mm = vertices_mm - mesh_center_mm.reshape(1, 3)
+    centered_corners_mm = base.bbox_corners_from_vertices(centered_vertices_mm)
+    print(
+        "Centering CAD for EPnP/aligned-pose visualization by",
+        mesh_center_mm.tolist(),
+        "mm",
+    )
 
     frame_map = base.load_frame_map(args.dataset_dir)
     rows = base.read_rows(args.candidate_csv)
@@ -158,7 +163,7 @@ def main() -> None:
             args.dataset_dir, args.split, scene_id, im_id, frame_info
         )
         K = base.load_camera_K(args.dataset_dir, args.split, scene_id, im_id)
-        T_gigapose, T_epnp, X, consistency = native_cad_poses(
+        T_gigapose, T_epnp, X, consistency = centered_comparison_poses(
             row, args.frame_transform_side
         )
         if consistency > 1e-5:
@@ -170,21 +175,21 @@ def main() -> None:
         draw = ImageDraw.Draw(image)
         base.draw_projected_box(
             draw,
-            corners_mm,
+            centered_corners_mm,
             T_epnp,
             K,
             base.EPNP_COLOR,
-            "EPnPv2 corrected (native GigaPose CAD frame)",
+            "EPnPv2 corrected (centered CAD)",
             0,
         )
         base.draw_projected_box(
             draw,
-            corners_mm,
+            centered_corners_mm,
             T_gigapose,
             K,
             base.GIGAPOSE_COLOR,
             (
-                f"GigaPose raw CAD: aligned t="
+                f"GigaPose aligned (centered CAD): t="
                 f"{float(row['translation_error_mm']):.0f}mm "
                 f"R={float(row['rotation_error_deg']):.1f}deg "
                 f"score={float(row['score']):.3f}"
@@ -234,6 +239,9 @@ def main() -> None:
                     np.linalg.norm(X[:3, 3])
                 ),
                 "frame_transform_reconstruction_max_abs": consistency,
+                "mesh_center_x_mm": float(mesh_center_mm[0]),
+                "mesh_center_y_mm": float(mesh_center_mm[1]),
+                "mesh_center_z_mm": float(mesh_center_mm[2]),
                 "epnp_label_path": row.get("epnp_label_path", ""),
                 "bbox_match_mode": (
                     args.bbox_match_mode if args.draw_mask_bbox else ""
@@ -257,6 +265,9 @@ def main() -> None:
         "frame_transform_side",
         "frame_transform_translation_norm_mm",
         "frame_transform_reconstruction_max_abs",
+        "mesh_center_x_mm",
+        "mesh_center_y_mm",
+        "mesh_center_z_mm",
         "epnp_label_path",
         "bbox_match_mode",
         "bbox_match_index",
@@ -269,7 +280,7 @@ def main() -> None:
         writer.writerows(index_rows)
 
     print(
-        f"Wrote {len(index_rows)} native-CAD EPnPv2/GigaPose overlays to "
+        f"Wrote {len(index_rows)} centered-CAD EPnPv2/GigaPose overlays to "
         f"{args.output_dir} ({len(rows)} visualized after filters from "
         f"{input_row_count} input rows)"
     )
