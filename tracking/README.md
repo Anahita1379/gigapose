@@ -355,7 +355,7 @@ from a split containing BOP GT:
 python -m tracking.generate_recovery_dataset \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
   --split train_pbr_web_gsam_clean \
-  --mesh gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --mesh gigaPose_datasets/datasets/assettocorsa_new_dataset/models/obj_000001.ply \
   --output gigaPose_datasets/results/tracking_recovery_data/train.npz \
   --max-frames 100 \
   --perturbations-per-instance 10
@@ -369,6 +369,19 @@ python -m tracking.generate_recovery_dataset \
   --perturbations-per-instance 12
 ```
 <!-- --max-frames 1000 \ -->
+
+For an independent validation set, generate a second file from the prepared
+validation split using the same mesh, scoring configuration, and perturbation
+count:
+
+```bash
+python -m tracking.generate_recovery_dataset \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
+  --split val_pbr_web_gsam_clean \
+  --mesh gigaPose_datasets/datasets/assettocorsa_new_dataset/models/obj_000001.ply \
+  --output gigaPose_datasets/results/tracking_recovery_data/val.npz \
+  --perturbations-per-instance 10
+```
 
 This deliberately creates:
 
@@ -398,6 +411,7 @@ Train it:
 ```bash
 python -m tracking.train_recovery \
   --data gigaPose_datasets/results/tracking_recovery_data/train.npz \
+  --validation-data gigaPose_datasets/results/tracking_recovery_data/val.npz \
   --output-dir gigaPose_datasets/results/tracking_recovery_head \
   --epochs 100 \
   --groups-per-batch 24 \
@@ -407,8 +421,18 @@ python -m tracking.train_recovery \
   
 ```
 
+With `--validation-data`, every group in `train.npz` is used for optimization
+and every group in `val.npz` is used only for validation, checkpoint selection,
+and early stopping. Validation features are normalized with statistics
+computed only from the training file. Local `group_id` values may overlap
+between the two files; the trainer remaps them into disjoint ranges.
+
+If `--validation-data` is omitted, the backward-compatible behavior remains:
+`--validation-fraction 0.15` holds out 15 percent of the training file's
+instance groups.
+
 `best.ckpt` is selected by the complete validation recovery objective;
-`last.ckpt` is always the latest epoch. The train/validation split is by object
+`last.ckpt` is always the latest epoch. Internal splitting is by object
 instance group, so perturbations of one instance cannot leak across splits.
 
 Then enable the learned correction:

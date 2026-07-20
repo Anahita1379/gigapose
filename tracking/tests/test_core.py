@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -31,6 +32,8 @@ from tracking.recovery import FEATURE_NAMES, RecoveryPredictor
 from tracking.run_tracking import _apply_config_overrides
 from tracking.scoring import CandidateScorer
 from tracking.tracker import AdaptivePoseTracker
+from tracking.train_recovery import _prepare_recovery_data
+from tracking.train_recovery import main as train_recovery_main
 from tracking.types import Detection, FrameData, PoseHypothesis, Track, TrackMode
 from tracking.visualization import save_tracking_overlay
 
@@ -243,6 +246,105 @@ class ConfigurationTests(unittest.TestCase):
                     use_external_ids=True,
                 ),
             )
+
+
+class RecoveryDataTests(unittest.TestCase):
+    @staticmethod
+    def write_dataset(path, group_ids, feature_value):
+        group_ids = np.asarray(group_ids, dtype=np.int64)
+        sample_count = len(group_ids)
+        np.savez_compressed(
+            path,
+            features=np.full(
+                (sample_count, len(FEATURE_NAMES)),
+                feature_value,
+                dtype=np.float32,
+            ),
+            rotation_targets=np.zeros(
+                (sample_count, 3), dtype=np.float32
+            ),
+            translation_targets=np.zeros(
+                (sample_count, 3), dtype=np.float32
+            ),
+            confidence_targets=np.ones(sample_count, dtype=np.float32),
+            quality_targets=np.zeros(sample_count, dtype=np.float32),
+            group_ids=group_ids,
+            feature_names=np.asarray(FEATURE_NAMES),
+        )
+
+    def test_external_validation_data_remains_disjoint_with_overlapping_ids(self):
+        with tempfile.TemporaryDirectory() as folder:
+            training_path = Path(folder) / "train.npz"
+            validation_path = Path(folder) / "val.npz"
+            self.write_dataset(training_path, [0, 0, 1, 1], 1.0)
+            # A separately generated file starts its local IDs at zero again.
+            self.write_dataset(validation_path, [0, 0], 9.0)
+            arrays, training_groups, validation_groups, metadata = (
+                _prepare_recovery_data(
+                    training_path,
+                    validation_path,
+                    0.15,
+                    np.random.default_rng(7),
+                )
+            )
+            self.assertTrue(
+                set(training_groups).isdisjoint(set(validation_groups))
+            )
+            training_mask = np.isin(
+                arrays["group_ids"], training_groups
+            )
+            validation_mask = np.isin(
+                arrays["group_ids"], validation_groups
+            )
+            self.assertEqual(int(training_mask.sum()), 4)
+            self.assertEqual(int(validation_mask.sum()), 2)
+            self.assertTrue(
+                np.all(arrays["features"][training_mask] == 1.0)
+            )
+            self.assertTrue(
+                np.all(arrays["features"][validation_mask] == 9.0)
+            )
+            self.assertEqual(
+                metadata["validation_strategy"], "external_dataset"
+            )
+
+    def test_external_validation_training_writes_checkpoints_and_report(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            training_path = root / "train.npz"
+            validation_path = root / "val.npz"
+            output_dir = root / "output"
+            self.write_dataset(training_path, [0, 0, 1, 1], 1.0)
+            self.write_dataset(validation_path, [0, 0], 2.0)
+            argv = [
+                "tracking.train_recovery",
+                "--data",
+                str(training_path),
+                "--validation-data",
+                str(validation_path),
+                "--output-dir",
+                str(output_dir),
+                "--epochs",
+                "1",
+                "--groups-per-batch",
+                "1",
+                "--hidden-dim",
+                "8",
+                "--device",
+                "cpu",
+            ]
+            with patch("sys.argv", argv):
+                train_recovery_main()
+            self.assertTrue((output_dir / "best.ckpt").is_file())
+            self.assertTrue((output_dir / "last.ckpt").is_file())
+            report = json.loads(
+                (output_dir / "run_report.json").read_text()
+            )
+            self.assertEqual(
+                report["validation_strategy"], "external_dataset"
+            )
+            self.assertEqual(report["training_candidates"], 4)
+            self.assertEqual(report["validation_candidates"], 2)
 
 
 class FlowAndAssociationTests(unittest.TestCase):

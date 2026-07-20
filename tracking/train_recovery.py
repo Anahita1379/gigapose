@@ -14,9 +14,28 @@ from torch import nn
 from tracking.recovery import FEATURE_NAMES, PoseRecoveryHead, bounded_vector
 
 
+REQUIRED_ARRAYS = (
+    "features",
+    "rotation_targets",
+    "translation_targets",
+    "confidence_targets",
+    "quality_targets",
+    "group_ids",
+)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--data", type=Path, required=True)
+    parser.add_argument(
+        "--validation-data",
+        type=Path,
+        default=None,
+        help=(
+            "Optional independently generated validation NPZ. When omitted, "
+            "--validation-fraction is held out from --data by instance group."
+        ),
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--hidden-dim", type=int, default=128)
     parser.add_argument("--epochs", type=int, default=100)
@@ -37,6 +56,152 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, default=20260717)
     parser.add_argument("--device", default="cuda")
     return parser.parse_args()
+
+
+def _load_recovery_data(path: Path) -> dict[str, np.ndarray]:
+    with np.load(path) as payload:
+        missing = [name for name in REQUIRED_ARRAYS if name not in payload.files]
+        if missing:
+            raise ValueError(f"{path} is missing arrays: {missing}")
+        if "feature_names" not in payload.files:
+            raise ValueError(f"{path} is missing feature_names.")
+        names = tuple(str(value) for value in payload["feature_names"])
+        if names != FEATURE_NAMES:
+            raise ValueError(
+                f"{path} feature definition differs from tracking.recovery."
+            )
+        arrays = {
+            name: np.asarray(payload[name]).copy() for name in REQUIRED_ARRAYS
+        }
+    sample_count = int(arrays["features"].shape[0])
+    if sample_count == 0:
+        raise ValueError(f"{path} contains no recovery candidates.")
+    inconsistent = {
+        name: int(value.shape[0])
+        for name, value in arrays.items()
+        if int(value.shape[0]) != sample_count
+    }
+    if inconsistent:
+        raise ValueError(
+            f"{path} has inconsistent candidate counts: "
+            f"features={sample_count}, others={inconsistent}"
+        )
+    if arrays["features"].ndim != 2 or arrays["features"].shape[1] != len(
+        FEATURE_NAMES
+    ):
+        raise ValueError(
+            f"{path} features must have shape (N, {len(FEATURE_NAMES)})."
+        )
+    if arrays["rotation_targets"].shape != (sample_count, 3):
+        raise ValueError(f"{path} rotation_targets must have shape (N, 3).")
+    if arrays["translation_targets"].shape != (sample_count, 3):
+        raise ValueError(f"{path} translation_targets must have shape (N, 3).")
+    arrays["confidence_targets"] = np.asarray(
+        arrays["confidence_targets"], dtype=np.float32
+    ).reshape(-1)
+    arrays["quality_targets"] = np.asarray(
+        arrays["quality_targets"], dtype=np.float32
+    ).reshape(-1)
+    if arrays["confidence_targets"].shape != (sample_count,):
+        raise ValueError(f"{path} confidence_targets must have shape (N,).")
+    if arrays["quality_targets"].shape != (sample_count,):
+        raise ValueError(f"{path} quality_targets must have shape (N,).")
+    arrays["group_ids"] = np.asarray(
+        arrays["group_ids"], dtype=np.int64
+    ).reshape(-1)
+    for name in (
+        "features",
+        "rotation_targets",
+        "translation_targets",
+        "confidence_targets",
+        "quality_targets",
+    ):
+        if not np.isfinite(arrays[name]).all():
+            raise ValueError(f"{path} contains non-finite values in {name}.")
+    if np.unique(arrays["group_ids"]).size == 0:
+        raise ValueError(f"{path} contains no instance groups.")
+    return arrays
+
+
+def _remap_groups(
+    group_ids: np.ndarray, start: int
+) -> tuple[np.ndarray, np.ndarray]:
+    _, inverse = np.unique(group_ids, return_inverse=True)
+    remapped = inverse.astype(np.int64) + int(start)
+    groups = np.arange(
+        start,
+        start + int(np.max(inverse)) + 1,
+        dtype=np.int64,
+    )
+    return remapped, groups
+
+
+def _prepare_recovery_data(
+    training_path: Path,
+    validation_path: Path | None,
+    validation_fraction: float,
+    rng: np.random.Generator,
+) -> tuple[
+    dict[str, np.ndarray],
+    np.ndarray,
+    np.ndarray,
+    dict[str, object],
+]:
+    training = _load_recovery_data(training_path)
+    if validation_path is None:
+        if not 0 < validation_fraction < 1:
+            raise ValueError(
+                "--validation-fraction must be in (0, 1) when "
+                "--validation-data is omitted."
+            )
+        arrays = training
+        unique_groups = np.unique(arrays["group_ids"])
+        rng.shuffle(unique_groups)
+        validation_count = max(
+            1, int(round(len(unique_groups) * validation_fraction))
+        )
+        validation_groups = unique_groups[:validation_count]
+        training_groups = unique_groups[validation_count:]
+        if training_groups.size == 0:
+            raise ValueError("Not enough groups for a train/validation split.")
+        metadata: dict[str, object] = {
+            "validation_strategy": "internal_group_holdout",
+            "training_data": str(training_path),
+            "validation_data": None,
+            "training_candidates": int(
+                np.isin(arrays["group_ids"], training_groups).sum()
+            ),
+            "validation_candidates": int(
+                np.isin(arrays["group_ids"], validation_groups).sum()
+            ),
+        }
+        return arrays, training_groups, validation_groups, metadata
+
+    if training_path.resolve() == validation_path.resolve():
+        raise ValueError(
+            "--validation-data must be a different file from --data."
+        )
+    validation = _load_recovery_data(validation_path)
+    training_ids, training_groups = _remap_groups(
+        training["group_ids"], start=0
+    )
+    validation_ids, validation_groups = _remap_groups(
+        validation["group_ids"], start=len(training_groups)
+    )
+    training["group_ids"] = training_ids
+    validation["group_ids"] = validation_ids
+    arrays = {
+        name: np.concatenate([training[name], validation[name]], axis=0)
+        for name in REQUIRED_ARRAYS
+    }
+    metadata = {
+        "validation_strategy": "external_dataset",
+        "training_data": str(training_path),
+        "validation_data": str(validation_path),
+        "training_candidates": int(training["features"].shape[0]),
+        "validation_candidates": int(validation["features"].shape[0]),
+    }
+    return arrays, training_groups, validation_groups, metadata
 
 
 def _group_batches(
@@ -125,18 +290,22 @@ def main() -> None:
     rng = np.random.default_rng(args.seed)
     if args.device.startswith("cuda") and not torch.cuda.is_available():
         args.device = "cpu"
-    payload = np.load(args.data)
-    names = tuple(str(value) for value in payload["feature_names"])
-    if names != FEATURE_NAMES:
-        raise ValueError("Input feature definition differs from tracking.recovery.")
-    arrays = {name: payload[name] for name in payload.files}
-    unique_groups = np.unique(arrays["group_ids"])
-    rng.shuffle(unique_groups)
-    validation_count = max(1, int(round(len(unique_groups) * args.validation_fraction)))
-    validation_groups = unique_groups[:validation_count]
-    training_groups = unique_groups[validation_count:]
-    if training_groups.size == 0:
-        raise ValueError("Not enough groups for a train/validation split.")
+    arrays, training_groups, validation_groups, data_metadata = (
+        _prepare_recovery_data(
+            args.data,
+            args.validation_data,
+            args.validation_fraction,
+            rng,
+        )
+    )
+    print(
+        "Recovery data: "
+        f"strategy={data_metadata['validation_strategy']} "
+        f"train_candidates={data_metadata['training_candidates']} "
+        f"train_groups={training_groups.size} "
+        f"validation_candidates={data_metadata['validation_candidates']} "
+        f"validation_groups={validation_groups.size}"
+    )
     training_mask = np.isin(arrays["group_ids"], training_groups)
     feature_mean = arrays["features"][training_mask].mean(axis=0)
     feature_std = arrays["features"][training_mask].std(axis=0)
@@ -208,6 +377,7 @@ def main() -> None:
                 "epoch": epoch,
                 "validation_loss": validation_loss,
                 "arguments": vars(args),
+                "data_metadata": data_metadata,
             },
             args.output_dir / name,
         )
@@ -236,6 +406,7 @@ def main() -> None:
         "epochs_completed": len(history),
         "training_groups": int(training_groups.size),
         "validation_groups": int(validation_groups.size),
+        **data_metadata,
         "best_checkpoint": str(args.output_dir / "best.ckpt"),
     }
     (args.output_dir / "run_report.json").write_text(json.dumps(report, indent=2))
