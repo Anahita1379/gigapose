@@ -6,6 +6,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
@@ -55,7 +56,64 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-translation-m", type=float, default=2.0)
     parser.add_argument("--seed", type=int, default=20260717)
     parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--logger",
+        choices=("none", "wandb"),
+        default="none",
+        help="Optional experiment logger. Local JSON/checkpoint saving always remains enabled.",
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="W&B run name. Defaults to the output directory name.",
+    )
+    parser.add_argument("--wandb-project", default="gigapose")
+    parser.add_argument("--wandb-entity", default=None)
+    parser.add_argument(
+        "--wandb-offline",
+        action="store_true",
+        help="Write an offline W&B run without uploading during training.",
+    )
     return parser.parse_args()
+
+
+def _wandb_safe_config(values: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: str(value) if isinstance(value, Path) else value
+        for key, value in values.items()
+    }
+
+
+def _initialize_wandb(
+    args: argparse.Namespace,
+    data_metadata: dict[str, object],
+    training_groups: int,
+    validation_groups: int,
+):
+    if args.logger != "wandb":
+        return None
+    try:
+        import wandb
+    except ImportError as exc:
+        raise ImportError(
+            "--logger wandb requires the 'wandb' package in this environment."
+        ) from exc
+    config = _wandb_safe_config(vars(args))
+    config.update(data_metadata)
+    config.update(
+        {
+            "training_groups": int(training_groups),
+            "validation_groups": int(validation_groups),
+        }
+    )
+    return wandb.init(
+        project=args.wandb_project,
+        entity=args.wandb_entity,
+        name=args.run_name or args.output_dir.name,
+        dir=str(args.output_dir),
+        mode="offline" if args.wandb_offline else "online",
+        config=config,
+    )
 
 
 def _load_recovery_data(path: Path) -> dict[str, np.ndarray]:
@@ -329,9 +387,22 @@ def main() -> None:
     stale = 0
     history = []
 
-    def run_groups(selected: np.ndarray, training: bool) -> float:
+    def run_groups(
+        selected: np.ndarray, training: bool
+    ) -> dict[str, float]:
         model.train(training)
-        epoch_losses = []
+        metric_sums = {
+            name: 0.0
+            for name in (
+                "rotation",
+                "translation",
+                "confidence",
+                "quality",
+                "ranking",
+                "total",
+            )
+        }
+        candidate_count = 0
         batches = _group_batches(
             arrays["group_ids"],
             selected,
@@ -345,7 +416,7 @@ def main() -> None:
             }
             with torch.set_grad_enabled(training):
                 output = model(batch["features"])
-                loss, _ = _loss(
+                loss, batch_metrics = _loss(
                     output,
                     batch["rotation"],
                     batch["translation"],
@@ -359,8 +430,16 @@ def main() -> None:
                     loss.backward()
                     nn.utils.clip_grad_norm_(model.parameters(), 5.0)
                     optimizer.step()
-            epoch_losses.append(float(loss.detach()))
-        return float(np.mean(epoch_losses))
+            batch_size = int(indices.size)
+            candidate_count += batch_size
+            for name, value in batch_metrics.items():
+                metric_sums[name] += value * batch_size
+        if candidate_count == 0:
+            raise RuntimeError("A recovery epoch contained no candidates.")
+        return {
+            name: value / candidate_count
+            for name, value in metric_sums.items()
+        }
 
     def save(name: str, epoch: int, validation_loss: float) -> None:
         torch.save(
@@ -382,35 +461,106 @@ def main() -> None:
             args.output_dir / name,
         )
 
-    for epoch in range(1, args.epochs + 1):
-        train_loss = run_groups(training_groups, True)
-        val_loss = run_groups(validation_groups, False)
-        history.append({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
-        save("last.ckpt", epoch, val_loss)
-        improved = val_loss < best_loss - args.min_delta
-        if improved:
-            best_loss, stale = val_loss, 0
-            save("best.ckpt", epoch, val_loss)
-        else:
-            stale += 1
-        print(
-            f"epoch={epoch:03d} train={train_loss:.6f} val={val_loss:.6f} "
-            f"best={best_loss:.6f} stale={stale}/{args.patience}"
+    wandb_run = _initialize_wandb(
+        args,
+        data_metadata,
+        int(training_groups.size),
+        int(validation_groups.size),
+    )
+    try:
+        for epoch in range(1, args.epochs + 1):
+            train_metrics = run_groups(training_groups, True)
+            validation_metrics = run_groups(validation_groups, False)
+            train_loss = train_metrics["total"]
+            val_loss = validation_metrics["total"]
+            history_row = {
+                "epoch": epoch,
+                "train_loss": train_loss,
+                "val_loss": val_loss,
+                **{
+                    f"train_{name}": value
+                    for name, value in train_metrics.items()
+                },
+                **{
+                    f"val_{name}": value
+                    for name, value in validation_metrics.items()
+                },
+            }
+            history.append(history_row)
+            save("last.ckpt", epoch, val_loss)
+            improved = val_loss < best_loss - args.min_delta
+            if improved:
+                best_loss, stale = val_loss, 0
+                save("best.ckpt", epoch, val_loss)
+            else:
+                stale += 1
+            if wandb_run is not None:
+                wandb_run.log(
+                    {
+                        "epoch": epoch,
+                        **{
+                            f"train/loss_{name}": value
+                            for name, value in train_metrics.items()
+                        },
+                        **{
+                            f"val/loss_{name}": value
+                            for name, value in validation_metrics.items()
+                        },
+                        "optimization/learning_rate": float(
+                            optimizer.param_groups[0]["lr"]
+                        ),
+                        "early_stopping/best_val_loss": best_loss,
+                        "early_stopping/stale_epochs": stale,
+                        "early_stopping/improved": int(improved),
+                    },
+                    step=epoch,
+                )
+            print(
+                f"epoch={epoch:03d} train={train_loss:.6f} "
+                f"val={val_loss:.6f} best={best_loss:.6f} "
+                f"stale={stale}/{args.patience}"
+            )
+            if stale >= args.patience:
+                print(
+                    "Early stopping: validation recovery objective "
+                    "stopped improving."
+                )
+                break
+        (args.output_dir / "history.json").write_text(
+            json.dumps(history, indent=2)
         )
-        if stale >= args.patience:
-            print("Early stopping: validation recovery objective stopped improving.")
-            break
-    (args.output_dir / "history.json").write_text(json.dumps(history, indent=2))
-    report = {
-        "best_validation_loss": best_loss,
-        "epochs_completed": len(history),
-        "training_groups": int(training_groups.size),
-        "validation_groups": int(validation_groups.size),
-        **data_metadata,
-        "best_checkpoint": str(args.output_dir / "best.ckpt"),
-    }
-    (args.output_dir / "run_report.json").write_text(json.dumps(report, indent=2))
-    print(json.dumps(report, indent=2))
+        report = {
+            "best_validation_loss": best_loss,
+            "epochs_completed": len(history),
+            "training_groups": int(training_groups.size),
+            "validation_groups": int(validation_groups.size),
+            **data_metadata,
+            "logger": args.logger,
+            "wandb_project": (
+                args.wandb_project if args.logger == "wandb" else None
+            ),
+            "wandb_run_name": (
+                args.run_name or args.output_dir.name
+                if args.logger == "wandb"
+                else None
+            ),
+            "best_checkpoint": str(args.output_dir / "best.ckpt"),
+        }
+        (args.output_dir / "run_report.json").write_text(
+            json.dumps(report, indent=2)
+        )
+        if wandb_run is not None:
+            wandb_run.summary.update(
+                {
+                    "best_validation_loss": best_loss,
+                    "epochs_completed": len(history),
+                    "best_checkpoint": str(args.output_dir / "best.ckpt"),
+                }
+            )
+        print(json.dumps(report, indent=2))
+    finally:
+        if wandb_run is not None:
+            wandb_run.finish()
 
 
 if __name__ == "__main__":

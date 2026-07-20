@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -109,6 +110,29 @@ class FixedRecoveryModel(torch.nn.Module):
             "confidence_logit": scalar,
             "quality": scalar,
         }
+
+
+class FakeWandbRun:
+    def __init__(self):
+        self.logs = []
+        self.summary = {}
+        self.finished = False
+
+    def log(self, values, step):
+        self.logs.append((dict(values), int(step)))
+
+    def finish(self):
+        self.finished = True
+
+
+class FakeWandbModule:
+    def __init__(self):
+        self.init_kwargs = None
+        self.run = FakeWandbRun()
+
+    def init(self, **kwargs):
+        self.init_kwargs = kwargs
+        return self.run
 
 
 def square_detection(center=(50, 50), radius=8):
@@ -332,9 +356,17 @@ class RecoveryDataTests(unittest.TestCase):
                 "8",
                 "--device",
                 "cpu",
+                "--logger",
+                "wandb",
+                "--run-name",
+                "recovery-unit-test",
+                "--wandb-project",
+                "gigapose-tests",
             ]
+            fake_wandb = FakeWandbModule()
             with patch("sys.argv", argv):
-                train_recovery_main()
+                with patch.dict(sys.modules, {"wandb": fake_wandb}):
+                    train_recovery_main()
             self.assertTrue((output_dir / "best.ckpt").is_file())
             self.assertTrue((output_dir / "last.ckpt").is_file())
             report = json.loads(
@@ -345,6 +377,16 @@ class RecoveryDataTests(unittest.TestCase):
             )
             self.assertEqual(report["training_candidates"], 4)
             self.assertEqual(report["validation_candidates"], 2)
+            self.assertEqual(report["logger"], "wandb")
+            self.assertEqual(
+                fake_wandb.init_kwargs["project"], "gigapose-tests"
+            )
+            self.assertEqual(len(fake_wandb.run.logs), 1)
+            logged, step = fake_wandb.run.logs[0]
+            self.assertEqual(step, 1)
+            self.assertIn("train/loss_translation", logged)
+            self.assertIn("val/loss_rotation", logged)
+            self.assertTrue(fake_wandb.run.finished)
 
 
 class FlowAndAssociationTests(unittest.TestCase):

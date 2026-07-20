@@ -417,7 +417,10 @@ python -m tracking.train_recovery \
   --groups-per-batch 24 \
   --learning-rate 2e-4 \
   --patience 15 \
-  --device cuda
+  --device cuda \
+  --logger wandb \
+  --run-name assettocorsa_tracking_recovery \
+  --wandb-project gigapose
   
 ```
 
@@ -430,6 +433,14 @@ between the two files; the trainer remaps them into disjoint ranges.
 If `--validation-data` is omitted, the backward-compatible behavior remains:
 `--validation-fraction 0.15` holds out 15 percent of the training file's
 instance groups.
+
+W&B logging is optional and imported only when `--logger wandb` is selected.
+Each epoch records total, rotation, translation, confidence, quality, and
+ranking losses separately under `train/*` and `val/*`, together with learning
+rate, best validation loss, improvement state, and stale-epoch count. Add
+`--wandb-offline` to keep the run local for later synchronization. Omitting
+`--logger wandb` preserves local-only behavior. Checkpoints remain in
+`--output-dir`; they are not uploaded as W&B artifacts automatically.
 
 `best.ckpt` is selected by the complete validation recovery objective;
 `last.ckpt` is always the latest epoch. Internal splitting is by object
