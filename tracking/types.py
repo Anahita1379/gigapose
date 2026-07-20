@@ -126,6 +126,8 @@ class Track:
     previous_mask: np.ndarray | None = None
     last_score: ScoreBreakdown | None = None
     history: list[np.ndarray] = field(default_factory=list)
+    appearance_descriptor: np.ndarray | None = None
+    external_id: int | None = None
 
     def propagated_pose(self) -> np.ndarray:
         from tracking.geometry import propagate_constant_velocity

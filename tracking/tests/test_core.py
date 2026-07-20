@@ -5,9 +5,11 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import cv2
 import numpy as np
+import torch
 
 from tracking.association import associate_tracks
 from tracking.config import TrackerConfig
@@ -25,6 +27,8 @@ from tracking.io import (
     merge_prediction_group_sets,
 )
 from tracking.refinement import CandidateRefiner
+from tracking.recovery import FEATURE_NAMES, RecoveryPredictor
+from tracking.run_tracking import _apply_config_overrides
 from tracking.scoring import CandidateScorer
 from tracking.tracker import AdaptivePoseTracker
 from tracking.types import Detection, FrameData, PoseHypothesis, Track, TrackMode
@@ -47,6 +51,61 @@ class SquareRenderer:
         depth = np.zeros_like(output, dtype=np.float32)
         depth[output] = translation[2]
         return output, depth
+
+    def render_instances(self, poses_m, K, image_shape):
+        height, width = image_shape
+        segmentation = np.zeros((height, width), dtype=np.uint16)
+        nearest_depth = np.zeros((height, width), dtype=np.float32)
+        for instance_id, pose in enumerate(poses_m, start=1):
+            mask, depth = self.render(pose, K, image_shape)
+            visible = mask & (
+                (nearest_depth <= 0)
+                | ((depth > 0) & (depth < nearest_depth))
+            )
+            segmentation[visible] = instance_id
+            nearest_depth[visible] = depth[visible]
+        return segmentation, nearest_depth
+
+
+class OcclusionRenderer:
+    def render(self, pose_m, K, image_shape):
+        height, width = image_shape
+        mask = np.zeros((height, width), dtype=bool)
+        mask[height // 4 : 3 * height // 4, width // 4 : 3 * width // 4] = True
+        depth = np.zeros((height, width), dtype=np.float32)
+        depth[mask] = 2.0
+        return mask, depth
+
+    def render_instances(self, poses_m, K, image_shape):
+        height, width = image_shape
+        segmentation = np.zeros((height, width), dtype=np.uint16)
+        y0, y1 = height // 4, 3 * height // 4
+        x0, x1 = width // 4, 3 * width // 4
+        middle = (x0 + x1) // 2
+        segmentation[y0:y1, x0:middle] = 1
+        segmentation[y0:y1, middle:x1] = 2
+        depth = np.zeros((height, width), dtype=np.float32)
+        depth[segmentation > 0] = 2.0
+        return segmentation, depth
+
+
+class FixedRecoveryModel(torch.nn.Module):
+    def forward(self, features):
+        batch_shape = features.shape[:-1]
+        dtype, device = features.dtype, features.device
+        rotation = torch.tensor(
+            [0.0, 0.0, 0.2], dtype=dtype, device=device
+        ).expand(*batch_shape, 3)
+        translation = torch.tensor(
+            [0.2, 0.0, 0.0], dtype=dtype, device=device
+        ).expand(*batch_shape, 3)
+        scalar = torch.zeros(batch_shape, dtype=dtype, device=device)
+        return {
+            "rotation_raw": rotation,
+            "translation_raw": translation,
+            "confidence_logit": scalar,
+            "quality": scalar,
+        }
 
 
 def square_detection(center=(50, 50), radius=8):
@@ -142,6 +201,50 @@ class PredictionIOTests(unittest.TestCase):
         self.assertEqual([item.source for item in merged[0]], ["epnp", "gigapose"])
 
 
+class ConfigurationTests(unittest.TestCase):
+    @staticmethod
+    def override_args(**updates):
+        values = {
+            "same_frame_recovery": None,
+            "identity_aware_association": None,
+            "use_external_ids": None,
+            "occlusion_aware_scoring": None,
+            "global_safety_interval": None,
+            "max_track_age_without_global": None,
+        }
+        values.update(updates)
+        return SimpleNamespace(**values)
+
+    def test_no_cli_overrides_preserve_legacy_defaults(self):
+        config = _apply_config_overrides(
+            TrackerConfig(), self.override_args()
+        )
+        self.assertFalse(config.same_frame_recovery.enabled)
+        self.assertFalse(config.association.identity_enabled)
+        self.assertFalse(config.association.use_external_id)
+        self.assertFalse(config.occlusion.enabled)
+        self.assertEqual(config.state.safety_interval, 15)
+        self.assertEqual(config.state.max_track_age_without_global, 30)
+
+    def test_external_ids_enable_identity_association(self):
+        config = _apply_config_overrides(
+            TrackerConfig(),
+            self.override_args(use_external_ids=True),
+        )
+        self.assertTrue(config.association.identity_enabled)
+        self.assertTrue(config.association.use_external_id)
+
+    def test_conflicting_identity_cli_switches_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "conflicts"):
+            _apply_config_overrides(
+                TrackerConfig(),
+                self.override_args(
+                    identity_aware_association=False,
+                    use_external_ids=True,
+                ),
+            )
+
+
 class FlowAndAssociationTests(unittest.TestCase):
     def test_sparse_flow_recovers_translation(self):
         previous = np.zeros((100, 100), dtype=np.uint8)
@@ -171,6 +274,80 @@ class FlowAndAssociationTests(unittest.TestCase):
         self.assertFalse(unmatched_tracks)
         self.assertFalse(unmatched_detections)
 
+    def test_optional_external_identity_prevents_crossing_swap(self):
+        pose = pose_from_rt(np.eye(3), [0, 0, 1])
+        left_mask = np.zeros((100, 100), dtype=bool)
+        right_mask = np.zeros((100, 100), dtype=bool)
+        left_mask[40:60, 10:30] = True
+        right_mask[40:60, 70:90] = True
+        tracks = [
+            Track(
+                1,
+                1,
+                pose,
+                None,
+                np.asarray([10, 40, 20, 20]),
+                1,
+                TrackMode.NORMAL,
+                "",
+                1,
+                0,
+                external_id=11,
+                previous_mask=left_mask,
+            ),
+            Track(
+                2,
+                1,
+                pose,
+                None,
+                np.asarray([70, 40, 20, 20]),
+                1,
+                TrackMode.NORMAL,
+                "",
+                1,
+                0,
+                external_id=22,
+                previous_mask=right_mask,
+            ),
+        ]
+        # The identities crossed, while the detection list remains spatially
+        # ordered from left to right.
+        detections = [
+            Detection(
+                0,
+                np.asarray([10, 40, 20, 20]),
+                left_mask,
+                external_id=22,
+            ),
+            Detection(
+                1,
+                np.asarray([70, 40, 20, 20]),
+                right_mask,
+                external_id=11,
+            ),
+        ]
+        legacy_matches, _, _ = associate_tracks(
+            tracks,
+            detections,
+            (100, 100),
+            TrackerConfig().association,
+        )
+        self.assertEqual(legacy_matches, [(0, 0), (1, 1)])
+
+        identity_config = TrackerConfig().association
+        identity_config.identity_enabled = True
+        identity_config.use_external_id = True
+        identity_config.external_id_strict = True
+        identity_config.appearance_weight = 0.0
+        identity_config.mask_iou_weight = 0.0
+        identity_matches, _, _ = associate_tracks(
+            tracks,
+            detections,
+            (100, 100),
+            identity_config,
+        )
+        self.assertEqual(identity_matches, [(0, 1), (1, 0)])
+
 
 class ScoringAndTrackerTests(unittest.TestCase):
     def setUp(self):
@@ -193,6 +370,29 @@ class ScoringAndTrackerTests(unittest.TestCase):
         self.assertLess(good_score.total_error, bad_score.total_error)
         self.assertGreater(good_score.confidence, bad_score.confidence)
 
+    def test_recovery_head_applies_rotation_and_translation_residuals(self):
+        config = TrackerConfig()
+        scorer = CandidateScorer(SquareRenderer(), config)
+        hypothesis = PoseHypothesis(
+            pose_from_rt(np.eye(3), [0, 0, 1]), "candidate", 0.5
+        )
+        evaluated = scorer.evaluate(
+            hypothesis, self.frame, self.frame.detections[0]
+        )
+        predictor = RecoveryPredictor(
+            FixedRecoveryModel(),
+            feature_mean=np.zeros(len(FEATURE_NAMES), dtype=np.float32),
+            feature_std=np.ones(len(FEATURE_NAMES), dtype=np.float32),
+            max_rotation_rad=np.pi,
+            max_translation_m=1.0,
+            device="cpu",
+        )
+        corrected, _, _ = predictor.correct(evaluated)
+        self.assertGreater(corrected.pose[0, 3], hypothesis.pose[0, 3])
+        self.assertGreater(
+            rotation_error_deg(corrected.pose, hypothesis.pose), 1.0
+        )
+
     def test_tracker_propagates_same_identity_without_fresh_pose(self):
         config = TrackerConfig()
         config.refinement.normal_iterations = 0
@@ -214,6 +414,149 @@ class ScoringAndTrackerTests(unittest.TestCase):
         second = tracker.process_frame(second_frame, [])
         self.assertEqual(len(second.instances), 1)
         self.assertEqual(first.instances[0].track.track_id, second.instances[0].track.track_id)
+
+    def test_optional_same_frame_recovery_uses_fresh_global_pose(self):
+        def make_tracker(enabled):
+            config = TrackerConfig()
+            config.same_frame_recovery.enabled = enabled
+            config.refinement.normal_iterations = 0
+            config.refinement.uncertain_iterations = 0
+            config.refinement.lost_iterations = 0
+            config.hypotheses.add_flip_when_uncertain = False
+            config.hypotheses.center_offsets_px = ()
+            config.hypotheses.log_depth_offsets = ()
+            config.hypotheses.translation_offsets_m = ()
+            config.hypotheses.yaw_offsets_deg = ()
+            scorer = CandidateScorer(SquareRenderer(), config)
+            return AdaptivePoseTracker(
+                config, CandidateRefiner(scorer, config)
+            )
+
+        initial = PoseHypothesis(
+            pose_from_rt(np.eye(3), [0, 0, 1]), "gigapose", 0.9
+        )
+        moved = PoseHypothesis(
+            pose_from_rt(np.eye(3), [0.3, 0, 1]), "gigapose", 0.9
+        )
+        second_frame = FrameData(
+            1,
+            1,
+            self.frame.image.copy(),
+            self.K,
+            [square_detection(center=(80, 50))],
+        )
+
+        legacy = make_tracker(False)
+        legacy.process_frame(self.frame, [[initial]])
+        legacy_result = legacy.process_frame(second_frame, [[moved]])
+        self.assertEqual(legacy_result.instances[0].track.mode, TrackMode.LOST)
+        self.assertFalse(legacy_result.instances[0].same_frame_recovery)
+
+        improved = make_tracker(True)
+        improved.process_frame(self.frame, [[initial]])
+        improved_result = improved.process_frame(second_frame, [[moved]])
+        self.assertEqual(
+            improved_result.instances[0].track.mode, TrackMode.NORMAL
+        )
+        self.assertTrue(improved_result.instances[0].same_frame_recovery)
+        self.assertIn(
+            "global_rank", improved_result.instances[0].track.source
+        )
+
+    def test_optional_occlusion_scoring_uses_visible_target_silhouette(self):
+        observed = np.zeros((100, 100), dtype=bool)
+        observed[25:75, 25:50] = True
+        detection = Detection(
+            0, np.asarray([0, 0, 100, 100]), observed
+        )
+        frame = FrameData(
+            1,
+            0,
+            np.zeros((100, 100, 3), dtype=np.uint8),
+            self.K,
+            [detection],
+        )
+        hypothesis = PoseHypothesis(
+            pose_from_rt(np.eye(3), [0, 0, 2]), "test", 0.5
+        )
+        config = TrackerConfig()
+        config.render_scale = 1.0
+        config.occlusion.enabled = False
+        scorer = CandidateScorer(OcclusionRenderer(), config)
+        unoccluded = scorer.evaluate(
+            hypothesis,
+            frame,
+            detection,
+            occluder_poses=(hypothesis.pose,),
+        )
+        config.occlusion.enabled = True
+        occlusion_aware = scorer.evaluate(
+            hypothesis,
+            frame,
+            detection,
+            occluder_poses=(hypothesis.pose,),
+        )
+        self.assertAlmostEqual(unoccluded.score.silhouette_iou, 0.5)
+        self.assertAlmostEqual(
+            occlusion_aware.score.silhouette_iou, 1.0
+        )
+
+    def test_occlusion_aware_tracker_scores_each_car_with_the_other_car(self):
+        config = TrackerConfig()
+        config.occlusion.enabled = True
+        config.refinement.lost_iterations = 0
+        config.hypotheses.add_flip_when_uncertain = False
+        config.hypotheses.center_offsets_px = ()
+        config.hypotheses.log_depth_offsets = ()
+        config.hypotheses.translation_offsets_m = ()
+        config.hypotheses.yaw_offsets_deg = ()
+        scorer = CandidateScorer(SquareRenderer(), config)
+        tracker = AdaptivePoseTracker(
+            config, CandidateRefiner(scorer, config)
+        )
+        frame = FrameData(
+            1,
+            0,
+            np.zeros((100, 100, 3), dtype=np.uint8),
+            self.K,
+            [
+                square_detection(center=(35, 50)),
+                square_detection(center=(65, 50)),
+            ],
+        )
+        groups = [
+            [
+                PoseHypothesis(
+                    pose_from_rt(np.eye(3), [-0.15, 0, 1]),
+                    "left",
+                    0.9,
+                )
+            ],
+            [
+                PoseHypothesis(
+                    pose_from_rt(np.eye(3), [0.15, 0, 1]),
+                    "right",
+                    0.9,
+                )
+            ],
+        ]
+        result = tracker.process_frame(frame, groups)
+        self.assertEqual(len(result.instances), 2)
+        self.assertEqual(
+            [item.occluders_used for item in result.instances], [1, 1]
+        )
+
+    def test_improvements_are_off_by_default_and_selectable_by_config(self):
+        default = TrackerConfig()
+        self.assertFalse(default.same_frame_recovery.enabled)
+        self.assertFalse(default.association.identity_enabled)
+        self.assertFalse(default.occlusion.enabled)
+        improved = TrackerConfig.load(
+            Path(__file__).parents[1] / "configs" / "improved.json"
+        )
+        self.assertTrue(improved.same_frame_recovery.enabled)
+        self.assertTrue(improved.association.identity_enabled)
+        self.assertTrue(improved.occlusion.enabled)
 
     def test_overlay_compares_original_and_tracked_cad(self):
         config = TrackerConfig()

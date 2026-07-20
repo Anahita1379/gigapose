@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from typing import Sequence
 
 import numpy as np
 
@@ -39,10 +40,16 @@ class CandidateRefiner:
         frame: FrameData,
         detection: Detection,
         motion_reference_pose: np.ndarray | None,
+        occluder_poses: Sequence[np.ndarray] = (),
     ) -> list[EvaluatedHypothesis]:
         evaluated = [
             self.scorer.evaluate(
-                item, frame, detection, motion_reference_pose, keep_render=False
+                item,
+                frame,
+                detection,
+                motion_reference_pose,
+                keep_render=False,
+                occluder_poses=occluder_poses,
             )
             for item in hypotheses
         ]
@@ -55,11 +62,18 @@ class CandidateRefiner:
         detection: Detection,
         mode: TrackMode,
         motion_reference_pose: np.ndarray | None,
+        occluder_poses: Sequence[np.ndarray] = (),
     ) -> list[EvaluatedHypothesis]:
         if not hypotheses:
             return []
         iterations, beam_width = self._mode_settings(mode)
-        ranked = self._score(hypotheses, frame, detection, motion_reference_pose)
+        ranked = self._score(
+            hypotheses,
+            frame,
+            detection,
+            motion_reference_pose,
+            occluder_poses,
+        )
         beam = ranked[: max(beam_width, 1)]
         for iteration in range(max(iterations, 0)):
             decay = self.config.refinement.step_decay**iteration
@@ -111,7 +125,13 @@ class CandidateRefiner:
                                 seed.obj_id,
                             )
                         )
-            ranked = self._score(expanded, frame, detection, motion_reference_pose)
+            ranked = self._score(
+                expanded,
+                frame,
+                detection,
+                motion_reference_pose,
+                occluder_poses,
+            )
             beam = ranked[: max(beam_width, 1)]
 
         # Re-render final beam so visualization can reuse its exact alignment.
@@ -122,6 +142,7 @@ class CandidateRefiner:
                 detection,
                 motion_reference_pose,
                 keep_render=True,
+                occluder_poses=occluder_poses,
             )
             for item in beam
         ]

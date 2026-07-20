@@ -8,9 +8,14 @@ from typing import Any
 
 import numpy as np
 
-from tracking.association import associate_tracks, assign_prediction_groups
+from tracking.association import (
+    associate_tracks,
+    assign_prediction_groups,
+    detection_appearance_descriptor,
+)
 from tracking.config import TrackerConfig
 from tracking.flow import SparseFlowPoseUpdater
+from tracking.geometry import rotation_error_deg, translation_error_m
 from tracking.hypotheses import AdaptiveHypothesisGenerator
 from tracking.recovery import RecoveryPredictor
 from tracking.refinement import CandidateRefiner
@@ -32,6 +37,9 @@ class TrackedInstanceResult:
     alternatives: list[EvaluatedHypothesis]
     periodic_global: bool
     elapsed_s: float
+    same_frame_recovery: bool = False
+    same_frame_recovery_mode: str = ""
+    occluders_used: int = 0
 
 
 @dataclass
@@ -139,17 +147,45 @@ class AdaptivePoseTracker:
             track.previous_gray, frame.gray, track.previous_mask
         )
 
-    def _track_one(
+    def _merge_ranked(
         self,
+        *ranked_groups: list[EvaluatedHypothesis],
+    ) -> list[EvaluatedHypothesis]:
+        """Merge search stages without duplicating equivalent poses."""
+
+        merged: list[EvaluatedHypothesis] = []
+        for evaluated in sorted(
+            [item for group in ranked_groups for item in group],
+            key=lambda item: item.score.total_error,
+        ):
+            duplicate = any(
+                translation_error_m(
+                    evaluated.hypothesis.pose, existing.hypothesis.pose
+                )
+                <= self.config.hypotheses.deduplicate_translation_m
+                and rotation_error_deg(
+                    evaluated.hypothesis.pose, existing.hypothesis.pose
+                )
+                <= self.config.hypotheses.deduplicate_rotation_deg
+                for existing in merged
+            )
+            if not duplicate:
+                merged.append(evaluated)
+        return merged
+
+    def _search(
+        self,
+        *,
         frame: FrameData,
         detection: Detection,
         track: Track | None,
         fresh: list[PoseHypothesis],
-    ) -> TrackedInstanceResult | None:
-        started = time.perf_counter()
-        mode = self._mode_for(track)
-        periodic_global = self._periodic_global(track)
-        flow_measurement = self._flow_measurement(track, frame)
+        mode: TrackMode,
+        periodic_global: bool,
+        flow_measurement,
+        motion_reference: np.ndarray | None,
+        occluder_poses: tuple[np.ndarray, ...],
+    ) -> list[EvaluatedHypothesis]:
         candidates = self.generator.generate(
             frame=frame,
             detection=detection,
@@ -160,31 +196,147 @@ class AdaptivePoseTracker:
             flow_measurement=flow_measurement,
         )
         if not candidates:
-            return None
-        motion_reference = (
-            self.generator.propagated_pose(track) if track is not None else None
-        )
+            return []
         ranked = self.refiner.refine(
-            candidates, frame, detection, mode, motion_reference
+            candidates,
+            frame,
+            detection,
+            mode,
+            motion_reference,
+            occluder_poses,
         )
-        if not ranked:
-            return None
-
-        if self.recovery is not None and mode != TrackMode.NORMAL:
+        if self.recovery is not None and mode != TrackMode.NORMAL and ranked:
             recovery_outputs = [
                 self.recovery.correct(evaluated)
                 for evaluated in ranked[: min(5, len(ranked))]
             ]
             recovery_outputs.sort(key=lambda item: item[2])
             learned_candidates = [
-                item[0] for item in recovery_outputs[: min(2, len(recovery_outputs))]
+                item[0]
+                for item in recovery_outputs[: min(2, len(recovery_outputs))]
             ]
             recovered = self.refiner.refine(
-                learned_candidates, frame, detection, mode, motion_reference
+                learned_candidates,
+                frame,
+                detection,
+                mode,
+                motion_reference,
+                occluder_poses,
             )
+            # Preserve the original learned-recovery ranking behavior. Pose
+            # de-duplication is only needed when optional search stages are
+            # merged below.
             ranked = sorted(
-                [*ranked, *recovered], key=lambda item: item.score.total_error
+                [*ranked, *recovered],
+                key=lambda item: item.score.total_error,
             )
+        return ranked
+
+    def _update_track_appearance(
+        self,
+        track: Track,
+        frame: FrameData,
+        detection: Detection,
+    ) -> None:
+        if not self.config.association.identity_enabled:
+            return
+        descriptor = detection_appearance_descriptor(frame.image, detection)
+        if descriptor is None:
+            return
+        if (
+            track.appearance_descriptor is None
+            or track.appearance_descriptor.shape != descriptor.shape
+        ):
+            track.appearance_descriptor = descriptor.copy()
+            return
+        momentum = self.config.association.appearance_momentum
+        updated = (
+            momentum * track.appearance_descriptor
+            + (1.0 - momentum) * descriptor
+        )
+        total = float(updated.sum())
+        track.appearance_descriptor = (
+            updated / total if total > 0 else descriptor.copy()
+        )
+
+    def _track_one(
+        self,
+        frame: FrameData,
+        detection: Detection,
+        track: Track | None,
+        fresh: list[PoseHypothesis],
+        occluder_poses: tuple[np.ndarray, ...] = (),
+    ) -> TrackedInstanceResult | None:
+        started = time.perf_counter()
+        mode = self._mode_for(track)
+        periodic_global = self._periodic_global(track)
+        flow_measurement = self._flow_measurement(track, frame)
+        motion_reference = (
+            self.generator.propagated_pose(track) if track is not None else None
+        )
+        ranked = self._search(
+            frame=frame,
+            detection=detection,
+            track=track,
+            fresh=fresh,
+            mode=mode,
+            periodic_global=periodic_global,
+            flow_measurement=flow_measurement,
+            motion_reference=motion_reference,
+            occluder_poses=occluder_poses,
+        )
+        if not ranked:
+            return None
+
+        recovery_modes: list[TrackMode] = []
+        recovery_config = self.config.same_frame_recovery
+        if recovery_config.enabled and track is not None:
+            provisional_mode = self._next_mode(
+                self._confidence_with_margin(ranked)
+            )
+            if (
+                provisional_mode == TrackMode.UNCERTAIN
+                and mode == TrackMode.NORMAL
+                and recovery_config.retry_uncertain
+            ):
+                recovery_modes.append(TrackMode.UNCERTAIN)
+            if (
+                provisional_mode == TrackMode.LOST
+                and mode != TrackMode.LOST
+                and recovery_config.retry_lost
+            ):
+                if (
+                    mode == TrackMode.NORMAL
+                    and recovery_config.retry_uncertain
+                ):
+                    recovery_modes.append(TrackMode.UNCERTAIN)
+                recovery_modes.append(TrackMode.LOST)
+
+        recovery_used: list[TrackMode] = []
+        for recovery_mode in recovery_modes:
+            retry_ranked = self._search(
+                frame=frame,
+                detection=detection,
+                track=track,
+                fresh=(
+                    fresh if recovery_config.force_global else []
+                ),
+                mode=recovery_mode,
+                periodic_global=recovery_config.force_global,
+                flow_measurement=flow_measurement,
+                motion_reference=motion_reference,
+                occluder_poses=occluder_poses,
+            )
+            if retry_ranked:
+                ranked = self._merge_ranked(ranked, retry_ranked)
+                recovery_used.append(recovery_mode)
+            if self._next_mode(
+                self._confidence_with_margin(ranked)
+            ) != TrackMode.LOST:
+                # An uncertain retry already recovered useful image support;
+                # avoid paying for the lost-state search unless still lost.
+                if recovery_mode == TrackMode.UNCERTAIN:
+                    break
 
         chosen = ranked[0]
         confidence = self._confidence_with_margin(ranked)
@@ -205,6 +357,7 @@ class AdaptivePoseTracker:
                 source=chosen.hypothesis.source,
                 scene_id=frame.scene_id,
                 im_id=frame.im_id,
+                external_id=detection.external_id,
             )
             self.next_track_id += 1
         else:
@@ -216,11 +369,14 @@ class AdaptivePoseTracker:
             track.source = chosen.hypothesis.source
             track.scene_id = frame.scene_id
             track.im_id = frame.im_id
+            if detection.external_id is not None:
+                track.external_id = detection.external_id
             track.age += 1
             track.missed = 0
         track.frames_since_global = 0 if global_used else track.frames_since_global + 1
         track.previous_gray = frame.gray.copy()
         track.previous_mask = detection.mask.copy()
+        self._update_track_appearance(track, frame, detection)
         track.last_score = chosen.score
         track.history.append(track.pose.copy())
         if len(track.history) > 64:
@@ -233,6 +389,11 @@ class AdaptivePoseTracker:
             alternatives=ranked[1:],
             periodic_global=periodic_global,
             elapsed_s=time.perf_counter() - started,
+            same_frame_recovery=bool(recovery_used),
+            same_frame_recovery_mode=(
+                recovery_used[-1].value if recovery_used else ""
+            ),
+            occluders_used=len(occluder_poses),
         )
 
     def process_frame(
@@ -253,10 +414,39 @@ class AdaptivePoseTracker:
             frame.detections,
             frame.image.shape[:2],
             self.config.association,
+            frame.image,
         )
         fresh_by_detection = assign_prediction_groups(
             fresh_groups, frame.detections, frame.K, frame.image.shape[:2]
         )
+        track_by_detection = {
+            detection_index: active_tracks[track_index]
+            for track_index, detection_index in matches
+        }
+        occluder_pose_by_detection: dict[int, np.ndarray] = {}
+        if self.config.occlusion.enabled:
+            for detection_index in range(len(frame.detections)):
+                matched_track = track_by_detection.get(detection_index)
+                if matched_track is not None:
+                    occluder_pose_by_detection[detection_index] = (
+                        self.generator.propagated_pose(matched_track)
+                    )
+                    continue
+                fresh = fresh_by_detection.get(detection_index, [])
+                if fresh:
+                    occluder_pose_by_detection[detection_index] = (
+                        fresh[0].pose.copy()
+                    )
+
+        def occluders_for(detection_index: int) -> tuple[np.ndarray, ...]:
+            if not self.config.occlusion.enabled:
+                return ()
+            return tuple(
+                pose
+                for other_index, pose in occluder_pose_by_detection.items()
+                if other_index != detection_index
+            )
+
         result = TrackingFrameResult(frame.scene_id, frame.im_id)
         for track_index, detection_index in matches:
             tracked = self._track_one(
@@ -264,6 +454,7 @@ class AdaptivePoseTracker:
                 frame.detections[detection_index],
                 active_tracks[track_index],
                 fresh_by_detection.get(detection_index, []),
+                occluders_for(detection_index),
             )
             if tracked is not None:
                 result.instances.append(tracked)
@@ -272,7 +463,11 @@ class AdaptivePoseTracker:
         for detection_index in unmatched_detection_indices:
             fresh = fresh_by_detection.get(detection_index, [])
             tracked = self._track_one(
-                frame, frame.detections[detection_index], None, fresh
+                frame,
+                frame.detections[detection_index],
+                None,
+                fresh,
+                occluders_for(detection_index),
             )
             if tracked is None:
                 result.unmatched_detection_ids.append(
@@ -312,6 +507,13 @@ class AdaptivePoseTracker:
                     "motion_error": chosen.score.motion_error,
                     "alternatives": len(instance.alternatives),
                     "periodic_global": int(instance.periodic_global),
+                    "same_frame_recovery": int(
+                        instance.same_frame_recovery
+                    ),
+                    "same_frame_recovery_mode": (
+                        instance.same_frame_recovery_mode
+                    ),
+                    "occluders_used": instance.occluders_used,
                     "elapsed_s": instance.elapsed_s,
                 }
             )

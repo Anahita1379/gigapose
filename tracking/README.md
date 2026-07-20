@@ -24,12 +24,17 @@ For every detected car, the runtime pipeline combines:
    motion evidence;
 9. confidence-gated `normal`, `uncertain`, and `lost` states;
 10. periodic global GigaPose safety checks, even for apparently healthy tracks;
-11. optional learned full-SE(3) recovery, confidence, quality, and ranking head.
+11. optional learned full-SE(3) recovery, confidence, quality, and ranking head;
+12. optional same-frame search escalation, identity-aware association, and
+    occlusion-aware multi-car CAD scoring.
 
 Multi-car identity is maintained with Hungarian bbox/center association. A
 wrong motion prediction is never accepted only because it agrees with the
 previous pose: motion has a deliberately small score weight, and confidence is
 computed from current-image evidence without the motion term.
+
+The identity and occlusion extensions are opt-in. With `default.json`,
+`fast.json`, or no new CLI switches, association and scoring behave as before.
 
 All internal poses are:
 
@@ -55,6 +60,25 @@ The default configuration implements:
 `tracking/configs/fast.json` removes normal-frame local refinement and narrows
 the uncertain/lost beam. It is useful for latency testing but is less capable
 of correcting subtle drift.
+
+`tracking/configs/improved.json` enables the four more defensive behaviors:
+
+- a low-confidence normal result is retried in the same frame using uncertain
+  and, if still necessary, lost-state search;
+- a global safety hypothesis is considered every 5 processed frames, with no
+  more than 10 frames allowed since the last global winner;
+- Hungarian association also uses an EMA color descriptor and previous-mask
+  overlap to reduce two-car identity switches;
+- target and neighboring CADs are rendered together so an occluding car does
+  not count as missing target silhouette.
+
+External detector/mask IDs are deliberately not trusted by that preset.
+Many segmenters renumber cars by position each frame. Add
+`--use-external-ids` only when you have confirmed that the IDs persist with the
+physical car across the sequence. In strict mode, a matching stable ID may
+bridge a large spatial displacement and mismatched IDs cannot associate.
+That flag automatically enables identity-aware association; combining it with
+`--no-identity-aware-association` is rejected as a conflicting configuration.
 
 CAD evidence is rendered only inside a padded detection crop and at reduced
 resolution (`render_scale`), then mapped back to the original image coordinate
@@ -183,6 +207,63 @@ The red GigaPose bbox is derived from the CAD silhouette rendered at the raw
 top-1 GigaPose pose because the standard MultiHypothesis CSV does not contain a
 bbox column. The green bbox is derived from the final tracked CAD silhouette.
 This makes center, depth/scale, and rotation changes directly visible.
+
+When same-frame recovery is enabled, `candidate_diagnostics.csv` additionally
+records `same_frame_recovery`, `same_frame_recovery_mode`, and
+`occluders_used`. This makes the extra work and its winning state visible
+without changing the prediction CSV schema.
+
+## Optional robust multi-car mode
+
+The simplest way to enable all safe improvements is:
+
+```bash
+python -m tracking.run_tracking \
+  --predictions <MultiHypothesis.csv> \
+  --dataset-dir <prepared_dataset> \
+  --split test \
+  --config tracking/configs/improved.json \
+  --output-dir <tracking_result_dir> \
+  --save-overlays \
+  --overwrite
+```
+
+The preset leaves external IDs disabled. If the dataset's instance IDs are
+stable over time, add:
+
+```bash
+--use-external-ids
+```
+
+Every behavior can also be controlled independently while retaining any
+existing config:
+
+```bash
+--same-frame-recovery \
+--identity-aware-association \
+--occlusion-aware-scoring \
+--global-safety-interval 5 \
+--max-track-age-without-global 10
+```
+
+The corresponding `--no-*` flags override an enabled preset. For example,
+this uses the improved preset but keeps the legacy single-object renderer:
+
+```bash
+--config tracking/configs/improved.json --no-occlusion-aware-scoring
+```
+
+Same-frame recovery consumes fresh top-K hypotheses already available for that
+frame. That is automatic for this offline CSV runner. A live caller that wants
+the same behavior must make fresh hypotheses available before
+`process_frame`; otherwise the retry can broaden local/temporal candidates but
+cannot invent a new GigaPose measurement.
+
+These options trade compute for robustness. Same-frame recovery adds work only
+after a low-confidence result, more frequent safety checks add a top-1 global
+candidate on scheduled frames, identity descriptors are inexpensive, and
+occlusion-aware scoring renders all currently posed cars in each target
+candidate's crop.
 
 ## Step 3: tune deterministic recovery before learning
 
@@ -337,5 +418,6 @@ python -m compileall -q tracking
 ```
 
 They cover SO(3) near 180 degrees, RLE masks, millimetre conversion and top-K
-grouping, optical flow, association, CAD evidence ordering, and identity
-propagation.
+grouping, optical flow, legacy and strict-ID association, CAD evidence
+ordering, same-frame recovery, occlusion-visible silhouette scoring, and
+identity propagation.

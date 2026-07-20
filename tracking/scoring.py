@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from typing import Protocol
+from typing import Protocol, Sequence
 
 import cv2
 import numpy as np
@@ -95,6 +95,7 @@ class CandidateScorer:
         hypothesis: PoseHypothesis,
         frame: FrameData,
         detection: Detection,
+        occluder_poses: Sequence[np.ndarray] = (),
     ) -> tuple[np.ndarray, np.ndarray]:
         """Render a low-resolution padded ROI and restore full-image coordinates."""
 
@@ -122,9 +123,22 @@ class CandidateScorer:
         K_crop[0, 2] -= x0
         K_crop[1, 2] -= y0
         K_render = np.diag([scale_x, scale_y, 1.0]) @ K_crop
-        mask_small, depth_small = self.renderer.render(
-            hypothesis.pose, K_render, (render_height, render_width)
-        )
+        render_instances = getattr(self.renderer, "render_instances", None)
+        if (
+            self.config.occlusion.enabled
+            and occluder_poses
+            and callable(render_instances)
+        ):
+            segmentation_small, depth_small = render_instances(
+                [hypothesis.pose, *occluder_poses],
+                K_render,
+                (render_height, render_width),
+            )
+            mask_small = np.asarray(segmentation_small) == 1
+        else:
+            mask_small, depth_small = self.renderer.render(
+                hypothesis.pose, K_render, (render_height, render_width)
+            )
         mask_crop = cv2.resize(
             np.asarray(mask_small, dtype=np.uint8),
             (crop_width_int, crop_height_int),
@@ -149,9 +163,10 @@ class CandidateScorer:
         motion_reference_pose: np.ndarray | None = None,
         *,
         keep_render: bool = False,
+        occluder_poses: Sequence[np.ndarray] = (),
     ) -> EvaluatedHypothesis:
         mask, rendered_depth = self._render_for_detection(
-            hypothesis, frame, detection
+            hypothesis, frame, detection, occluder_poses
         )
         rendered_pixels = int(mask.sum())
         observed_mask = np.asarray(detection.mask, dtype=bool)

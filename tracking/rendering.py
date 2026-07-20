@@ -49,14 +49,27 @@ class CADRenderer:
         K: np.ndarray,
         image_shape: tuple[int, int],
     ) -> tuple[np.ndarray, np.ndarray]:
+        segmentation, depth_m = self.render_instances(
+            [pose_m], K, image_shape
+        )
+        return segmentation == 1, depth_m
+
+    def render_instances(
+        self,
+        poses_m: list[np.ndarray],
+        K: np.ndarray,
+        image_shape: tuple[int, int],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Jointly render instances so nearer cars occlude farther ones."""
+
         height, width = (int(value) for value in image_shape)
         segmentation, depth_m = self._renderer.render(
-            [np.asarray(pose_m, dtype=float)],
+            [np.asarray(pose, dtype=float) for pose in poses_m],
             np.asarray(K, dtype=float),
             width=width,
             height=height,
         )
-        return segmentation == 1, np.asarray(depth_m, dtype=np.float32)
+        return np.asarray(segmentation), np.asarray(depth_m, dtype=np.float32)
 
     def close(self) -> None:
         self._renderer.close()

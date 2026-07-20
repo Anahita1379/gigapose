@@ -34,6 +34,16 @@ class StateConfig:
 
 
 @dataclass
+class SameFrameRecoveryConfig:
+    """Optional escalation from cheap tracking to broad recovery in one frame."""
+
+    enabled: bool = False
+    retry_uncertain: bool = True
+    retry_lost: bool = True
+    force_global: bool = True
+
+
+@dataclass
 class HypothesisConfig:
     """Breadth of local and global pose candidate generation."""
 
@@ -90,6 +100,20 @@ class AssociationConfig:
     max_center_distance_frac: float = 0.30
     min_iou: float = 0.01
     max_cost: float = 0.95
+    identity_enabled: bool = False
+    use_external_id: bool = False
+    external_id_strict: bool = True
+    external_id_weight: float = 0.50
+    appearance_weight: float = 0.25
+    mask_iou_weight: float = 0.15
+    appearance_momentum: float = 0.85
+
+
+@dataclass
+class OcclusionConfig:
+    """Optional joint rendering of other cars when scoring a target car."""
+
+    enabled: bool = False
 
 
 @dataclass
@@ -106,10 +130,14 @@ class TrackerConfig:
 
     score: ScoreWeights = field(default_factory=ScoreWeights)
     state: StateConfig = field(default_factory=StateConfig)
+    same_frame_recovery: SameFrameRecoveryConfig = field(
+        default_factory=SameFrameRecoveryConfig
+    )
     hypotheses: HypothesisConfig = field(default_factory=HypothesisConfig)
     refinement: RefinementConfig = field(default_factory=RefinementConfig)
     flow: FlowConfig = field(default_factory=FlowConfig)
     association: AssociationConfig = field(default_factory=AssociationConfig)
+    occlusion: OcclusionConfig = field(default_factory=OcclusionConfig)
     temporal: TemporalConfig = field(default_factory=TemporalConfig)
     render_scale: float = 0.5
     render_crop_padding_frac: float = 0.75
@@ -145,16 +173,30 @@ class TrackerConfig:
             raise ValueError("render_crop_padding_frac must be non-negative.")
         if self.render_crop_min_side_px <= 0:
             raise ValueError("render_crop_min_side_px must be positive.")
+        if self.association.identity_enabled:
+            identity_weights = (
+                self.association.external_id_weight,
+                self.association.appearance_weight,
+                self.association.mask_iou_weight,
+            )
+            if any(float(value) < 0 for value in identity_weights):
+                raise ValueError(
+                    "Identity-association weights must be non-negative."
+                )
+            if not 0 <= self.association.appearance_momentum < 1:
+                raise ValueError("appearance_momentum must be in [0, 1).")
 
     @classmethod
     def from_dict(cls, values: dict[str, Any]) -> "TrackerConfig":
         known = {
             "score": ScoreWeights,
             "state": StateConfig,
+            "same_frame_recovery": SameFrameRecoveryConfig,
             "hypotheses": HypothesisConfig,
             "refinement": RefinementConfig,
             "flow": FlowConfig,
             "association": AssociationConfig,
+            "occlusion": OcclusionConfig,
             "temporal": TemporalConfig,
         }
         kwargs: dict[str, Any] = {}

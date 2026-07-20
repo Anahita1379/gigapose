@@ -61,6 +61,55 @@ def parse_args() -> argparse.Namespace:
         "--auxiliary-translation-unit", choices=("mm", "m"), default="mm"
     )
     parser.add_argument("--config", type=Path, default=None)
+    parser.add_argument(
+        "--same-frame-recovery",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Escalate uncertain/lost normal tracking to broader recovery before "
+            "emitting the current frame. Defaults to the selected config."
+        ),
+    )
+    parser.add_argument(
+        "--identity-aware-association",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Add appearance and previous-mask evidence to multi-car association. "
+            "Defaults to the selected config."
+        ),
+    )
+    parser.add_argument(
+        "--use-external-ids",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Use mask/detector instance IDs as persistent identities. Enable only "
+            "when those IDs are stable between frames. Enabling this also enables "
+            "identity-aware association."
+        ),
+    )
+    parser.add_argument(
+        "--occlusion-aware-scoring",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help=(
+            "Jointly render other cars so their visible occlusion is excluded "
+            "from the target-car silhouette."
+        ),
+    )
+    parser.add_argument(
+        "--global-safety-interval",
+        type=int,
+        default=None,
+        help="Override processed frames between scheduled global hypotheses.",
+    )
+    parser.add_argument(
+        "--max-track-age-without-global",
+        type=int,
+        default=None,
+        help="Override the maximum processed frames allowed without a global winner.",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--scene-id", type=int, default=None)
     parser.add_argument("--max-frames", type=int, default=None)
@@ -95,16 +144,52 @@ def _write_diagnostics(path: Path, rows: list[dict]) -> None:
         writer.writerows(rows)
 
 
+def _apply_config_overrides(
+    config: TrackerConfig, args: argparse.Namespace
+) -> TrackerConfig:
+    """Apply only explicitly supplied CLI values to a loaded configuration."""
+
+    if args.same_frame_recovery is not None:
+        config.same_frame_recovery.enabled = args.same_frame_recovery
+    if args.identity_aware_association is not None:
+        config.association.identity_enabled = args.identity_aware_association
+    if args.use_external_ids is not None:
+        config.association.use_external_id = args.use_external_ids
+        if args.use_external_ids:
+            if args.identity_aware_association is False:
+                raise ValueError(
+                    "--use-external-ids conflicts with "
+                    "--no-identity-aware-association."
+                )
+            config.association.identity_enabled = True
+    if args.occlusion_aware_scoring is not None:
+        config.occlusion.enabled = args.occlusion_aware_scoring
+    if args.global_safety_interval is not None:
+        if args.global_safety_interval <= 0:
+            raise ValueError("--global-safety-interval must be positive.")
+        config.state.safety_interval = args.global_safety_interval
+    if args.max_track_age_without_global is not None:
+        if args.max_track_age_without_global <= 0:
+            raise ValueError(
+                "--max-track-age-without-global must be positive."
+            )
+        config.state.max_track_age_without_global = (
+            args.max_track_age_without_global
+        )
+    config.validate()
+    return config
+
+
 def main() -> None:
     args = parse_args()
     if args.overlay_every <= 0:
         raise ValueError("--overlay-every must be positive.")
+    config = _apply_config_overrides(TrackerConfig.load(args.config), args)
     if args.output_dir.exists() and any(args.output_dir.iterdir()):
         if not args.overwrite:
             raise FileExistsError(f"{args.output_dir} is not empty; pass --overwrite.")
         shutil.rmtree(args.output_dir)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    config = TrackerConfig.load(args.config)
     config.save(args.output_dir / "resolved_tracker_config.json")
     device = args.device
     if (
@@ -237,6 +322,14 @@ def main() -> None:
         "state_counts": dict(states),
         "recovery_checkpoint": (
             str(args.recovery_checkpoint) if args.recovery_checkpoint else None
+        ),
+        "same_frame_recovery": config.same_frame_recovery.enabled,
+        "identity_aware_association": config.association.identity_enabled,
+        "use_external_ids": config.association.use_external_id,
+        "occlusion_aware_scoring": config.occlusion.enabled,
+        "global_safety_interval": config.state.safety_interval,
+        "max_track_age_without_global": (
+            config.state.max_track_age_without_global
         ),
         "elapsed_s": time.perf_counter() - started,
         "tracked_predictions": str(output_path),
