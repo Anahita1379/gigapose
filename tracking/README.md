@@ -170,8 +170,8 @@ python -m tracking.run_tracking \
   --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
   --split test \
-  --config tracking/configs/default.json \
-  --output-dir gigaPose_datasets/results/tracking_smoke_withDepth \
+  --config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_smoke_improved \
   --max-frames 100 \
   --save-overlays \
   --overwrite
@@ -215,13 +215,29 @@ python -m tracking.run_tracking \
 
 
 
+
+python -m tracking.run_tracking \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_full_improved \
+  --no-depth \
+  --save-overlays \
+  --overlay-every 5 \
+  --overwrite
+
+
+
 to compare original and tracked performance:
 ```bash
 python -m fine_tuning.evaluate_pose_errors_by_distance \
   --model original=gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
-  --model tracked=gigaPose_datasets/results/tracking_full/tracked_predictions.csv \
+  --model tracked_full=gigaPose_datasets/results/tracking_full/tracked_predictions.csv \
+  --model tracked_full_quality=
+  --model tracked_full_improved=
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
-  --split test_original \
+  --split test \
   --output-dir gigaPose_datasets/results/tracking_full/pose_metrics \
   --confidence-thresholds 0.0 0.35 0.5 0.67 0.8
 ```
@@ -343,7 +359,16 @@ python -m tracking.generate_recovery_dataset \
   --output gigaPose_datasets/results/tracking_recovery_data/train.npz \
   --max-frames 100 \
   --perturbations-per-instance 10
+
+
+  python -m tracking.generate_recovery_dataset \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
+  --split train_pbr_web_gsam_clean \
+  --mesh gigaPose_datasets/datasets/assettocorsa_new_dataset/models/obj_000001.ply \
+  --output gigaPose_datasets/results/tracking_recovery_data/train.npz \
+  --perturbations-per-instance 12
 ```
+<!-- --max-frames 1000 \ -->
 
 This deliberately creates:
 
@@ -379,6 +404,7 @@ python -m tracking.train_recovery \
   --learning-rate 2e-4 \
   --patience 15 \
   --device cuda
+  
 ```
 
 `best.ckpt` is selected by the complete validation recovery objective;
