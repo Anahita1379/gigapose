@@ -171,13 +171,60 @@ python -m tracking.run_tracking \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
   --split test \
   --config tracking/configs/default.json \
-  --output-dir gigaPose_datasets/results/tracking_smoke \
+  --output-dir gigaPose_datasets/results/tracking_smoke_withDepth \
   --max-frames 100 \
   --save-overlays \
-  --no-depth \
   --overwrite
 ```
 
+python -m tracking.run_tracking \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test_original \
+  --config tracking/configs/default.json \
+  --output-dir gigaPose_datasets/results/tracking_smoke_original_sequence \
+  --max-frames 250 \
+  --no-depth \
+  --save-overlays \
+  --overlay-every 1 \
+  --overwrite
+
+python -m tracking.run_tracking \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --config tracking/configs/default.json \
+  --output-dir gigaPose_datasets/results/tracking_full \
+  --no-depth \
+  --save-overlays \
+  --overlay-every 5 \
+  --overwrite
+
+
+another run: ----------------
+python -m tracking.run_tracking \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --config tracking/configs/quality.json \
+  --output-dir gigaPose_datasets/results/tracking_full_quality \
+  --no-depth \
+  --save-overlays \
+  --overlay-every 5 \
+  --overwrite
+
+
+
+to compare original and tracked performance:
+```bash
+python -m fine_tuning.evaluate_pose_errors_by_distance \
+  --model original=gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --model tracked=gigaPose_datasets/results/tracking_full/tracked_predictions.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test_original \
+  --output-dir gigaPose_datasets/results/tracking_full/pose_metrics \
+  --confidence-thresholds 0.0 0.35 0.5 0.67 0.8
+```
 If your CSV translations are already metres, add:
 
 ```bash
