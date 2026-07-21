@@ -1,0 +1,855 @@
+\documentclass[11pt]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\SO}{\mathrm{SO}}
+\newcommand{\Exp}{\operatorname{Exp}}
+\newcommand{\Log}{\operatorname{Log}}
+\newcommand{\IoU}{\operatorname{IoU}}
+\newcommand{\clip}{\operatorname{clip}}
+\newcommand{\median}{\operatorname{median}}
+\newcommand{\normalize}{\operatorname{normalize}}
+\newcommand{\SmoothLone}{\operatorname{SmoothL1}}
+
+\title{Mathematics of the GigaPose Adaptive Tracking System}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+
+\section{System overview}
+
+The tracking system has two distinct parts:
+
+\begin{enumerate}
+    \item \texttt{run\_tracking}: deterministic detection association,
+    hypothesis generation, CAD rendering, pose scoring, local refinement, and
+    temporal tracking.
+    \item \texttt{train\_recovery}: training of an optional small neural
+    network that proposes pose corrections when a track is uncertain or lost.
+\end{enumerate}
+
+The main tracker is not trained. It is a deterministic search and optimization
+procedure. Only the optional recovery head is learned. Even when the learned
+head is used, its corrected pose is rendered and checked by the deterministic
+CAD score before it can be selected.
+
+\section{Pose representation}
+
+Every object pose is represented as a camera-from-object transformation
+
+\begin{equation}
+T_{co}=
+\begin{bmatrix}
+R & t\\
+0 & 1
+\end{bmatrix},
+\qquad
+R\in\SO(3),\quad
+t=[t_x,t_y,t_z]^T\in\R^3.
+\end{equation}
+
+The pose transforms a point in CAD/object coordinates into camera coordinates:
+
+\begin{equation}
+X_c=RX_o+t.
+\end{equation}
+
+Rotation changes are represented by an axis--angle vector
+$\omega\in\R^3$:
+
+\begin{equation}
+\Delta R=\Exp([\omega]_\times),
+\end{equation}
+
+where $[\omega]_\times$ is the skew-symmetric cross-product matrix. The
+exponential map converts a vector in the Lie algebra $\mathfrak{so}(3)$ into a
+valid rotation in $\SO(3)$. This prevents an update from producing a
+non-orthogonal rotation matrix. The implementation is in
+\path{tracking/geometry.py}.
+
+\part{Runtime tracking}
+
+\section{Multi-car association}
+
+Before refining poses, the tracker must decide which detection in the current
+frame belongs to each existing track. This is an assignment problem, not a
+pose-estimation problem.
+
+\subsection{Basic geometric cost}
+
+For track $i$ and detection $j$, the basic cost is
+
+\begin{equation}
+C_{ij}=
+w_{\mathrm{IoU}}\bigl(1-\IoU(B_i,B_j)\bigr)
++w_c
+\min\left(
+\frac{\lVert c_i-c_j\rVert_2/d_{\mathrm{image}}}{d_{\max}},
+1
+\right),
+\end{equation}
+
+where
+
+\begin{equation}
+d_{\mathrm{image}}=\sqrt{W^2+H^2}.
+\end{equation}
+
+$B_i$ and $B_j$ are bounding boxes, while $c_i$ and $c_j$ are their centers.
+The default weights are
+
+\begin{equation}
+w_{\mathrm{IoU}}=0.65,
+\qquad
+w_c=0.35.
+\end{equation}
+
+A low cost means that a detection overlaps the previous track box and has a
+nearby center.
+
+\subsection{The Hungarian algorithm}
+
+All pairwise costs form a matrix. For two tracks and two detections, for
+example,
+
+\begin{equation}
+C=
+\begin{bmatrix}
+C_{0,0} & C_{0,1}\\
+C_{1,0} & C_{1,1}
+\end{bmatrix}
+=
+\begin{bmatrix}
+0.2 & 0.8\\
+0.7 & 0.1
+\end{bmatrix}.
+\end{equation}
+
+The two possible complete assignments have costs
+
+\begin{align}
+(0\rightarrow0,\;1\rightarrow1)&:\quad 0.2+0.1=0.3,\\
+(0\rightarrow1,\;1\rightarrow0)&:\quad 0.8+0.7=1.5.
+\end{align}
+
+The Hungarian algorithm selects the first assignment. More generally, it
+solves
+
+\begin{equation}
+\min_{x_{ij}}\sum_{i,j}C_{ij}x_{ij}
+\end{equation}
+
+subject to one-to-one assignment constraints
+
+\begin{equation}
+x_{ij}\in\{0,1\},
+\qquad
+\sum_jx_{ij}\le1,
+\qquad
+\sum_ix_{ij}\le1.
+\end{equation}
+
+Thus, two tracks cannot claim the same detection and one track cannot claim
+two detections. The algorithm finds the globally best assignment under the
+provided cost; it does not create identity information that is absent from
+that cost.
+
+\subsection{HSV appearance descriptor}
+
+When identity-aware association is enabled, the tracker computes a color
+histogram inside each instance mask. RGB pixels are converted to HSV:
+
+\begin{itemize}
+    \item $H$: hue, such as red, blue, green, or yellow;
+    \item $S$: saturation, or how strongly colored a pixel is;
+    \item $V$: value, or brightness.
+\end{itemize}
+
+The current implementation uses only $H$ and $S$, with 24 hue bins and 16
+saturation bins. The result is a 384-dimensional normalized histogram
+
+\begin{equation}
+h(k)\ge0,
+\qquad
+\sum_kh(k)=1.
+\end{equation}
+
+Hue and saturation are used instead of raw RGB because brightness and color
+are more entangled in RGB. Omitting $V$ makes the descriptor less sensitive to
+illumination, shadow, haze, and exposure changes. This helps when the same car
+moves from sunlight into shadow.
+
+The approach also has limitations. Hue is unreliable for gray, black, and
+white cars; identical liveries can have almost identical histograms; the
+histogram discards spatial layout; and occlusion can change the observed color
+distribution.
+
+\subsection{Bhattacharyya appearance distance}
+
+For two normalized histograms $p$ and $q$, the Bhattacharyya coefficient is
+
+\begin{equation}
+BC(p,q)=\sum_k\sqrt{p_kq_k}.
+\end{equation}
+
+The corresponding distance used for normalized histograms is
+
+\begin{equation}
+d_B(p,q)=\sqrt{1-BC(p,q)}.
+\end{equation}
+
+Therefore,
+
+\begin{align}
+d_B\approx0 &\quad\Longrightarrow\quad
+\text{similar color distributions},\\
+d_B\approx1 &\quad\Longrightarrow\quad
+\text{different color distributions}.
+\end{align}
+
+The stored track appearance is updated with an exponential moving average:
+
+\begin{equation}
+h_t=\normalize\left(\mu h_{t-1}+(1-\mu)h_{\mathrm{det}}\right),
+\qquad \mu=0.85.
+\end{equation}
+
+\subsection{Identity-aware association cost}
+
+When all optional signals are available, the cost numerator is
+
+\begin{equation}
+\widetilde C_{ij}=
+w_{\mathrm{IoU}}(1-\IoU_{\mathrm{box}})
++w_cd_{\mathrm{center}}
++w_{\mathrm{mask}}(1-\IoU_{\mathrm{mask}})
++w_{\mathrm{app}}d_B
++w_{\mathrm{id}}E_{\mathrm{id}},
+\end{equation}
+
+and it is normalized by the sum of weights for the available terms:
+
+\begin{equation}
+C_{ij}=\frac{\widetilde C_{ij}}{\sum_{k\in\mathcal A}w_k}.
+\end{equation}
+
+Here, $E_{\mathrm{id}}=0$ for matching external IDs and $1$ for different
+external IDs. Strict external-ID mode can forbid a conflicting match rather
+than merely penalizing it.
+
+Identity-aware association is enabled with
+
+\begin{verbatim}
+--identity-aware-association
+\end{verbatim}
+
+Stable external instance IDs can additionally be used with
+
+\begin{verbatim}
+--use-external-ids
+\end{verbatim}
+
+External IDs should not be enabled if the detector independently reassigns
+instance numbers in every frame.
+
+If two cars have the same color, $d_B$ is nearly equal for both assignments
+and contributes little information. The tracker then relies on box geometry,
+mask overlap, motion, and any stable external ID. If two identical cars fully
+cross or occlude each other and no persistent identity cue exists, the
+assignment is fundamentally ambiguous and an identity swap is possible.
+
+The association implementation is in \path{tracking/association.py}.
+
+\section{Temporal pose prediction}
+
+For consecutive poses, define translation and rotation increments as
+
+\begin{align}
+\Delta t_k &= t_k-t_{k-1},\\
+\Delta\omega_k &= \Log\left(R_kR_{k-1}^T\right).
+\end{align}
+
+The tracker estimates velocity over a short history using the component-wise
+median:
+
+\begin{equation}
+v_t=\median_k(\Delta t_k),
+\qquad
+v_R=\median_k(\Delta\omega_k).
+\end{equation}
+
+The next temporal proposal is
+
+\begin{align}
+\widehat t_{k+1}&=t_k+v_t,\\
+\widehat R_{k+1}&=\Exp([v_R]_\times)R_k.
+\end{align}
+
+The median is used for robustness. Consider one-dimensional translation
+increments
+
+\begin{equation}
+[0.10,\;0.11,\;0.09,\;2.00]\;\text{m/frame}.
+\end{equation}
+
+The mean is $0.575$ m/frame, while the median is $0.105$ m/frame. A single bad
+pose therefore corrupts the mean much more strongly. The same issue occurs
+when a temporary front/rear flip creates a rotation increment near
+$180^\circ$.
+
+The median is less statistically efficient than the mean when all errors are
+small and Gaussian, and it can be less smooth. The behavior is configurable:
+
+\begin{verbatim}
+"temporal": {
+  "window_size": 5,
+  "robust_velocity": true
+}
+\end{verbatim}
+
+Setting \texttt{robust\_velocity} to \texttt{false} replaces the median with
+the mean.
+
+\section{Optical-flow proposal}
+
+Features inside the previous object mask are tracked with pyramidal
+Lucas--Kanade optical flow. RANSAC fits a 2D partial affine/similarity model
+
+\begin{equation}
+u_t\approx Au_{t-1},
+\end{equation}
+
+which contains image translation, in-plane rotation $\theta$, and scale $s$.
+The transformed object center supplies the pixel displacement. Image scale is
+converted approximately into a depth update:
+
+\begin{equation}
+\Delta\log z=-\log s,
+\qquad
+z_{\mathrm{new}}=z_{\mathrm{old}}e^{-\log s}
+=\frac{z_{\mathrm{old}}}{s}.
+\end{equation}
+
+Thus, when the object becomes larger in the image ($s>1$), the proposed depth
+decreases. The in-plane rotation update is
+
+\begin{equation}
+R_{\mathrm{new}}=R_z(\theta)R_{\mathrm{old}}.
+\end{equation}
+
+Flow confidence is
+
+\begin{equation}
+c_{\mathrm{flow}}=\clip\left(
+r_{\mathrm{inlier}}
+\min\left(\frac{N_{\mathrm{inlier}}}{30},1\right),
+0,1
+\right).
+\end{equation}
+
+The implementation is in \path{tracking/flow.py}.
+
+\section{Adaptive pose-hypothesis generation}
+
+Depending on the tracking state, the candidate set may combine:
+
+\begin{itemize}
+    \item temporal propagation;
+    \item optical-flow propagation;
+    \item the previous pose;
+    \item GigaPose top-$K$ predictions;
+    \item optional auxiliary predictions;
+    \item $180^\circ$ flipped poses;
+    \item image-center, log-depth, translation, and rotation offsets.
+\end{itemize}
+
+For a pose with translation $t$, its projected center is
+
+\begin{equation}
+u=\pi(Kt).
+\end{equation}
+
+Given a pixel offset $\Delta u$ and log-depth offset $\Delta\log z$, define
+
+\begin{equation}
+z'=z e^{\Delta\log z}
+\end{equation}
+
+and
+
+\begin{equation}
+t'=z'
+\frac{
+K^{-1}
+\begin{bmatrix}
+u+\Delta u\\1
+\end{bmatrix}
+}{
+\left(
+K^{-1}
+\begin{bmatrix}
+u+\Delta u\\1
+\end{bmatrix}
+\right)_z
+}.
+\end{equation}
+
+Equivalent candidates are removed when both
+
+\begin{equation}
+\lVert t_i-t_j\rVert_2\le\tau_t
+\end{equation}
+
+and
+
+\begin{equation}
+\left\lVert\Log(R_iR_j^T)\right\rVert_2\le\tau_R.
+\end{equation}
+
+Normal tracks follow a cheap local path. Uncertain and lost tracks receive a
+larger candidate set, and periodic global GigaPose hypotheses provide a way to
+escape accumulated drift. Candidate generation is implemented in
+\path{tracking/hypotheses.py}.
+
+\section{CAD alignment evidence}
+
+For each pose hypothesis, the CAD renderer produces a rendered mask $M_r$ and
+rendered depth $D_r$. These are compared with the observed detection mask
+$M_o$, observed box $B_o$, and observed depth $D_o$.
+
+\subsection{Silhouette and bounding-box errors}
+
+\begin{align}
+E_{\mathrm{sil}}&=1-\frac{|M_r\cap M_o|}{|M_r\cup M_o|},\\
+E_{\mathrm{bbox}}&=1-\IoU(B_r,B_o).
+\end{align}
+
+\subsection{Symmetric edge error}
+
+Let $\partial M$ denote a mask boundary and let $d(x,S)$ be the distance from
+point $x$ to set $S$. The symmetric edge error is
+
+\begin{equation}
+E_{\mathrm{edge}}=\clip\left(
+\frac{
+\frac12\left[
+\frac{1}{|\partial M_r|}\sum_{p\in\partial M_r}d(p,\partial M_o)
++\frac{1}{|\partial M_o|}\sum_{q\in\partial M_o}d(q,\partial M_r)
+\right]
+}{d_{\max}},
+0,1
+\right).
+\end{equation}
+
+This is a normalized, truncated, symmetric Chamfer-style distance.
+
+\subsection{Depth error}
+
+Depth is evaluated only on pixels that are valid in both masks and depth maps:
+
+\begin{equation}
+\Omega=M_r\cap M_o\cap\{D_r>0\}\cap\{D_o>0\}.
+\end{equation}
+
+The robust log-depth error is
+
+\begin{equation}
+E_{\mathrm{depth}}=\clip\left(
+\frac{
+\median_{p\in\Omega}
+\left|\log(D_r(p)+\epsilon)-\log(D_o(p)+\epsilon)\right|
+}{\log(1+d_{\mathrm{trunc}})},
+0,1
+\right).
+\end{equation}
+
+If depth is unavailable, the depth term and its weight are removed. Missing
+depth is not treated as a zero-error match.
+
+\subsection{Measurement and motion errors}
+
+The term called \texttt{feature\_error} in the implementation currently uses
+the incoming GigaPose or auxiliary-prediction score:
+
+\begin{equation}
+E_{\mathrm{feature}}=1-\clip(s_{\mathrm{measurement}},0,1).
+\end{equation}
+
+It is not a new DINO feature comparison. Relative to a temporal reference
+pose, the motion error is
+
+\begin{equation}
+E_{\mathrm{motion}}=\frac12\left[
+\min\left(\frac{\lVert t-t_{\mathrm{motion}}\rVert_2}{s_t},1\right)
++\min\left(
+\frac{\theta(RR_{\mathrm{motion}}^T)}{s_R},1
+\right)
+\right],
+\end{equation}
+
+with default scales
+
+\begin{equation}
+s_t=1.5\;\mathrm{m},
+\qquad
+s_R=35^\circ.
+\end{equation}
+
+\subsection{Combined candidate score}
+
+The image-evidence error is
+
+\begin{equation}
+E_{\mathrm{evidence}}=
+w_fE_{\mathrm{feature}}
++w_sE_{\mathrm{sil}}
++w_eE_{\mathrm{edge}}
++w_dE_{\mathrm{depth}}
++w_bE_{\mathrm{bbox}}.
+\end{equation}
+
+The full error is
+
+\begin{equation}
+E_{\mathrm{total}}=E_{\mathrm{evidence}}+w_mE_{\mathrm{motion}}.
+\end{equation}
+
+Default weights are
+
+\begin{equation}
+(w_f,w_s,w_e,w_d,w_b,w_m)
+=(0.15,2.0,0.75,0.5,0.75,0.12).
+\end{equation}
+
+Candidates are ranked by increasing $E_{\mathrm{total}}$. Visual confidence
+deliberately excludes the motion prior:
+
+\begin{equation}
+c_{\mathrm{visual}}=\clip\left(
+1-\frac{E_{\mathrm{evidence}}}
+{w_f+w_s+w_e+w_d+w_b},
+0,1
+\right),
+\end{equation}
+
+where unavailable terms and weights are omitted. Excluding motion prevents a
+temporally self-consistent but visually wrong track from becoming permanently
+overconfident. Scoring is implemented in \path{tracking/scoring.py}.
+
+\section{Derivative-free local refinement}
+
+The refiner performs coordinate search around each beam candidate. It tests
+
+\begin{equation}
+u_x\pm\Delta u,
+\qquad
+u_y\pm\Delta u,
+\qquad
+\log z\pm\Delta\log z,
+\end{equation}
+
+and, by default, in-plane rotations
+
+\begin{equation}
+R_z(\pm\Delta\theta)R.
+\end{equation}
+
+Full rotation refinement can additionally search the $x$ and $y$ axes. At
+iteration $k$, the search step decays according to
+
+\begin{equation}
+\Delta_{k+1}=\gamma\Delta_k,
+\qquad
+\gamma=0.55\quad\text{by default}.
+\end{equation}
+
+Only the lowest-error beam candidates survive. This resembles coordinate
+descent with beam search, but it optimizes a CAD-rendering objective without
+back-propagating through the renderer. See \path{tracking/refinement.py}.
+
+\section{Confidence, state transitions, and global recovery}
+
+If the two best candidates have $E_1\le E_2$, their separation reliability is
+
+\begin{equation}
+r=\clip\left(\frac{E_2-E_1}{m_{\min}},0,1\right).
+\end{equation}
+
+Final confidence is
+
+\begin{equation}
+c=c_{\mathrm{visual}}(0.75+0.25r).
+\end{equation}
+
+An ambiguous result can therefore lose up to 25 percent of its visual
+confidence. Default state transitions are
+
+\begin{equation}
+\begin{cases}
+\text{normal}, & c\ge0.67,\\
+\text{uncertain}, & 0.35\le c<0.67,\\
+\text{lost}, & c<0.35.
+\end{cases}
+\end{equation}
+
+Uncertain and lost states perform broader searches. Periodic global
+hypotheses prevent unbounded drift. Optional same-frame recovery escalates
+from the cheap normal search to uncertain/lost search before the current frame
+is finalized. State management is implemented in \path{tracking/tracker.py}.
+
+\part{Learned recovery head}
+
+\section{Recovery-data generation}
+
+Recovery training begins with a ground-truth pose
+
+\begin{equation}
+T^*=[R^*,t^*].
+\end{equation}
+
+The data generator creates synthetic candidate poses
+$\widetilde T=[\widetilde R,\widetilde t]$, including clean poses,
+$180^\circ$ flips, moderate and large image-center errors, log-depth errors,
+full 3D rotation errors, and partial synthetic occlusions.
+
+Each candidate is rendered and summarized by the 11-dimensional vector
+
+\begin{equation}
+x=\left[
+E_f,E_{\mathrm{sil}},E_{\mathrm{edge}},E_{\mathrm{depth}},
+E_{\mathrm{bbox}},E_{\mathrm{motion}},
+\Delta u_x,\Delta u_y,
+\log(A_r/A_o),
+\log(D_r/D_o),
+s_{\mathrm{measurement}}
+\right].
+\end{equation}
+
+Candidates generated from the same physical object instance share a group ID.
+Train/validation splitting is performed by group so perturbations of the same
+instance cannot leak across the split. Generation is implemented in
+\path{tracking/generate_recovery_dataset.py}.
+
+\section{Recovery targets}
+
+The desired left-applied rotation correction is
+
+\begin{equation}
+\omega^*=\Log\left(R^*\widetilde R^T\right),
+\end{equation}
+
+which satisfies
+
+\begin{equation}
+R^*=\Exp([\omega^*]_\times)\widetilde R.
+\end{equation}
+
+The desired camera-frame translation correction is
+
+\begin{equation}
+\Delta t^*=t^*-\widetilde t.
+\end{equation}
+
+The binary acceptable-pose target is
+
+\begin{equation}
+y=\mathbf 1\left[
+\lVert t^*-\widetilde t\rVert_2\le0.15\;\mathrm{m}
+\;\land\;
+E_R\le10^\circ
+\right].
+\end{equation}
+
+The scalar quality target is
+
+\begin{equation}
+q^*=\frac{\lVert t^*-\widetilde t\rVert_2}{0.15\;\mathrm{m}}
++\frac{E_R}{10^\circ}.
+\end{equation}
+
+Lower $q^*$ indicates a better candidate.
+
+\section{Recovery network}
+
+Input features are standardized using statistics computed only from the
+training groups:
+
+\begin{equation}
+\overline x=\frac{x-\mu_x}{\sigma_x}.
+\end{equation}
+
+With the default hidden dimension, the multilayer perceptron is
+
+\begin{equation}
+11\longrightarrow128\longrightarrow128\longrightarrow8.
+\end{equation}
+
+It predicts
+
+\begin{equation}
+(\widehat\omega_{\mathrm{raw}},
+\Delta\widehat t_{\mathrm{raw}},
+\widehat a,
+\widehat q),
+\end{equation}
+
+comprising three raw rotation values, three raw translation values, a
+confidence logit, and a scalar log-quality estimate.
+
+An unconstrained vector is mapped to an open ball of radius $r_{\max}$ by
+
+\begin{equation}
+B(v;r_{\max})=
+r_{\max}\tanh(\lVert v\rVert_2)
+\frac{v}{\max(\lVert v\rVert_2,\epsilon)}.
+\end{equation}
+
+Hence
+
+\begin{align}
+\widehat\omega&=B(\widehat\omega_{\mathrm{raw}};\omega_{\max}),\\
+\Delta\widehat t&=B(\Delta\widehat t_{\mathrm{raw}};t_{\max}).
+\end{align}
+
+This prevents the learned head from applying arbitrarily large corrections.
+The network is defined in \path{tracking/recovery.py}.
+
+\section{Recovery training objective}
+
+For scalar residual $r$, PyTorch's default Smooth-L1 penalty is
+
+\begin{equation}
+\rho(r)=
+\begin{cases}
+\frac12r^2, & |r|<1,\\
+|r|-\frac12, & |r|\ge1.
+\end{cases}
+\end{equation}
+
+The normalized rotation and translation losses are
+
+\begin{align}
+L_R&=\SmoothLone\left(
+\frac{\widehat\omega}{\omega_{\max}},
+\frac{\omega^*}{\omega_{\max}}
+\right),\\
+L_t&=\SmoothLone\left(
+\frac{\Delta\widehat t}{t_{\max}},
+\frac{\Delta t^*}{t_{\max}}
+\right).
+\end{align}
+
+The binary confidence loss is
+
+\begin{equation}
+L_c=-y\log\sigma(\widehat a)
+-(1-y)\log\left(1-\sigma(\widehat a)\right).
+\end{equation}
+
+The quality loss predicts a compressed log-quality target:
+
+\begin{equation}
+L_q=\SmoothLone\left(\widehat q,\log(1+q^*)\right).
+\end{equation}
+
+For candidates $i$ and $j$ from the same object instance, if
+$q_i^*<q_j^*$, candidate $i$ should have lower predicted quality. The pairwise
+ranking penalty is
+
+\begin{equation}
+L_{\mathrm{rank}}^{ij}
+=\max\left(0,m+\widehat q_i-\widehat q_j\right),
+\qquad m=0.1\quad\text{by default}.
+\end{equation}
+
+The total objective is
+
+\begin{equation}
+\boxed{
+L=\lambda_RL_R+\lambda_tL_t+\lambda_cL_c
++\lambda_qL_q+\lambda_{\mathrm{rank}}L_{\mathrm{rank}}
+}.
+\end{equation}
+
+Default weights are
+
+\begin{equation}
+(\lambda_R,\lambda_t,\lambda_c,\lambda_q,\lambda_{\mathrm{rank}})
+=(1,1,0.25,0.20,0.20).
+\end{equation}
+
+The head is optimized using AdamW with default weight decay $10^{-4}$.
+Gradient norm is clipped to 5. Validation uses the same total objective and
+early stopping monitors validation $L$. Training and validation loss
+components can optionally be logged to Weights \& Biases. See
+\path{tracking/train_recovery.py}.
+
+\section{Using the learned correction at runtime}
+
+The learned head runs only when a track is uncertain or lost and a recovery
+checkpoint is supplied. For a candidate pose,
+
+\begin{align}
+R_{\mathrm{corrected}}
+&=\Exp([\widehat\omega]_\times)R_{\mathrm{candidate}},\\
+t_{\mathrm{corrected}}
+&=t_{\mathrm{candidate}}+\Delta\widehat t.
+\end{align}
+
+The predicted quality is converted to a score
+
+\begin{equation}
+s_q=e^{-\max(\widehat q,0)},
+\end{equation}
+
+and the proposal's measurement score becomes
+
+\begin{equation}
+s_{\mathrm{new}}=
+\frac{s_{\mathrm{old}}+\sigma(\widehat a)+s_q}{3}.
+\end{equation}
+
+The corrected proposal is not accepted blindly. It returns to the CAD refiner
+and is compared with all other candidates using silhouette, edge, depth, box,
+measurement, and motion evidence. The complete self-correcting loop is
+
+\begin{align*}
+\text{temporal/global candidates}
+&\rightarrow\text{CAD scoring}
+\rightarrow\text{learned correction}\\
+&\rightarrow\text{CAD refinement}
+\rightarrow\text{verified pose}.
+\end{align*}
+
+The approach can improve a bad initial GigaPose pose when candidate generation
+or the recovery head reaches the correct alignment basin. It cannot guarantee
+recovery when all candidates are far from the true pose or when visual
+evidence is fundamentally ambiguous.
+
+\section{Relevant implementation files}
+
+\begin{itemize}
+    \item Pose geometry: \path{tracking/geometry.py}
+    \item Multi-car association: \path{tracking/association.py}
+    \item Optical flow: \path{tracking/flow.py}
+    \item Candidate generation: \path{tracking/hypotheses.py}
+    \item CAD scoring: \path{tracking/scoring.py}
+    \item Local refinement: \path{tracking/refinement.py}
+    \item State machine: \path{tracking/tracker.py}
+    \item Recovery network: \path{tracking/recovery.py}
+    \item Recovery-data generation:
+    \path{tracking/generate_recovery_dataset.py}
+    \item Recovery training: \path{tracking/train_recovery.py}
+    \item Command-line runtime: \path{tracking/run_tracking.py}
+\end{itemize}
+
+\end{document}

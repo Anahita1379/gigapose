@@ -43,6 +43,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-frames", type=int, default=None)
     parser.add_argument("--perturbations-per-instance", type=int, default=10)
     parser.add_argument("--seed", type=int, default=20260717)
+    parser.add_argument(
+        "--no-depth",
+        action="store_true",
+        help=(
+            "Ignore depth.png even when the prepared split contains it. "
+            "Use this when the recovery head will be deployed with "
+            "tracking.run_tracking --no-depth."
+        ),
+    )
     parser.add_argument("--occlusion-probability", type=float, default=0.30)
     parser.add_argument("--positive-translation-m", type=float, default=0.15)
     parser.add_argument("--positive-rotation-deg", type=float, default=10.0)
@@ -76,7 +85,10 @@ def _extract(tar: tarfile.TarFile, key: str, suffix: str) -> bytes | None:
 
 
 def iter_gt_frames(
-    dataset_dir: Path, split: str
+    dataset_dir: Path,
+    split: str,
+    *,
+    load_depth: bool = True,
 ) -> Iterator[tuple[str, np.ndarray, np.ndarray, np.ndarray | None, list[dict], dict]]:
     split_dir = dataset_dir / split
     mapping = json.loads((split_dir / "key_to_shard.json").read_text())
@@ -97,9 +109,9 @@ def iter_gt_frames(
                 image = np.asarray(Image.open(io.BytesIO(rgb_bytes)).convert("RGB"))
                 camera = json.loads(camera_bytes)
                 K = np.asarray(camera["cam_K"], dtype=float).reshape(3, 3)
-                depth_bytes = _extract(tar, key, "depth.png")
                 depth_m = None
-                if depth_bytes is not None:
+                depth_bytes = _extract(tar, key, "depth.png") if load_depth else None
+                if load_depth and depth_bytes is not None:
                     raw = np.asarray(Image.open(io.BytesIO(depth_bytes)), dtype=float)
                     depth_m = raw * float(camera.get("depth_scale", 1.0)) * 0.001
                 yield (
@@ -172,14 +184,20 @@ def main() -> None:
     )
     features, rotation_targets, translation_targets = [], [], []
     confidence_targets, quality_targets, group_ids = [], [], []
-    frame_count = instance_count = 0
+    frame_count = instance_count = depth_frame_count = 0
     try:
         scorer = CandidateScorer(renderer, config)
         for frame_index, (key, image, K, depth_m, gt, extra) in enumerate(
-            iter_gt_frames(args.dataset_dir, args.split)
+            iter_gt_frames(
+                args.dataset_dir,
+                args.split,
+                load_depth=not args.no_depth,
+            )
         ):
             if args.max_frames is not None and frame_index >= args.max_frames:
                 break
+            if depth_m is not None:
+                depth_frame_count += 1
             scene_id, im_id = (int(value) for value in key.split("_"))
             for instance_index, pose_data in enumerate(gt):
                 mask_rle = extra["masks"].get(str(instance_index))
@@ -268,6 +286,7 @@ def main() -> None:
         quality_targets=np.asarray(quality_targets, dtype=np.float32),
         group_ids=np.asarray(group_ids, dtype=np.int64),
         feature_names=np.asarray(FEATURE_NAMES),
+        depth_enabled=np.asarray(not args.no_depth, dtype=np.bool_),
     )
     report = {
         "dataset_dir": str(args.dataset_dir),
@@ -276,6 +295,8 @@ def main() -> None:
         "instances": instance_count,
         "candidates": len(features),
         "features": list(FEATURE_NAMES),
+        "depth_enabled": not args.no_depth,
+        "frames_with_depth": depth_frame_count,
         "seed": args.seed,
         "output": str(args.output),
     }

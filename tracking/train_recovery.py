@@ -181,6 +181,18 @@ def _load_recovery_data(path: Path) -> dict[str, np.ndarray]:
     return arrays
 
 
+def _load_depth_enabled(path: Path) -> bool | None:
+    """Read optional generator metadata while accepting legacy NPZ files."""
+
+    with np.load(path) as payload:
+        if "depth_enabled" not in payload.files:
+            return None
+        value = np.asarray(payload["depth_enabled"])
+    if value.size != 1:
+        raise ValueError(f"{path} depth_enabled metadata must be scalar.")
+    return bool(value.reshape(-1)[0])
+
+
 def _remap_groups(
     group_ids: np.ndarray, start: int
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -206,6 +218,7 @@ def _prepare_recovery_data(
     dict[str, object],
 ]:
     training = _load_recovery_data(training_path)
+    training_depth_enabled = _load_depth_enabled(training_path)
     if validation_path is None:
         if not 0 < validation_fraction < 1:
             raise ValueError(
@@ -232,6 +245,8 @@ def _prepare_recovery_data(
             "validation_candidates": int(
                 np.isin(arrays["group_ids"], validation_groups).sum()
             ),
+            "training_depth_enabled": training_depth_enabled,
+            "validation_depth_enabled": training_depth_enabled,
         }
         return arrays, training_groups, validation_groups, metadata
 
@@ -240,6 +255,17 @@ def _prepare_recovery_data(
             "--validation-data must be a different file from --data."
         )
     validation = _load_recovery_data(validation_path)
+    validation_depth_enabled = _load_depth_enabled(validation_path)
+    if (
+        training_depth_enabled is not None
+        and validation_depth_enabled is not None
+        and training_depth_enabled != validation_depth_enabled
+    ):
+        raise ValueError(
+            "Recovery train/validation depth modes differ: "
+            f"{training_path} depth_enabled={training_depth_enabled}, "
+            f"{validation_path} depth_enabled={validation_depth_enabled}."
+        )
     training_ids, training_groups = _remap_groups(
         training["group_ids"], start=0
     )
@@ -258,6 +284,8 @@ def _prepare_recovery_data(
         "validation_data": str(validation_path),
         "training_candidates": int(training["features"].shape[0]),
         "validation_candidates": int(validation["features"].shape[0]),
+        "training_depth_enabled": training_depth_enabled,
+        "validation_depth_enabled": validation_depth_enabled,
     }
     return arrays, training_groups, validation_groups, metadata
 
@@ -362,7 +390,8 @@ def main() -> None:
         f"train_candidates={data_metadata['training_candidates']} "
         f"train_groups={training_groups.size} "
         f"validation_candidates={data_metadata['validation_candidates']} "
-        f"validation_groups={validation_groups.size}"
+        f"validation_groups={validation_groups.size} "
+        f"depth_enabled={data_metadata['training_depth_enabled']}"
     )
     training_mask = np.isin(arrays["group_ids"], training_groups)
     feature_mean = arrays["features"][training_mask].mean(axis=0)

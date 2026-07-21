@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import csv
+import io
 import json
 import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +14,7 @@ from unittest.mock import patch
 import cv2
 import numpy as np
 import torch
+from PIL import Image
 
 from tracking.association import associate_tracks
 from tracking.config import TrackerConfig
@@ -22,6 +25,7 @@ from tracking.geometry import (
     so3_exp,
     so3_log,
 )
+from tracking.generate_recovery_dataset import iter_gt_frames
 from tracking.io import (
     PredictionCSVProvider,
     WebDatasetSequence,
@@ -273,12 +277,62 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class RecoveryDataTests(unittest.TestCase):
+    def test_recovery_generation_can_ignore_available_depth(self):
+        with tempfile.TemporaryDirectory() as folder:
+            dataset_dir = Path(folder)
+            split_dir = dataset_dir / "train"
+            split_dir.mkdir(parents=True)
+            key = "000001_000001"
+            (split_dir / "key_to_shard.json").write_text(
+                json.dumps({key: 0})
+            )
+
+            def image_bytes(array, image_format):
+                buffer = io.BytesIO()
+                Image.fromarray(array).save(buffer, format=image_format)
+                return buffer.getvalue()
+
+            members = {
+                f"{key}.rgb.jpg": image_bytes(
+                    np.zeros((4, 5, 3), dtype=np.uint8), "JPEG"
+                ),
+                f"{key}.depth.png": image_bytes(
+                    np.full((4, 5), 2000, dtype=np.uint16), "PNG"
+                ),
+                f"{key}.camera.json": json.dumps(
+                    {
+                        "cam_K": [100, 0, 2, 0, 100, 2, 0, 0, 1],
+                        "depth_scale": 1.0,
+                    }
+                ).encode(),
+                f"{key}.gt.json": b"[]",
+                f"{key}.gt_info.json": b"[]",
+                f"{key}.mask_visib.json": b"{}",
+            }
+            with tarfile.open(split_dir / "shard-000000.tar", "w") as tar:
+                for name, value in members.items():
+                    info = tarfile.TarInfo(name)
+                    info.size = len(value)
+                    tar.addfile(info, io.BytesIO(value))
+
+            with_depth = list(
+                iter_gt_frames(dataset_dir, "train", load_depth=True)
+            )
+            without_depth = list(
+                iter_gt_frames(dataset_dir, "train", load_depth=False)
+            )
+
+            self.assertEqual(len(with_depth), 1)
+            self.assertAlmostEqual(float(with_depth[0][3][0, 0]), 2.0)
+            self.assertIsNone(without_depth[0][3])
+
     @staticmethod
-    def write_dataset(path, group_ids, feature_value):
+    def write_dataset(
+        path, group_ids, feature_value, depth_enabled=None
+    ):
         group_ids = np.asarray(group_ids, dtype=np.int64)
         sample_count = len(group_ids)
-        np.savez_compressed(
-            path,
+        values = dict(
             features=np.full(
                 (sample_count, len(FEATURE_NAMES)),
                 feature_value,
@@ -295,6 +349,29 @@ class RecoveryDataTests(unittest.TestCase):
             group_ids=group_ids,
             feature_names=np.asarray(FEATURE_NAMES),
         )
+        if depth_enabled is not None:
+            values["depth_enabled"] = np.asarray(
+                depth_enabled, dtype=np.bool_
+            )
+        np.savez_compressed(path, **values)
+
+    def test_recovery_training_rejects_mixed_depth_modes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            training_path = Path(folder) / "train.npz"
+            validation_path = Path(folder) / "val.npz"
+            self.write_dataset(
+                training_path, [0, 0, 1, 1], 1.0, depth_enabled=False
+            )
+            self.write_dataset(
+                validation_path, [0, 0], 2.0, depth_enabled=True
+            )
+            with self.assertRaisesRegex(ValueError, "depth modes differ"):
+                _prepare_recovery_data(
+                    training_path,
+                    validation_path,
+                    0.15,
+                    np.random.default_rng(7),
+                )
 
     def test_external_validation_data_remains_disjoint_with_overlapping_ids(self):
         with tempfile.TemporaryDirectory() as folder:

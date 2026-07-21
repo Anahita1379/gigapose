@@ -103,6 +103,9 @@ bboxes, masks, depth, and saved overlays remain in original-image coordinates.
 - `generate_recovery_dataset.py`: synthesize recovery failures from BOP GT.
 - `train_recovery.py`: train residual, confidence, quality, and ranking losses.
 - `evaluate_tracking.py`: evaluate tracked CSV against WebDataset BOP GT.
+- `compare_predictions_without_gt.py`: compare original and tracked prediction
+  CSVs through pose disagreement, confidence coverage, distance-binned changes,
+  and temporal consistency when no pose GT exists.
 - `visualization.py`: per-frame overlays.
 - `tests/`: renderer-free focused tests.
 
@@ -397,6 +400,38 @@ python -m tracking.generate_recovery_dataset \
   --perturbations-per-instance 10
 ```
 
+If deployment will use `tracking.run_tracking --no-depth`, generate both files
+with `--no-depth` as well. This intentionally ignores `depth.png` even when it
+exists in the synthetic split:
+
+```bash
+python -m tracking.generate_recovery_dataset \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
+  --split train_pbr_web_gsam_clean \
+  --mesh gigaPose_datasets/datasets/assettocorsa_new_dataset/models/obj_000001.ply \
+  --output gigaPose_datasets/results/tracking_recovery_data_no_depth/train.npz \
+  --max-frames 10000 \
+  --perturbations-per-instance 12 \
+  --no-depth
+
+python -m tracking.generate_recovery_dataset \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
+  --split val_pbr_web_gsam_clean \
+  --mesh gigaPose_datasets/datasets/assettocorsa_new_dataset/models/obj_000001.ply \
+  --output gigaPose_datasets/results/tracking_recovery_data_no_depth/val.npz \
+  --max-frames 2000 \
+  --perturbations-per-instance 12 \
+  --no-depth
+```
+
+The feature layout remains unchanged for runtime compatibility. In no-depth
+files, `depth_error` and `log_depth_ratio` are always zero. The head can still
+learn X/Y/Z translation corrections from mask center, projected area,
+silhouette, boundary, bbox, motion, and pose-quality evidence, but Z is no
+longer constrained by observed metric depth. The generated `.json` report and
+NPZ metadata record `depth_enabled=false`; do not mix depth-enabled training
+with no-depth validation data.
+
 This deliberately creates:
 
 - clean/almost-correct candidates;
@@ -518,6 +553,41 @@ python -m tracking.evaluate_tracking \
 This writes per-instance translation error in metres, rotation error in
 degrees, missed GT count, false-positive count, and mean/median/p90 summaries.
 Run again with a higher `--min-confidence` to measure selective accuracy.
+
+## Step 7: compare tracking runs without pose GT
+
+When a real sequence has no embedded BOP `gt.json`, compare an original
+GigaPose CSV with one or more tracking results using:
+
+```bash
+python -m tracking.compare_predictions_without_gt \
+  --model original=<MultiHypothesis.csv> \
+  --model tracked=<tracked_predictions.csv> \
+  --reference original \
+  --dataset-dir <prepared_real_dataset> \
+  --split test \
+  --confidence-thresholds 0.0 0.35 0.5 0.67 0.8 \
+  --output-dir <tracking_result_dir>/comparison_without_gt
+```
+
+The script selects rank zero from each GigaPose hypothesis group and matches
+cars frame-by-frame. Shared stable track IDs are used when both files have
+them; otherwise Hungarian association uses projected-center direction and
+relative translation. It writes:
+
+- `matched_pose_changes.csv`: per-car translation, depth, image-center, and
+  rotation changes from the reference prediction;
+- `coverage.csv`: matched and unmatched prediction counts;
+- overall, distance-bin, and confidence-threshold CSV summaries;
+- temporal velocity/acceleration summaries for files containing stable
+  `track_id` values;
+- ordinary plots and `plots_vs_confidence/`;
+- `REPORT.md` and `summary.json` with the GT-free interpretation warning.
+
+These are **not accuracy errors**. A small value means agreement with the
+reference, and smooth motion means temporal consistency; either prediction can
+still be wrong. GigaPose scores and tracker confidence also have different
+calibration, so equal numeric thresholds need not represent equal probability.
 
 ## Confidence semantics
 
