@@ -45,7 +45,7 @@
     "log_depth_step": 0.06,
     "rotation_step_deg": 4.0,
     "step_decay": 0.55,
-    "refine_full_rotation": false
+    "refine_full_rotation": true
   },
   "flow": {
     "enabled": true,
@@ -79,7 +79,7 @@
     "window_size": 5,
     "robust_velocity": true
   },
-  "render_scale": 0.5,
+  "render_scale": 1.0,
   "render_crop_padding_frac": 0.75,
   "render_crop_min_side_px": 96,
   "min_render_pixels": 20,

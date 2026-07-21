@@ -462,7 +462,7 @@ python -m tracking.train_recovery \
   --data gigaPose_datasets/results/tracking_recovery_data/train.npz \
   --validation-data gigaPose_datasets/results/tracking_recovery_data/val.npz \
   --output-dir gigaPose_datasets/results/tracking_recovery_head \
-  --epochs 100 \
+  --epochs 1000 \
   --groups-per-batch 24 \
   --learning-rate 2e-4 \
   --patience 15 \
@@ -512,6 +512,56 @@ python -m tracking.run_tracking \
   ...same tracking arguments... \
   --recovery-checkpoint gigaPose_datasets/results/tracking_recovery_head/best.ckpt
 ```
+python -m tracking.run_tracking \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_full_improved_recovery \
+  --recovery-checkpoint gigaPose_datasets/results/tracking_recovery_head/best.ckpt \
+  --no-depth \
+  --save-overlays \
+  --overlay-every 5 \
+  --overwrite
+
+
+
+for assetto corsa we can use: 
+External instance IDs are not enabled by that flag. If your mask instance IDs are stable across frames, use:
+--identity-aware-association \
+--use-external-ids 
+External instance IDs are not enabled by that flag. If your mask instance IDs are stable across frames, use:
+
+python -m tracking.run_tracking \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_full_improved_withExID_recovery \
+  --recovery-checkpoint gigaPose_datasets/results/tracking_recovery_head/best.ckpt \
+  --no-depth \
+  --save-overlays \
+  --overlay-every 5 \
+  --identity-aware-association \
+  --use-external-ids \
+  --overwrite
+
+
+
+
+to compare original and tracked performance:
+```bash
+python -m fine_tuning.evaluate_pose_errors_by_distance \
+  --model original=gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
+  --model tracked_full_improved=gigaPose_datasets/results/tracking_full_improved/tracked_predictions.csv \
+  --model tracked_full_improved_recovery_ID=gigaPose_datasets/results/tracking_full_improved_withExID_recovery/tracked_predictions.csv \
+  --model tracked_full_improved_recovery=gigaPose_datasets/results/tracking_full_improved_recovery/tracked_predictions.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --output-dir gigaPose_datasets/results/tracking_full_improved_ID_comp/pose_metrics_compare_july20 \
+  --confidence-thresholds 0.0 0.35 0.5 0.67 0.8
+```
+
 
 The learned head runs only for uncertain/lost tracks. Its proposal is still
 rendered, scored, and allowed to lose to a deterministic/global hypothesis.
