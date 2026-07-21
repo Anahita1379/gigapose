@@ -1,0 +1,223 @@
+from __future__ import annotations
+
+import io
+import json
+import tarfile
+
+import numpy as np
+from PIL import Image
+import torch
+
+from tracking.geometry import rotate_pose, shift_projected_center
+from tracking.rgb_self_recovery.dataset import RGBRenderRecoveryDataset
+from tracking.rgb_self_recovery.inference import (
+    RGBSelfRecoveryPredictor,
+    RecoveryProposal,
+)
+from tracking.rgb_self_recovery.model import (
+    RGBRenderRecoveryNet,
+    decode_outputs,
+    rotation_geodesic_atan2,
+)
+from tracking.rgb_self_recovery.render_inputs import (
+    apply_recovery_delta,
+    crop_spec_from_bbox,
+    decode_render_channels,
+    encode_render_channels,
+    hide_rendered_occluders,
+    recovery_targets,
+    render_candidate_channels,
+)
+from tracking.types import Detection, FrameData
+
+
+class SquareRenderer:
+    def render(self, pose_m, K, image_shape):
+        height, width = image_shape
+        translation = np.asarray(pose_m[:3, 3], dtype=float)
+        projected = np.asarray(K, dtype=float) @ translation
+        center = projected[:2] / projected[2]
+        radius = max(2, int(round(18.0 / translation[2])))
+        x0 = max(0, int(round(center[0])) - radius)
+        x1 = min(width, int(round(center[0])) + radius + 1)
+        y0 = max(0, int(round(center[1])) - radius)
+        y1 = min(height, int(round(center[1])) + radius + 1)
+        mask = np.zeros((height, width), dtype=bool)
+        depth = np.zeros((height, width), dtype=np.float32)
+        mask[y0:y1, x0:x1] = True
+        depth[mask] = float(translation[2])
+        return mask, depth
+
+
+def test_crop_intrinsics_map_projected_points():
+    K = np.asarray([[700.0, 0.0, 320.0], [0.0, 710.0, 180.0], [0.0, 0.0, 1.0]])
+    crop = crop_spec_from_bbox(np.asarray([100.0, 50.0, 120.0, 80.0]), output_size=128)
+    point = np.asarray([0.3, -0.1, 5.0])
+    original = K @ point
+    original = original[:2] / original[2]
+    expected = crop.homography @ np.asarray([*original, 1.0])
+    transformed = crop.transform_intrinsics(K) @ point
+    transformed = transformed[:2] / transformed[2]
+    np.testing.assert_allclose(transformed, expected[:2], atol=1e-6)
+
+
+def test_recovery_targets_round_trip_pose():
+    K = np.asarray([[800.0, 0.0, 320.0], [0.0, 800.0, 180.0], [0.0, 0.0, 1.0]])
+    ground_truth = np.eye(4)
+    ground_truth[:3, 3] = [0.25, -0.08, 7.0]
+    candidate = shift_projected_center(
+        ground_truth,
+        K,
+        np.asarray([31.0, -18.0]),
+        0.22,
+    )
+    candidate = rotate_pose(candidate, np.asarray([0.12, -0.08, 0.18]), side="left")
+    delta_uv, delta_log_depth, delta_rotation = recovery_targets(candidate, ground_truth, K)
+    recovered = apply_recovery_delta(
+        candidate, K, delta_uv, delta_log_depth, delta_rotation
+    )
+    np.testing.assert_allclose(recovered[:3, 3], ground_truth[:3, 3], atol=1e-7)
+    np.testing.assert_allclose(recovered[:3, :3], ground_truth[:3, :3], atol=1e-7)
+
+
+def test_render_channel_encoding_and_decoding():
+    renderer = SquareRenderer()
+    pose = np.eye(4)
+    pose[2, 3] = 4.0
+    K = np.asarray([[90.0, 0.0, 32.0], [0.0, 90.0, 32.0], [0.0, 0.0, 1.0]])
+    encoded, mask, depth = render_candidate_channels(renderer, pose, K, 64)
+    decoded = decode_render_channels(encoded[None])[0]
+    assert encoded.shape == (5, 64, 64)
+    assert decoded.shape == (5, 64, 64)
+    assert mask.any()
+    assert np.all(depth[mask] == 4.0)
+    np.testing.assert_array_equal(decoded[0] > 0.5, mask)
+    assert np.all(decoded[1:, ~mask] == 0.0)
+
+
+def test_known_occluders_are_removed_from_render_input():
+    mask = np.ones((8, 8), dtype=bool)
+    depth = np.full((8, 8), 4.0, dtype=np.float32)
+    K = np.asarray([[40.0, 0.0, 4.0], [0.0, 40.0, 4.0], [0.0, 0.0, 1.0]])
+    encoded = encode_render_channels(mask, depth, K, 4.0)
+    occluder = np.zeros((8, 8), dtype=bool)
+    occluder[:, :3] = True
+    hidden = hide_rendered_occluders(encoded, occluder)
+    decoded = decode_render_channels(hidden)
+    assert np.all(decoded[:, :, :3] == 0.0)
+    assert np.all(decoded[0, :, 3:] == 1.0)
+
+
+def test_model_outputs_are_bounded_and_differentiable():
+    model = RGBRenderRecoveryNet(width=8, hidden_dim=32)
+    rgb = torch.rand(3, 3, 64, 64)
+    observed = torch.rand(3, 1, 64, 64)
+    rendered = torch.rand(3, 5, 64, 64)
+    raw = model(rgb, observed, rendered)
+    decoded = decode_outputs(
+        raw,
+        max_center_px=56.0,
+        max_log_depth=0.6,
+        max_rotation_deg=70.0,
+    )
+    assert decoded["center_px"].shape == (3, 2)
+    assert decoded["rotation_rad"].shape == (3, 3)
+    assert torch.all(torch.linalg.vector_norm(decoded["rotation_rad"], dim=-1) <= np.deg2rad(70.0) + 1e-6)
+    loss = sum(value.mean() for value in raw.values())
+    loss.backward()
+    assert all(parameter.grad is not None for parameter in model.parameters())
+
+
+def test_atan2_rotation_error_handles_pi():
+    predicted = torch.tensor([[0.0, 0.0, np.pi]], dtype=torch.float64)
+    target = torch.zeros_like(predicted)
+    error = rotation_geodesic_atan2(predicted, target)
+    torch.testing.assert_close(error, torch.tensor([np.pi], dtype=torch.float64), atol=1e-7, rtol=1e-7)
+
+
+def test_batched_inference_refines_without_observed_depth():
+    K = np.asarray([[90.0, 0.0, 32.0], [0.0, 90.0, 32.0], [0.0, 0.0, 1.0]])
+    pose = np.eye(4)
+    pose[2, 3] = 4.0
+    mask, _ = SquareRenderer().render(pose, K, (64, 64))
+    detection = Detection(0, np.asarray([24.0, 24.0, 17.0, 17.0]), mask)
+    frame = FrameData(
+        scene_id=1,
+        im_id=2,
+        image=np.full((64, 64, 3), 127, dtype=np.uint8),
+        K=K,
+        detections=[detection],
+        depth_m=None,
+    )
+    predictor = RGBSelfRecoveryPredictor(
+        RGBRenderRecoveryNet(width=8, hidden_dim=32),
+        {
+            "crop_size": 64,
+            "crop_scale": 2.5,
+            "max_center_crop_px": 56.0,
+            "max_log_depth": 0.6,
+            "max_rotation_deg": 70.0,
+            "uses_observed_depth": False,
+        },
+        "cpu",
+    )
+    results = predictor.refine_and_score(
+        SquareRenderer(),
+        frame,
+        detection,
+        [RecoveryProposal(pose, "test")],
+        iterations=1,
+    )
+    assert len(results) == 1
+    assert np.isfinite(results[0].pose).all()
+    assert 0.0 <= results[0].confidence <= 1.0
+
+
+def test_streaming_dataset_decodes_group(tmp_path):
+    root = tmp_path / "data"
+    root.mkdir()
+    (root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "format": "rgb_render_self_recovery_v1",
+                "uses_observed_depth": False,
+                "groups": 1,
+                "crop_size": 32,
+                "crop_scale": 2.5,
+            }
+        )
+    )
+    rgb = np.full((32, 32, 3), 127, dtype=np.uint8)
+    rgb_buffer = io.BytesIO()
+    Image.fromarray(rgb).save(rgb_buffer, format="JPEG")
+    mask = np.zeros((32, 32), dtype=bool)
+    mask[8:24, 8:24] = True
+    depth = mask.astype(np.float32) * 4.0
+    K = np.asarray([[80.0, 0.0, 16.0], [0.0, 80.0, 16.0], [0.0, 0.0, 1.0]])
+    rendered = np.stack(
+        [encode_render_channels(mask, depth, K, 4.0) for _ in range(3)]
+    )
+    data_buffer = io.BytesIO()
+    np.savez_compressed(
+        data_buffer,
+        observed_mask=mask.astype(np.uint8),
+        rendered=rendered,
+        center_targets=np.zeros((3, 2), dtype=np.float32),
+        log_depth_targets=np.zeros(3, dtype=np.float32),
+        rotation_targets=np.zeros((3, 3), dtype=np.float32),
+        correctable_targets=np.ones(3, dtype=np.bool_),
+        confidence_targets=np.ones(3, dtype=np.float32),
+        quality_targets=np.zeros(3, dtype=np.float32),
+    )
+    with tarfile.open(root / "shard-000000.tar", "w") as tar:
+        for name, content in (
+            ("sample.rgb.jpg", rgb_buffer.getvalue()),
+            ("sample.data.npz", data_buffer.getvalue()),
+        ):
+            info = tarfile.TarInfo(name)
+            info.size = len(content)
+            tar.addfile(info, io.BytesIO(content))
+    sample = next(iter(RGBRenderRecoveryDataset(root, training=False)))
+    assert sample["rgb"].shape == (3, 32, 32)
+    assert sample["observed_mask"].shape == (1, 32, 32)
+    assert sample["rendered"].shape == (3, 5, 32, 32)
