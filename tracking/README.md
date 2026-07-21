@@ -375,6 +375,16 @@ python -m tracking.generate_recovery_dataset \
 
 
 
+python -m tracking.generate_recovery_dataset \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
+  --split train_pbr_web_gsam_clean \
+  --mesh gigaPose_datasets/datasets/assettocorsa_new_dataset/models/obj_000001.ply \
+  --output gigaPose_datasets/results/tracking_recovery_data_no_depth/train.npz \
+  --max-frames 15000 \
+  --perturbations-per-instance 12 \
+  --no-depth \
+  --seed 20260718
+
   python -m tracking.generate_recovery_dataset \
   --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
   --split val_pbr_web_gsam_clean \
@@ -382,6 +392,17 @@ python -m tracking.generate_recovery_dataset \
   --output gigaPose_datasets/results/tracking_recovery_data/val.npz \
   --perturbations-per-instance 12 \
   --max-frames 1000 \
+  --seed 20260718
+
+
+  python -m tracking.generate_recovery_dataset \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
+  --split val_pbr_web_gsam_clean \
+  --mesh gigaPose_datasets/datasets/assettocorsa_new_dataset/models/obj_000001.ply \
+  --output gigaPose_datasets/results/tracking_recovery_data_no_depth/val.npz \
+  --max-frames 2000 \
+  --perturbations-per-instance 12 \
+  --no-depth \
   --seed 20260718
 ```
 <!-- --max-frames 1000 \ -->
@@ -481,6 +502,22 @@ python -m tracking.train_recovery \
   --learning-rate 2e-4 \
   --patience 15 \
   --device cuda
+
+
+
+
+  python -m tracking.train_recovery \
+  --data gigaPose_datasets/results/tracking_recovery_data_no_depth/train.npz \
+  --validation-data gigaPose_datasets/results/tracking_recovery_data_no_depth/val.npz \
+  --output-dir gigaPose_datasets/results/tracking_recovery_head_no_depth \
+  --epochs 1000 \
+  --groups-per-batch 24 \
+  --learning-rate 2e-4 \
+  --patience 15 \
+  --device cuda \
+  --logger wandb \
+  --run-name assettocorsa_tracking_recovery_no_depth \
+  --wandb-project gigapose
 ```
 
 With `--validation-data`, every group in `train.npz` is used for optimization
