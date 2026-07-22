@@ -66,7 +66,10 @@ the optimized model becomes:
 EPnP labels, only its map-frame z translation is replaced by
 ``gt_xy_mesh_z_label.ego_z_compensation.corrected_z_m``. Optionally, its raw
 LiDAR-time pose is first interpolated to the image timestamp using neighboring
-metadata poses. The exact policy and diagnostics are saved with the optimized
+metadata poses. Missing ``lidar_ns`` values are filled piecewise linearly from
+observed timestamp anchors within the same session/camera metadata directory;
+the loader refuses cross-session, reset-boundary, and excessive-gap
+interpolation. The exact policy and diagnostics are saved with the optimized
 extrinsics and reused by the matching selector.
 
 The per-sample priors are used only to construct and diagnose the common
@@ -245,6 +248,29 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Maximum time between the two LiDAR trajectory poses used to "
             "interpolate an image-time pose."
+        ),
+    )
+    parser.add_argument(
+        "--interpolate-missing-lidar-timestamps",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help=(
+            "Before pose interpolation, fill missing lidar_ns values from the "
+            "nearest observed LiDAR timestamp anchors in the same recording "
+            "session/camera. The mapping lidar_ns(image_ns) is interpolated "
+            "piecewise linearly. Disable with "
+            "--no-interpolate-missing-lidar-timestamps."
+        ),
+    )
+    parser.add_argument(
+        "--timestamp-max-imputation-gap-ms",
+        type=float,
+        default=1000.0,
+        help=(
+            "Maximum image-time separation between the two observed LiDAR "
+            "timestamp anchors used to fill a missing lidar_ns. This is "
+            "separate from --timestamp-max-bracket-gap-ms, which guards the "
+            "later SE(3) pose interpolation."
         ),
     )
     parser.add_argument(
@@ -1004,49 +1030,280 @@ def interpolate_transform(
 
 def load_metadata_lidar_trajectory(
     metadata_dir: Path,
-) -> tuple[np.ndarray, list[np.ndarray], dict[str, int]]:
-    """Load the LiDAR-time ego trajectory represented by a metadata folder."""
+    interpolate_missing_lidar_timestamps: bool = True,
+    timestamp_max_imputation_gap_ms: float = 1000.0,
+) -> tuple[
+    np.ndarray,
+    list[np.ndarray],
+    dict[str, Any],
+    dict[str, dict[str, Any]],
+]:
+    """Load one session/camera LiDAR trajectory and densify its timestamps.
 
-    poses_by_timestamp: dict[int, np.ndarray] = {}
-    diagnostics = {
+    ``metadata_dir`` is the grouping boundary. A trajectory is never assembled
+    across two metadata folders, so recording sessions and cameras cannot be
+    mixed. Missing LiDAR timestamps are interpolated as a piecewise-linear
+    function of image time using only adjacent observed anchors in this group.
+    """
+
+    metadata_dir = metadata_dir.resolve()
+    metadata_paths = sorted(
+        {
+            *metadata_dir.glob("sample_*.yaml"),
+            *metadata_dir.glob("sample_*.yml"),
+        }
+    )
+    diagnostics: dict[str, Any] = {
         "metadata_files_scanned": 0,
+        "trajectory_records_loaded": 0,
         "trajectory_poses_loaded": 0,
+        "trajectory_records_with_observed_lidar_timestamp": 0,
+        "trajectory_records_with_interpolated_lidar_timestamp": 0,
+        "trajectory_records_with_unresolved_lidar_timestamp": 0,
+        # Historical name retained for report compatibility. It counts the
+        # raw missing values before any interpolation is attempted.
         "trajectory_missing_lidar_timestamp": 0,
+        "trajectory_missing_image_timestamp": 0,
         "trajectory_malformed_metadata": 0,
+        "trajectory_observed_anchor_image_times": 0,
+        "trajectory_conflicting_anchor_timestamps": 0,
+        "trajectory_timestamp_reset_or_discontinuity_boundaries": 0,
         "trajectory_duplicate_timestamps": 0,
         "trajectory_duplicate_pose_conflicts": 0,
+        "trajectory_lidar_timestamp_imputation_failures": {},
+        "_trajectory_imputation_anchor_gaps_ms": [],
+        "_trajectory_observed_offsets_ms": [],
+        "_trajectory_interpolated_offsets_ms": [],
     }
-    for path in sorted(metadata_dir.glob("sample_*.yaml")):
+    records: list[dict[str, Any]] = []
+    timestamp_info_by_path: dict[str, dict[str, Any]] = {}
+
+    for path in metadata_paths:
         diagnostics["metadata_files_scanned"] += 1
+        path_key = str(path.resolve())
         try:
             metadata = load_yaml(path)
-            timestamp_ns = extract_sensor_timestamp_ns(
+            pose = matrix_from_yaml_key(metadata, "t_map_lidar", "m")
+            image_timestamp_ns = extract_sensor_timestamp_ns(
+                metadata, "image", path
+            )
+            lidar_timestamp_ns = extract_sensor_timestamp_ns(
                 metadata, "lidar", path
             )
-            if timestamp_ns is None:
-                diagnostics["trajectory_missing_lidar_timestamp"] += 1
-                continue
-            pose = matrix_from_yaml_key(metadata, "t_map_lidar", "m")
-            previous = poses_by_timestamp.get(timestamp_ns)
-            if previous is None:
-                poses_by_timestamp[timestamp_ns] = pose
-            else:
-                diagnostics["trajectory_duplicate_timestamps"] += 1
-                if (
-                    np.linalg.norm(previous[:3, 3] - pose[:3, 3]) > 1e-3
-                    or rotation_error_deg(
-                        previous[:3, :3], pose[:3, :3]
-                    )
-                    > 1e-6
-                ):
-                    diagnostics["trajectory_duplicate_pose_conflicts"] += 1
         except Exception:
             diagnostics["trajectory_malformed_metadata"] += 1
+            continue
+
+        diagnostics["trajectory_records_loaded"] += 1
+        if image_timestamp_ns is None:
+            diagnostics["trajectory_missing_image_timestamp"] += 1
+        if lidar_timestamp_ns is None:
+            diagnostics["trajectory_missing_lidar_timestamp"] += 1
+        else:
+            diagnostics[
+                "trajectory_records_with_observed_lidar_timestamp"
+            ] += 1
+            if image_timestamp_ns is not None:
+                diagnostics["_trajectory_observed_offsets_ms"].append(
+                    (image_timestamp_ns - lidar_timestamp_ns) / 1e6
+                )
+
+        record = {
+            "path": path,
+            "path_key": path_key,
+            "image_timestamp_ns": image_timestamp_ns,
+            "lidar_timestamp_ns_observed": lidar_timestamp_ns,
+            "lidar_timestamp_ns": lidar_timestamp_ns,
+            "lidar_timestamp_status": (
+                "observed" if lidar_timestamp_ns is not None else "missing"
+            ),
+            "pose": pose,
+        }
+        records.append(record)
+        timestamp_info_by_path[path_key] = {
+            key: value for key, value in record.items() if key != "pose"
+        }
+
+    # Multiple object records can share an image timestamp. Collapse their
+    # observed LiDAR stamps into one anchor while detecting inconsistent data.
+    anchor_values_by_image: dict[int, list[int]] = {}
+    for record in records:
+        image_timestamp_ns = record["image_timestamp_ns"]
+        lidar_timestamp_ns = record["lidar_timestamp_ns_observed"]
+        if image_timestamp_ns is None or lidar_timestamp_ns is None:
+            continue
+        anchor_values_by_image.setdefault(image_timestamp_ns, []).append(
+            lidar_timestamp_ns
+        )
+
+    anchor_images = np.asarray(sorted(anchor_values_by_image), dtype=np.int64)
+    anchor_lidars_list: list[int] = []
+    conflicting_anchor_images: set[int] = set()
+    for image_timestamp_ns in anchor_images:
+        values = anchor_values_by_image[int(image_timestamp_ns)]
+        if len(set(values)) > 1:
+            diagnostics["trajectory_conflicting_anchor_timestamps"] += 1
+            conflicting_anchor_images.add(int(image_timestamp_ns))
+        ordered_values = sorted(values)
+        midpoint = len(ordered_values) // 2
+        if len(ordered_values) % 2:
+            median_timestamp = ordered_values[midpoint]
+        else:
+            median_timestamp = (
+                ordered_values[midpoint - 1] + ordered_values[midpoint]
+            ) // 2
+        anchor_lidars_list.append(int(median_timestamp))
+    anchor_lidars = np.asarray(anchor_lidars_list, dtype=np.int64)
+    diagnostics["trajectory_observed_anchor_image_times"] = int(
+        anchor_images.size
+    )
+
+    # Adjacent anchors with a non-increasing LiDAR clock, or a clock-offset
+    # discontinuity larger than the permitted imputation interval, define a
+    # hard boundary. Missing values are never interpolated across it.
+    unsafe_anchor_intervals: set[int] = set()
+    max_imputation_gap_ns = int(
+        round(timestamp_max_imputation_gap_ms * 1e6)
+    )
+    for index in range(max(0, int(anchor_images.size) - 1)):
+        image_delta_ns = int(anchor_images[index + 1] - anchor_images[index])
+        lidar_delta_ns = int(anchor_lidars[index + 1] - anchor_lidars[index])
+        offset_change_ns = abs(lidar_delta_ns - image_delta_ns)
+        if (
+            image_delta_ns <= 0
+            or lidar_delta_ns <= 0
+            or offset_change_ns > max_imputation_gap_ns
+        ):
+            unsafe_anchor_intervals.add(index)
+    diagnostics[
+        "trajectory_timestamp_reset_or_discontinuity_boundaries"
+    ] = len(unsafe_anchor_intervals)
+
+    imputation_failures: dict[str, int] = diagnostics[
+        "trajectory_lidar_timestamp_imputation_failures"
+    ]
+
+    def reject_imputation(record: dict[str, Any], reason: str) -> None:
+        record["lidar_timestamp_status"] = f"missing:{reason}"
+        imputation_failures[reason] = imputation_failures.get(reason, 0) + 1
+
+    for record in sorted(
+        records,
+        key=lambda item: (
+            item["image_timestamp_ns"] is None,
+            item["image_timestamp_ns"] or 0,
+            str(item["path"]),
+        ),
+    ):
+        if record["lidar_timestamp_ns_observed"] is not None:
+            continue
+        if not interpolate_missing_lidar_timestamps:
+            reject_imputation(record, "disabled")
+            continue
+        image_timestamp_ns = record["image_timestamp_ns"]
+        if image_timestamp_ns is None:
+            reject_imputation(record, "missing_image_timestamp")
+            continue
+        if anchor_images.size == 0:
+            reject_imputation(record, "no_observed_anchors")
+            continue
+        if conflicting_anchor_images:
+            # Equal image timestamps with different LiDAR timestamps can be a
+            # clock reset or mixed recording segment. Without an independent
+            # sequence identifier there is no safe way to choose a segment.
+            reject_imputation(record, "conflicting_anchor_timestamps")
+            continue
+
+        right = int(np.searchsorted(anchor_images, image_timestamp_ns))
+        if (
+            right < anchor_images.size
+            and int(anchor_images[right]) == image_timestamp_ns
+        ):
+            left = right
+            estimated_lidar_timestamp_ns = int(anchor_lidars[right])
+            alpha = 0.0
+            anchor_gap_ms = 0.0
+        elif right == 0 or right >= anchor_images.size:
+            reject_imputation(record, "not_bracketed")
+            continue
+        else:
+            left = right - 1
+            if left in unsafe_anchor_intervals:
+                reject_imputation(record, "timestamp_reset_or_discontinuity")
+                continue
+            left_image_ns = int(anchor_images[left])
+            right_image_ns = int(anchor_images[right])
+            image_gap_ns = right_image_ns - left_image_ns
+            anchor_gap_ms = image_gap_ns / 1e6
+            if image_gap_ns > max_imputation_gap_ns:
+                reject_imputation(record, "anchor_gap_too_wide")
+                continue
+            alpha = (image_timestamp_ns - left_image_ns) / float(image_gap_ns)
+            estimated_lidar_timestamp_ns = int(
+                round(
+                    int(anchor_lidars[left])
+                    + alpha
+                    * (int(anchor_lidars[right]) - int(anchor_lidars[left]))
+                )
+            )
+
+        record["lidar_timestamp_ns"] = estimated_lidar_timestamp_ns
+        record["lidar_timestamp_status"] = "interpolated"
+        record["lidar_timestamp_imputation_left_image_ns"] = int(
+            anchor_images[left]
+        )
+        record["lidar_timestamp_imputation_right_image_ns"] = int(
+            anchor_images[right]
+        )
+        record["lidar_timestamp_imputation_left_lidar_ns"] = int(
+            anchor_lidars[left]
+        )
+        record["lidar_timestamp_imputation_right_lidar_ns"] = int(
+            anchor_lidars[right]
+        )
+        record["lidar_timestamp_imputation_alpha"] = float(alpha)
+        record["lidar_timestamp_imputation_anchor_gap_ms"] = float(
+            anchor_gap_ms
+        )
+        diagnostics[
+            "trajectory_records_with_interpolated_lidar_timestamp"
+        ] += 1
+        diagnostics["_trajectory_imputation_anchor_gaps_ms"].append(
+            anchor_gap_ms
+        )
+        diagnostics["_trajectory_interpolated_offsets_ms"].append(
+            (image_timestamp_ns - estimated_lidar_timestamp_ns) / 1e6
+        )
+
+    poses_by_timestamp: dict[int, np.ndarray] = {}
+    for record in records:
+        path_key = record["path_key"]
+        timestamp_info_by_path[path_key] = {
+            key: value for key, value in record.items() if key != "pose"
+        }
+        timestamp_ns = record["lidar_timestamp_ns"]
+        if timestamp_ns is None:
+            diagnostics[
+                "trajectory_records_with_unresolved_lidar_timestamp"
+            ] += 1
+            continue
+        pose = record["pose"]
+        previous = poses_by_timestamp.get(timestamp_ns)
+        if previous is None:
+            poses_by_timestamp[timestamp_ns] = pose
+        else:
+            diagnostics["trajectory_duplicate_timestamps"] += 1
+            if (
+                np.linalg.norm(previous[:3, 3] - pose[:3, 3]) > 1e-3
+                or rotation_error_deg(previous[:3, :3], pose[:3, :3])
+                > 1e-6
+            ):
+                diagnostics["trajectory_duplicate_pose_conflicts"] += 1
 
     timestamps = np.asarray(sorted(poses_by_timestamp), dtype=np.int64)
     poses = [poses_by_timestamp[int(timestamp)] for timestamp in timestamps]
     diagnostics["trajectory_poses_loaded"] = len(poses)
-    return timestamps, poses, diagnostics
+    return timestamps, poses, diagnostics, timestamp_info_by_path
 
 
 def prepare_target_map_lidar_transforms(
@@ -1056,25 +1313,43 @@ def prepare_target_map_lidar_transforms(
     timestamp_alignment: str,
     timestamp_max_bracket_gap_ms: float,
     timestamp_fallback: str,
+    interpolate_missing_lidar_timestamps: bool = False,
+    timestamp_max_imputation_gap_ms: float = 1000.0,
 ) -> dict[str, Any]:
     """Build vertically and temporally consistent map<-LiDAR target poses."""
 
     trajectory_cache: dict[
-        Path, tuple[np.ndarray, list[np.ndarray], dict[str, int]]
+        Path,
+        tuple[
+            np.ndarray,
+            list[np.ndarray],
+            dict[str, Any],
+            dict[str, dict[str, Any]],
+        ],
     ] = {}
     diagnostics: dict[str, Any] = {
         "target_lidar_z_mode": target_lidar_z_mode,
         "timestamp_alignment": timestamp_alignment,
+        "interpolate_missing_lidar_timestamps": (
+            interpolate_missing_lidar_timestamps
+        ),
+        "timestamp_max_imputation_gap_ms": timestamp_max_imputation_gap_ms,
         "samples_total": len(samples),
         "samples_corrected_z": 0,
         "samples_missing_corrected_z": 0,
+        "samples_with_observed_lidar_timestamp": 0,
+        "samples_with_interpolated_lidar_timestamp": 0,
+        "samples_with_unresolved_lidar_timestamp": 0,
         "samples_timestamp_interpolated": 0,
         "samples_timestamp_skipped": 0,
         "samples_timestamp_raw_fallback": 0,
         "timestamp_failures": {},
     }
-    offsets_ms: list[float] = []
+    observed_offsets_ms: list[float] = []
+    effective_offsets_ms: list[float] = []
+    interpolated_offsets_ms: list[float] = []
     bracket_gaps_ms: list[float] = []
+    imputation_anchor_gaps_ms: list[float] = []
     time_translation_shifts_mm: list[float] = []
     time_rotation_shifts_deg: list[float] = []
     z_replacements_mm: list[float] = []
@@ -1088,24 +1363,59 @@ def prepare_target_map_lidar_transforms(
         image_timestamp_ns = extract_sensor_timestamp_ns(
             metadata, "image", metadata_path
         )
-        lidar_timestamp_ns = extract_sensor_timestamp_ns(
+        observed_lidar_timestamp_ns = extract_sensor_timestamp_ns(
             metadata, "lidar", metadata_path
         )
         sample["image_timestamp_ns"] = image_timestamp_ns
-        sample["lidar_timestamp_ns"] = lidar_timestamp_ns
-        if image_timestamp_ns is not None and lidar_timestamp_ns is not None:
-            offsets_ms.append(
-                (image_timestamp_ns - lidar_timestamp_ns) / 1e6
+        sample["lidar_timestamp_ns_observed"] = observed_lidar_timestamp_ns
+        lidar_timestamp_ns = observed_lidar_timestamp_ns
+        lidar_timestamp_status = (
+            "observed"
+            if observed_lidar_timestamp_ns is not None
+            else "missing"
+        )
+        if (
+            image_timestamp_ns is not None
+            and observed_lidar_timestamp_ns is not None
+        ):
+            observed_offsets_ms.append(
+                (image_timestamp_ns - observed_lidar_timestamp_ns) / 1e6
             )
 
         if timestamp_alignment == "interpolate_metadata":
             failure: str | None = None
-            metadata_dir = metadata_path.parent
+            metadata_dir = metadata_path.parent.resolve()
             if metadata_dir not in trajectory_cache:
                 trajectory_cache[metadata_dir] = load_metadata_lidar_trajectory(
-                    metadata_dir
+                    metadata_dir,
+                    interpolate_missing_lidar_timestamps=(
+                        interpolate_missing_lidar_timestamps
+                    ),
+                    timestamp_max_imputation_gap_ms=(
+                        timestamp_max_imputation_gap_ms
+                    ),
                 )
-            timestamps, poses, _ = trajectory_cache[metadata_dir]
+            timestamps, poses, _, timestamp_info_by_path = trajectory_cache[
+                metadata_dir
+            ]
+            timestamp_info = timestamp_info_by_path.get(
+                str(metadata_path.resolve())
+            )
+            if timestamp_info is not None:
+                lidar_timestamp_ns = timestamp_info.get("lidar_timestamp_ns")
+                lidar_timestamp_status = str(
+                    timestamp_info.get("lidar_timestamp_status", "missing")
+                )
+                for key in (
+                    "lidar_timestamp_imputation_left_image_ns",
+                    "lidar_timestamp_imputation_right_image_ns",
+                    "lidar_timestamp_imputation_left_lidar_ns",
+                    "lidar_timestamp_imputation_right_lidar_ns",
+                    "lidar_timestamp_imputation_alpha",
+                    "lidar_timestamp_imputation_anchor_gap_ms",
+                ):
+                    if key in timestamp_info:
+                        sample[key] = timestamp_info[key]
             if image_timestamp_ns is None:
                 failure = "missing_image_timestamp"
             elif timestamps.size < 2:
@@ -1162,6 +1472,27 @@ def prepare_target_map_lidar_transforms(
         else:
             sample["timestamp_alignment_status"] = "raw"
 
+        sample["lidar_timestamp_ns"] = lidar_timestamp_ns
+        sample["lidar_timestamp_status"] = lidar_timestamp_status
+        if lidar_timestamp_status == "observed":
+            diagnostics["samples_with_observed_lidar_timestamp"] += 1
+        elif lidar_timestamp_status == "interpolated":
+            diagnostics["samples_with_interpolated_lidar_timestamp"] += 1
+            anchor_gap = sample.get(
+                "lidar_timestamp_imputation_anchor_gap_ms"
+            )
+            if anchor_gap is not None:
+                imputation_anchor_gaps_ms.append(float(anchor_gap))
+        else:
+            diagnostics["samples_with_unresolved_lidar_timestamp"] += 1
+        if image_timestamp_ns is not None and lidar_timestamp_ns is not None:
+            effective_offset_ms = (
+                image_timestamp_ns - int(lidar_timestamp_ns)
+            ) / 1e6
+            effective_offsets_ms.append(effective_offset_ms)
+            if lidar_timestamp_status == "interpolated":
+                interpolated_offsets_ms.append(effective_offset_ms)
+
         sample["T_map_lidar_raw"] = raw.copy()
         sample["T_map_lidar_time_aligned"] = time_aligned.copy()
         time_translation_shift_mm = float(
@@ -1209,20 +1540,68 @@ def prepare_target_map_lidar_transforms(
             "fields, trajectory availability, and the bracket-gap threshold."
         )
 
-    for _, _, trajectory_diagnostics in trajectory_cache.values():
+    diagnostics["trajectory_groups_loaded"] = len(trajectory_cache)
+    diagnostics["trajectory_group_paths"] = [
+        str(path) for path in sorted(trajectory_cache)
+    ]
+    trajectory_imputation_anchor_gaps_ms: list[float] = []
+    trajectory_observed_offsets_ms: list[float] = []
+    trajectory_interpolated_offsets_ms: list[float] = []
+    for _, _, trajectory_diagnostics, _ in trajectory_cache.values():
         for key, value in trajectory_diagnostics.items():
-            diagnostics[key] = diagnostics.get(key, 0) + value
-    if offsets_ms:
-        values = np.asarray(offsets_ms, dtype=float)
+            if key == "_trajectory_imputation_anchor_gaps_ms":
+                trajectory_imputation_anchor_gaps_ms.extend(value)
+            elif key == "_trajectory_observed_offsets_ms":
+                trajectory_observed_offsets_ms.extend(value)
+            elif key == "_trajectory_interpolated_offsets_ms":
+                trajectory_interpolated_offsets_ms.extend(value)
+            elif isinstance(value, dict):
+                destination = diagnostics.setdefault(key, {})
+                for reason, count in value.items():
+                    destination[reason] = destination.get(reason, 0) + count
+            else:
+                diagnostics[key] = diagnostics.get(key, 0) + value
+
+    def add_distribution(prefix: str, values: list[float]) -> None:
+        if not values:
+            return
+        array = np.asarray(values, dtype=float)
         diagnostics.update(
             {
-                "image_minus_lidar_offset_ms_mean": float(np.mean(values)),
-                "image_minus_lidar_offset_ms_median": float(np.median(values)),
-                "image_minus_lidar_offset_ms_p90_abs": float(
-                    np.percentile(np.abs(values), 90)
+                f"{prefix}_count": int(array.size),
+                f"{prefix}_mean": float(np.mean(array)),
+                f"{prefix}_median": float(np.median(array)),
+                f"{prefix}_p90_abs": float(
+                    np.percentile(np.abs(array), 90)
                 ),
             }
         )
+
+    # Preserve the historical fields as observed-only statistics so reports
+    # remain comparable to runs made before timestamp imputation existed.
+    add_distribution("image_minus_lidar_offset_ms", observed_offsets_ms)
+    add_distribution(
+        "image_minus_effective_lidar_offset_ms", effective_offsets_ms
+    )
+    add_distribution(
+        "image_minus_interpolated_lidar_offset_ms", interpolated_offsets_ms
+    )
+    add_distribution(
+        "trajectory_image_minus_observed_lidar_offset_ms",
+        trajectory_observed_offsets_ms,
+    )
+    add_distribution(
+        "trajectory_image_minus_interpolated_lidar_offset_ms",
+        trajectory_interpolated_offsets_ms,
+    )
+    add_distribution(
+        "selected_lidar_timestamp_imputation_anchor_gap_ms",
+        imputation_anchor_gaps_ms,
+    )
+    add_distribution(
+        "trajectory_lidar_timestamp_imputation_anchor_gap_ms",
+        trajectory_imputation_anchor_gaps_ms,
+    )
     if bracket_gaps_ms:
         values = np.asarray(bracket_gaps_ms, dtype=float)
         diagnostics.update(
@@ -1464,6 +1843,8 @@ def load_selected_samples(
     timestamp_alignment: str,
     timestamp_max_bracket_gap_ms: float,
     timestamp_fallback: str,
+    interpolate_missing_lidar_timestamps: bool,
+    timestamp_max_imputation_gap_ms: float,
 ) -> list[dict[str, Any]]:
     rows = []
     malformed_count = 0
@@ -1613,6 +1994,8 @@ def load_selected_samples(
             timestamp_alignment,
             timestamp_max_bracket_gap_ms,
             timestamp_fallback,
+            interpolate_missing_lidar_timestamps,
+            timestamp_max_imputation_gap_ms,
         )
         for sample in rows:
             sample["target_preprocessing_summary"] = (
@@ -2014,7 +2397,31 @@ def optimized_sample_extrinsic_rows(
                     "corrected_lidar_map_z_mm", ""
                 ),
                 "image_timestamp_ns": sample.get("image_timestamp_ns", ""),
+                "lidar_timestamp_ns_observed": sample.get(
+                    "lidar_timestamp_ns_observed", ""
+                ),
                 "lidar_timestamp_ns": sample.get("lidar_timestamp_ns", ""),
+                "lidar_timestamp_status": sample.get(
+                    "lidar_timestamp_status", ""
+                ),
+                "lidar_timestamp_imputation_left_image_ns": sample.get(
+                    "lidar_timestamp_imputation_left_image_ns", ""
+                ),
+                "lidar_timestamp_imputation_right_image_ns": sample.get(
+                    "lidar_timestamp_imputation_right_image_ns", ""
+                ),
+                "lidar_timestamp_imputation_left_lidar_ns": sample.get(
+                    "lidar_timestamp_imputation_left_lidar_ns", ""
+                ),
+                "lidar_timestamp_imputation_right_lidar_ns": sample.get(
+                    "lidar_timestamp_imputation_right_lidar_ns", ""
+                ),
+                "lidar_timestamp_imputation_alpha": sample.get(
+                    "lidar_timestamp_imputation_alpha", ""
+                ),
+                "lidar_timestamp_imputation_anchor_gap_ms": sample.get(
+                    "lidar_timestamp_imputation_anchor_gap_ms", ""
+                ),
                 "timestamp_alignment_status": sample.get(
                     "timestamp_alignment_status", ""
                 ),
@@ -2215,6 +2622,8 @@ def validate_optimization_args(args: argparse.Namespace) -> None:
         raise ValueError("--max-samples must be positive when provided")
     if args.timestamp_max_bracket_gap_ms <= 0:
         raise ValueError("--timestamp-max-bracket-gap-ms must be positive")
+    if args.timestamp_max_imputation_gap_ms <= 0:
+        raise ValueError("--timestamp-max-imputation-gap-ms must be positive")
     if not args.use_sample_metadata and args.timestamp_alignment != "raw":
         raise ValueError(
             "Timestamp preprocessing requires "
@@ -2321,6 +2730,8 @@ def main() -> None:
         args.timestamp_alignment,
         args.timestamp_max_bracket_gap_ms,
         args.timestamp_fallback,
+        args.interpolate_missing_lidar_timestamps,
+        args.timestamp_max_imputation_gap_ms,
     )
     target_preprocessing_summary = (
         samples[0].get("target_preprocessing_summary", {}) if samples else {}
@@ -2578,6 +2989,12 @@ def main() -> None:
         ),
         "timestamp_alignment": args.timestamp_alignment,
         "timestamp_max_bracket_gap_ms": args.timestamp_max_bracket_gap_ms,
+        "interpolate_missing_lidar_timestamps": (
+            args.interpolate_missing_lidar_timestamps
+        ),
+        "timestamp_max_imputation_gap_ms": (
+            args.timestamp_max_imputation_gap_ms
+        ),
         "timestamp_fallback": args.timestamp_fallback,
         "T_lidar_camera_initial": (
             T_initial.tolist() if args.use_sample_metadata else None
@@ -2676,6 +3093,12 @@ def main() -> None:
         ),
         "timestamp_alignment": args.timestamp_alignment,
         "timestamp_max_bracket_gap_ms": args.timestamp_max_bracket_gap_ms,
+        "interpolate_missing_lidar_timestamps": (
+            args.interpolate_missing_lidar_timestamps
+        ),
+        "timestamp_max_imputation_gap_ms": (
+            args.timestamp_max_imputation_gap_ms
+        ),
         "timestamp_fallback": args.timestamp_fallback,
         "optimized_extrinsics_per_sample_csv": (
             str(per_sample_extrinsics_path)

@@ -515,8 +515,32 @@ def make_candidate_rows(
                         "image_timestamp_ns": label.get(
                             "image_timestamp_ns", ""
                         ),
+                        "lidar_timestamp_ns_observed": label.get(
+                            "lidar_timestamp_ns_observed", ""
+                        ),
                         "lidar_timestamp_ns": label.get(
                             "lidar_timestamp_ns", ""
+                        ),
+                        "lidar_timestamp_status": label.get(
+                            "lidar_timestamp_status", ""
+                        ),
+                        "lidar_timestamp_imputation_left_image_ns": label.get(
+                            "lidar_timestamp_imputation_left_image_ns", ""
+                        ),
+                        "lidar_timestamp_imputation_right_image_ns": label.get(
+                            "lidar_timestamp_imputation_right_image_ns", ""
+                        ),
+                        "lidar_timestamp_imputation_left_lidar_ns": label.get(
+                            "lidar_timestamp_imputation_left_lidar_ns", ""
+                        ),
+                        "lidar_timestamp_imputation_right_lidar_ns": label.get(
+                            "lidar_timestamp_imputation_right_lidar_ns", ""
+                        ),
+                        "lidar_timestamp_imputation_alpha": label.get(
+                            "lidar_timestamp_imputation_alpha", ""
+                        ),
+                        "lidar_timestamp_imputation_anchor_gap_ms": label.get(
+                            "lidar_timestamp_imputation_anchor_gap_ms", ""
                         ),
                         "timestamp_alignment_status": label.get(
                             "timestamp_alignment_status", ""
@@ -662,6 +686,14 @@ def main() -> None:
     timestamp_alignment = str(
         extrinsics_data.get("timestamp_alignment", "raw")
     )
+    # Older calibration JSONs predate timestamp imputation. Defaulting to
+    # False preserves their exact historical preprocessing; new calibrations
+    # save and reuse the explicit policy below.
+    interpolate_missing_lidar_timestamps = bool(
+        extrinsics_data.get(
+            "interpolate_missing_lidar_timestamps", False
+        )
+    )
     target_preprocessing_summary = prepare_target_map_lidar_transforms(
         labels,
         target_lidar_z_mode=target_lidar_z_mode,
@@ -674,6 +706,12 @@ def main() -> None:
         ),
         timestamp_fallback=str(
             extrinsics_data.get("timestamp_fallback", "error")
+        ),
+        interpolate_missing_lidar_timestamps=(
+            interpolate_missing_lidar_timestamps
+        ),
+        timestamp_max_imputation_gap_ms=float(
+            extrinsics_data.get("timestamp_max_imputation_gap_ms", 1000.0)
         ),
     )
 
@@ -781,6 +819,12 @@ def main() -> None:
         "calibrated_camera": calibrated_camera,
         "target_lidar_z_mode": target_lidar_z_mode,
         "timestamp_alignment": timestamp_alignment,
+        "interpolate_missing_lidar_timestamps": (
+            interpolate_missing_lidar_timestamps
+        ),
+        "timestamp_max_imputation_gap_ms": float(
+            extrinsics_data.get("timestamp_max_imputation_gap_ms", 1000.0)
+        ),
         "target_map_lidar_preprocessing": target_preprocessing_summary,
         "epnp_map_pose_key": args.epnp_map_pose_key,
         "epnp_camera_pose_key": args.epnp_camera_pose_key,
