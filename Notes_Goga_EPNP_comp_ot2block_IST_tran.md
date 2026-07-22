@@ -810,7 +810,7 @@ python -m fine_tuning.optimize_camera_map_extrinsics_updated \
   
 
    new one: 
-   
+
 # --gigapose-pose-source raw \
 python -m fine_tuning.optimize_camera_lidar_extrinsics \
   --selected-samples gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/combined_front_selected_samples_for_optimization_new.csv \
@@ -831,11 +831,31 @@ python -m fine_tuning.optimize_camera_lidar_extrinsics \
   --robust-loss soft_l1 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/camera_lidar_extrinsics_front
 
+python -m fine_tuning.optimize_camera_lidar_extrinsics \
+  --selected-samples gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/combined_front_selected_samples_for_optimization_new.csv \
+  --gigapose-pose-source aligned \
+  --use-sample-metadata \
+  --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --target-lidar-z-mode epnp_corrected \
+  --timestamp-alignment raw \
+  --translation-residual-components xyz \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 0 \
+  --image-center-map-z-mode raw \
+  --projection-model metadata \
+  --translation-prior-weight 10000 \
+  --rotation-prior-weight 100 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/extrinsic_optimization_front_camera_z_corrected
 
 
 
-
-
+--timestamp-max-bracket-gap-ms 200 \
+  --timestamp-fallback skip \
+  --timestamp-alignment interpolate_metadata \
 
 
 
