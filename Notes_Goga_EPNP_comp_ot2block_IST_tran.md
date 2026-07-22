@@ -524,6 +524,26 @@ python -m fine_tuning.combine_selected_samples \
 
 
 
+
+python optimize_extrinsics_updated.py \
+    --selected-samples path/to/selected_samples.csv \
+    --use-sample-metadata \
+    --epnp-map-pose-key T_map_object_raw \
+    --translation-prior-weight 0 \
+    --rotation-prior-weight 0 \
+    --robust-loss soft_l1 \
+    --output-dir path/to/results
+
+
+python optimize_extrinsics.py \
+    --selected-samples path/to/selected_samples.csv \
+    --use-sample-metadata \
+    --epnp-map-pose-key T_map_object_raw \
+    --translation-prior-weight 0 \
+    --rotation-prior-weight 0 \
+    --max-samples 10 \
+    --output-dir path/to/test_output
+
 recommanded optimizer code: 
 ```bash
 # for front
@@ -545,6 +565,16 @@ python -m fine_tuning.optimize_camera_map_extrinsics \
   --rotation-prior-weight 20 \
   --robust-loss soft_l1 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/extrinsic_optimization_front_epnp_hybrid_xyz_new
+
+
+  python optimize_extrinsics_updated.py \
+    --selected-samples path/to/selected_samples.csv \
+    --use-sample-metadata \
+    --epnp-map-pose-key T_map_object_raw \
+    --translation-prior-weight 0 \
+    --rotation-prior-weight 0 \
+    --robust-loss soft_l1 \
+    --output-dir path/to/results
 
 # for rear
 python -m fine_tuning.optimize_camera_map_extrinsics \
@@ -692,6 +722,37 @@ python -m fine_tuning.optimize_camera_map_extrinsics_updated \
   --rotation-prior-weight 100 \
   --robust-loss soft_l1 \
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/extrinsic_optimization_front_epnp_hybrid_xyz_fixed
+
+python -m fine_tuning.optimize_camera_map_extrinsics_updated_new \
+    --selected-samples gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/combined_front_selected_samples_for_optimization_new.csv \
+    --use-sample-metadata \
+    --epnp-map-pose-key T_map_object_raw \
+    --translation-prior-weight 0 \
+    --rotation-prior-weight 0 \
+    --robust-loss soft_l1 \
+    --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/extrinsic_optimization_front_updated
+
+
+
+python -m fine_tuning.optimize_camera_map_extrinsics_updated_new \
+    --selected-samples gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/combined_front_selected_samples_for_optimization_new.csv
+  --gigapose-pose-source aligned \
+  --use-sample-metadata \
+  --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --translation-residual-components xy \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 5 \
+  --image-center-sigma-px 50 \
+  --image-center-map-z-mode session_lidar_offset \
+  --projection-model metadata \
+  --translation-prior-weight 5000 \
+  --rotation-prior-weight 100 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_metadata_xy
+
 
 
 python -m fine_tuning.optimize_camera_map_extrinsics_updated \

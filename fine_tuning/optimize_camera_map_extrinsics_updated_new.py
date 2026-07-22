@@ -24,8 +24,34 @@ For true map-to-camera optimization with a static camera, pass
 ``T_map_object_raw``, from each selected sample's ``epnp_label_path``.  Then the
 optimized model is:
 
-    T_map_object_raw ≈ T_map_cam_optimized @ T_gigapose_cam_obj
-    T_map_cam_optimized = exp(delta) @ T_map_cam_initial
+
+For the ARCL/Assetto real folders, the ego vehicle moves, so each frame has its
+own t_map_lidar metadata. The metadata t_lidar_camera_prior values may also
+differ slightly because of rounding, serialization, or metadata-generation
+differences.
+
+In --use-sample-metadata mode, the script combines the per-sample priors into
+one representative initial transform:
+
+    T_lidar_camera_initial = representative(
+        T_lidar_camera_prior_1,
+        ...,
+        T_lidar_camera_prior_N
+    )
+
+It then optimizes one fixed physical camera-LiDAR transform:
+
+    T_lidar_camera_optimized
+        = exp(delta) @ T_lidar_camera_initial
+
+For sample i, both object poses are compared in the LiDAR frame:
+
+    T_lidar_object_gigapose
+        = T_lidar_camera_optimized @ T_gigapose_cam_obj_i
+
+    T_lidar_object_epnp
+        = inv(T_map_lidar_i) @ T_map_object_raw_i
+        
 
 When the GigaPose CAD frame differs from the EPnP centered-object frame, the
 updated optimizer automatically uses ``T_gigapose_aligned_epnp_obj`` when that
@@ -47,6 +73,10 @@ the optimized model becomes:
 The correction has a prior. By default translation correction is penalized more
 strongly than rotation correction, because the current translation extrinsics
 are assumed to be more reliable than the rotational extrinsics.
+
+
+
+
 """
 
 from __future__ import annotations
@@ -293,7 +323,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--translation-prior-weight",
         type=float,
-        default=10.0,
+        default=0.0,
         help=(
             "Squared-loss coefficient for changing the extrinsic translation; "
             "the residual is multiplied by sqrt(weight). Larger values keep "
@@ -303,7 +333,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--rotation-prior-weight",
         type=float,
-        default=1.0,
+        default=0.0,
         help=(
             "Squared-loss coefficient for changing the extrinsic rotation; the "
             "residual is multiplied by sqrt(weight). Use a lower value than "
@@ -876,6 +906,152 @@ def load_sample_metadata_transforms(
     return T_map_lidar, T_lidar_camera_prior, camera, data, str(path)
 
 
+def resolve_shared_lidar_camera_initial(
+    samples: list[dict[str, Any]],
+    warn_translation_spread_mm: float = 10.0,
+    warn_rotation_spread_deg: float = 1.0,
+) -> np.ndarray:
+    """Build one representative LiDAR<-camera initial transform.
+
+    Metadata may contain slightly different t_lidar_camera_prior values for
+    different samples, even though the physical camera-LiDAR rig is fixed.
+
+    This function combines all available priors into one initial guess:
+
+    - translation: component-wise median
+    - rotation: projected arithmetic mean on SO(3)
+
+    The resulting transform is used only as the initial guess. The optimizer
+    still estimates one fixed T_lidar_camera for the complete dataset.
+    """
+
+    if not samples:
+        raise ValueError(
+            "Cannot resolve an initial camera-LiDAR extrinsic from zero samples."
+        )
+
+    priors: list[np.ndarray] = []
+    metadata_paths: list[str] = []
+
+    for index, sample in enumerate(samples):
+        value = sample.get("T_lidar_camera_prior")
+
+        if value is None:
+            raise ValueError(
+                f"Sample {index} has no T_lidar_camera_prior."
+            )
+
+        T = np.asarray(value, dtype=float).reshape(4, 4)
+
+        if not np.isfinite(T).all():
+            metadata_path = sample.get(
+                "metadata_path",
+                f"sample index {index}",
+            )
+            raise ValueError(
+                f"Non-finite t_lidar_camera_prior in {metadata_path}."
+            )
+
+        priors.append(T)
+        metadata_paths.append(
+            str(sample.get("metadata_path", f"sample index {index}"))
+        )
+
+    # ------------------------------------------------------------------
+    # Representative translation
+    # ------------------------------------------------------------------
+    translations = np.asarray(
+        [T[:3, 3] for T in priors],
+        dtype=float,
+    )
+
+    # A median is more robust to one incorrectly recorded metadata prior.
+    translation_initial = np.median(translations, axis=0)
+
+    # ------------------------------------------------------------------
+    # Representative rotation
+    # ------------------------------------------------------------------
+    rotations = np.asarray(
+        [T[:3, :3] for T in priors],
+        dtype=float,
+    )
+
+    # Average the matrices, then project the result back onto SO(3).
+    rotation_mean_unconstrained = np.mean(rotations, axis=0)
+
+    U, _, Vt = np.linalg.svd(rotation_mean_unconstrained)
+    rotation_initial = U @ Vt
+
+    # Prevent an improper rotation with determinant -1.
+    if np.linalg.det(rotation_initial) < 0:
+        U[:, -1] *= -1.0
+        rotation_initial = U @ Vt
+
+    T_initial = np.eye(4, dtype=float)
+    T_initial[:3, :3] = rotation_initial
+    T_initial[:3, 3] = translation_initial
+
+    # ------------------------------------------------------------------
+    # Report how different the metadata priors are
+    # ------------------------------------------------------------------
+    translation_deviations_mm = np.asarray(
+        [
+            np.linalg.norm(T[:3, 3] - translation_initial)
+            for T in priors
+        ],
+        dtype=float,
+    )
+
+    rotation_deviations_deg = np.asarray(
+        [
+            rotation_error_deg(
+                T[:3, :3],
+                rotation_initial,
+            )
+            for T in priors
+        ],
+        dtype=float,
+    )
+
+    print(
+        "Constructed one representative T_lidar_camera_initial from",
+        len(priors),
+        "metadata priors.",
+    )
+
+    print(
+        "Prior translation deviation from representative initial "
+        f"[median / max]: "
+        f"{np.median(translation_deviations_mm):.6g} / "
+        f"{np.max(translation_deviations_mm):.6g} mm"
+    )
+
+    print(
+        "Prior rotation deviation from representative initial "
+        f"[median / max]: "
+        f"{np.median(rotation_deviations_deg):.6g} / "
+        f"{np.max(rotation_deviations_deg):.6g} deg"
+    )
+
+    if np.max(translation_deviations_mm) > warn_translation_spread_mm:
+        print(
+            "WARNING: The per-sample t_lidar_camera_prior translations vary "
+            f"by as much as {np.max(translation_deviations_mm):.6g} mm. "
+            "Confirm that all samples belong to the same camera and calibration "
+            "session."
+        )
+
+    if np.max(rotation_deviations_deg) > warn_rotation_spread_deg:
+        print(
+            "WARNING: The per-sample t_lidar_camera_prior rotations vary "
+            f"by as much as {np.max(rotation_deviations_deg):.6g} deg. "
+            "Confirm that all samples belong to the same camera and calibration "
+            "session."
+        )
+
+    return T_initial
+
+
 def load_map_pose_from_epnp_label(path: Path, pose_key: str, unit: str) -> tuple[np.ndarray, dict[str, Any]]:
     data = json.loads(path.read_text())
     if pose_key not in data:
@@ -1115,6 +1291,7 @@ def residual_vector(
 
 def residual_vector_sample_metadata(
     xi: np.ndarray,
+    T_lidar_camera_initial: np.ndarray,
     samples: list[dict[str, Any]],
     translation_sigma_mm: float,
     translation_residual_components: str,
@@ -1125,29 +1302,79 @@ def residual_vector_sample_metadata(
     translation_prior_weight: float,
     rotation_prior_weight: float,
 ) -> np.ndarray:
+    """Optimize one fixed LiDAR<-camera transform over all samples.
+
+    The optimized transform is
+
+        T_lidar_camera(xi)
+            = exp(xi) @ T_lidar_camera_initial
+
+    For every sample, both object poses are expressed in the LiDAR frame:
+
+        GigaPose:
+            T_lidar_object_pred
+                = T_lidar_camera(xi) @ T_camera_object_gigapose
+
+        EPnP:
+            T_lidar_object_target
+                = inv(T_map_lidar) @ T_map_object_epnp
+
+    Therefore t_lidar_camera_prior is only an initial guess. It is not used as
+    a separate per-frame calibration result.
+    """
+
     T_delta = se3_exp(xi)
-    residuals = []
+    T_lidar_camera = T_delta @ T_lidar_camera_initial
+
+    residuals: list[float] = []
     rotation_sigma_rad = math.radians(rotation_sigma_deg)
     t_idx = translation_component_indices(translation_residual_components)
 
     for sample in samples:
-        T_lidar_camera = T_delta @ sample["T_lidar_camera_prior"]
-        T_map_cam = sample["T_map_lidar"] @ T_lidar_camera
-        T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
-        T_gt = sample["T_target_obj"]
-        t_res = (T_pred[:3, 3] - T_gt[:3, 3])[t_idx] / translation_sigma_mm
-        r_res = so3_log(T_pred[:3, :3] @ T_gt[:3, :3].T) / rotation_sigma_rad
-        residuals.extend(t_res.tolist())
-        residuals.extend(r_res.tolist())
+        T_map_lidar = sample["T_map_lidar"]
+        T_map_object = sample["T_target_obj"]
+        T_camera_object_gigapose = sample["T_gigapose_cam_obj"]
+
+        # EPnP/reference branch:
+        # object -> map -> LiDAR
+        T_lidar_object_target = (
+            np.linalg.inv(T_map_lidar) @ T_map_object
+        )
+
+        # GigaPose/prediction branch:
+        # object -> camera -> LiDAR
+        T_lidar_object_pred = (
+            T_lidar_camera @ T_camera_object_gigapose
+        )
+
+        translation_residual = (
+            T_lidar_object_pred[:3, 3]
+            - T_lidar_object_target[:3, 3]
+        )[t_idx] / translation_sigma_mm
+
+        rotation_residual = so3_log(
+            T_lidar_object_pred[:3, :3]
+            @ T_lidar_object_target[:3, :3].T
+        ) / rotation_sigma_rad
+
+        residuals.extend(translation_residual.tolist())
+        residuals.extend(rotation_residual.tolist())
 
         if image_center_weight > 0:
-            T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get(
-                "T_target_obj_image", T_gt
+            # The image-center term still needs a camera-frame pose. Construct
+            # the current map<-camera transform using the optimized fixed
+            # LiDAR<-camera extrinsic and this frame's map<-LiDAR localization.
+            T_map_camera = T_map_lidar @ T_lidar_camera
+
+            T_camera_object_from_map = (
+                np.linalg.inv(T_map_camera)
+                @ sample.get("T_target_obj_image", T_map_object)
             )
+
             residuals.extend(
                 image_center_residual(
-                    T_cam_obj_from_map,
-                    sample["T_gigapose_cam_obj"],
+                    T_camera_object_from_map,
+                    T_camera_object_gigapose,
                     sample,
                     image_center_weight,
                     image_center_sigma_px,
@@ -1155,6 +1382,8 @@ def residual_vector_sample_metadata(
                 ).tolist()
             )
 
+    # These terms are zero by default. Nonzero CLI weights explicitly bias the
+    # solution toward the initial t_lidar_camera_prior.
     residuals.extend(
         correction_prior_residuals(
             xi,
@@ -1163,6 +1392,7 @@ def residual_vector_sample_metadata(
             rotation_prior_weight,
         )
     )
+
     return np.asarray(residuals, dtype=float)
 
 
@@ -1237,35 +1467,78 @@ def compute_sample_errors(T_map_cam: np.ndarray, samples: list[dict[str, Any]]) 
 
 
 def compute_sample_metadata_errors(
-    T_delta: np.ndarray,
+    T_lidar_camera: np.ndarray,
     samples: list[dict[str, Any]],
     projection_model: str = "pinhole",
 ) -> list[dict[str, Any]]:
-    rows = []
+    """Evaluate one fixed LiDAR<-camera transform in the LiDAR frame."""
+
+    rows: list[dict[str, Any]] = []
+
     for sample in samples:
-        T_lidar_camera = T_delta @ sample["T_lidar_camera_prior"]
-        T_map_cam = sample["T_map_lidar"] @ T_lidar_camera
-        T_pred = T_map_cam @ sample["T_gigapose_cam_obj"]
-        T_gt = sample["T_target_obj"]
+        T_map_lidar = sample["T_map_lidar"]
+        T_map_object = sample["T_target_obj"]
+        T_camera_object_gigapose = sample["T_gigapose_cam_obj"]
+
+        # Reference pose expressed in LiDAR coordinates.
+        T_lidar_object_target = (
+            np.linalg.inv(T_map_lidar) @ T_map_object
+        )
+
+        # GigaPose pose expressed in LiDAR coordinates using the candidate
+        # camera-LiDAR extrinsic.
+        T_lidar_object_pred = (
+            T_lidar_camera @ T_camera_object_gigapose
+        )
+
+        translation_error_mm = float(
+            np.linalg.norm(
+                T_lidar_object_pred[:3, 3]
+                - T_lidar_object_target[:3, 3]
+            )
+        )
+
+        rotation_error = rotation_error_deg(
+            T_lidar_object_pred[:3, :3],
+            T_lidar_object_target[:3, :3],
+        )
+
         image_center_error_px = float("nan")
+
         if sample.get("K") is not None:
-            T_cam_obj_from_map = np.linalg.inv(T_map_cam) @ sample.get("T_target_obj_image", T_gt)
+            T_map_camera = T_map_lidar @ T_lidar_camera
+
+            T_camera_object_from_map = (
+                np.linalg.inv(T_map_camera)
+                @ sample.get("T_target_obj_image", T_map_object)
+            )
+
             uv_map, map_valid = project_origin(
-                T_cam_obj_from_map,
+                T_camera_object_from_map,
                 sample["K"],
                 sample.get("D"),
                 sample.get("distortion_model", "pinhole"),
                 projection_model,
             )
-            uv_giga, giga_valid = project_origin(
-                sample["T_gigapose_cam_obj"],
+
+            uv_gigapose, gigapose_valid = project_origin(
+                T_camera_object_gigapose,
                 sample["K"],
                 sample.get("D"),
                 sample.get("distortion_model", "pinhole"),
                 projection_model,
             )
-            if map_valid and giga_valid and np.isfinite(uv_map).all() and np.isfinite(uv_giga).all():
-                image_center_error_px = float(np.linalg.norm(uv_map - uv_giga))
+
+            if (
+                map_valid
+                and gigapose_valid
+                and np.isfinite(uv_map).all()
+                and np.isfinite(uv_gigapose).all()
+            ):
+                image_center_error_px = float(
+                    np.linalg.norm(uv_map - uv_gigapose)
+                )
+
         rows.append(
             {
                 "match_key": sample.get("match_key", ""),
@@ -1273,15 +1546,24 @@ def compute_sample_metadata_errors(
                 "im_id": sample.get("im_id", ""),
                 "instance_id": sample.get("instance_id", ""),
                 "score": sample.get("score", ""),
-                "gigapose_pose_source": sample.get("gigapose_pose_source", ""),
+                "gigapose_pose_source": sample.get(
+                    "gigapose_pose_source", ""
+                ),
                 "metadata_path": sample.get("metadata_path", ""),
                 "target_pose_path": sample.get("target_pose_path", ""),
                 "target_pose_key": sample.get("target_pose_key", ""),
-                "translation_error_mm": float(np.linalg.norm(T_pred[:3, 3] - T_gt[:3, 3])),
-                "rotation_error_deg": rotation_error_deg(T_pred[:3, :3], T_gt[:3, :3]),
+                "translation_error_mm": translation_error_mm,
+                "rotation_error_deg": rotation_error,
                 "image_center_error_px": image_center_error_px,
+                "T_lidar_object_pred": matrix_to_text(
+                    T_lidar_object_pred
+                ),
+                "T_lidar_object_target": matrix_to_text(
+                    T_lidar_object_target
+                ),
             }
         )
+
     return rows
 
 
@@ -1552,10 +1834,19 @@ def main() -> None:
         )
 
     if args.use_sample_metadata:
-        T_initial = np.eye(4, dtype=float)
-        before_rows = compute_sample_metadata_errors(T_initial, samples, args.projection_model)
+        # Resolve one physical camera-LiDAR extrinsic for the complete run.
+        # The metadata value is used only as the optimizer's initial guess.
+        T_initial = resolve_shared_lidar_camera_initial(samples)
+
+        before_rows = compute_sample_metadata_errors(
+            T_initial,
+            samples,
+            args.projection_model,
+        )
+
         residual_fn = residual_vector_sample_metadata
         residual_args = (
+            T_initial,
             samples,
             args.translation_sigma_mm,
             args.translation_residual_components,
@@ -1613,8 +1904,13 @@ def main() -> None:
     xi = result.x
     T_delta = se3_exp(xi)
     T_optimized = T_delta @ T_initial
+
     if args.use_sample_metadata:
-        after_rows = compute_sample_metadata_errors(T_delta, samples, args.projection_model)
+        after_rows = compute_sample_metadata_errors(
+            T_optimized,
+            samples,
+            args.projection_model,
+        )
     elif args.use_epnp_label_extrinsics:
         after_rows = compute_sample_epnp_label_extrinsic_errors(
             T_delta, samples, args.projection_model
@@ -1623,7 +1919,7 @@ def main() -> None:
         after_rows = compute_sample_errors(T_optimized, samples)
 
     if args.use_sample_metadata:
-        optimization_mode = "sample_metadata_lidar_camera_prior"
+        optimization_mode = "fixed_lidar_camera_from_metadata_initial_guess"
     elif args.use_epnp_label_extrinsics:
         optimization_mode = "epnp_label_camera_extrinsics"
     else:
@@ -1689,11 +1985,44 @@ def main() -> None:
             if gigapose_frame_transform is not None
             else None
         ),
-        "T_map_cam_initial": T_initial.tolist() if not args.use_sample_metadata and not args.use_epnp_label_extrinsics else None,
+        "T_map_cam_initial": (
+            T_initial.tolist()
+            if not args.use_sample_metadata
+            and not args.use_epnp_label_extrinsics
+            else None
+        ),
         "T_correction_left_multiply": T_delta.tolist(),
-        "T_map_cam_optimized": T_optimized.tolist() if not args.use_sample_metadata and not args.use_epnp_label_extrinsics else None,
-        "T_lidar_camera_correction_left_multiply": T_delta.tolist() if args.use_sample_metadata else None,
-        "T_epnp_label_camera_correction_left_multiply": T_delta.tolist() if args.use_epnp_label_extrinsics else None,
+        "T_map_cam_optimized": (
+            T_optimized.tolist()
+            if not args.use_sample_metadata
+            and not args.use_epnp_label_extrinsics
+            else None
+        ),
+        "T_lidar_camera_initial": (
+            T_initial.tolist()
+            if args.use_sample_metadata
+            else None
+        ),
+        "T_lidar_camera_correction_left_multiply": (
+            T_delta.tolist()
+            if args.use_sample_metadata
+            else None
+        ),
+        "T_lidar_camera_optimized": (
+            T_optimized.tolist()
+            if args.use_sample_metadata
+            else None
+        ),
+        "T_camera_lidar_optimized": (
+            np.linalg.inv(T_optimized).tolist()
+            if args.use_sample_metadata
+            else None
+        ),
+        "T_epnp_label_camera_correction_left_multiply": (
+            T_delta.tolist()
+            if args.use_epnp_label_extrinsics
+            else None
+        ),
         "correction_rotation_rotvec_rad": xi[:3].tolist(),
         "correction_rotation_rpy_like_vector_rad": xi[:3].tolist(),
         "correction_translation_mm": xi[3:6].tolist(),
@@ -1703,18 +2032,26 @@ def main() -> None:
         "session_z_scale": args.session_z_scale,
         "projection_model": args.projection_model,
         "note": (
-            "Sample-metadata mode: apply T_lidar_camera_optimized = "
-            "T_lidar_camera_correction_left_multiply @ t_lidar_camera_prior for each frame, "
-            "then T_map_cam = t_map_lidar @ T_lidar_camera_optimized."
+            "Sample-metadata mode estimates one fixed rigid transform for the "
+            "complete run: T_lidar_camera_optimized = "
+            "T_lidar_camera_correction_left_multiply @ "
+            "T_lidar_camera_initial. The metadata prior is used only as the "
+            "initial guess. For frame i, use T_map_camera_i = "
+            "t_map_lidar_i @ T_lidar_camera_optimized."
             if args.use_sample_metadata
             else (
                 "EPnP-label-extrinsics mode: for each frame, derive "
-                "T_map_cam_initial_i = T_map_object_raw_i @ inv(T_camera_object_i), then apply "
-                "T_map_cam_optimized_i = T_epnp_label_camera_correction_left_multiply @ "
+                "T_map_cam_initial_i = T_map_object_raw_i @ "
+                "inv(T_camera_object_i), then apply "
+                "T_map_cam_optimized_i = "
+                "T_epnp_label_camera_correction_left_multiply @ "
                 "T_map_cam_initial_i. GigaPose poses are first put into the "
                 "EPnP object-frame convention using gigapose_pose_source."
                 if args.use_epnp_label_extrinsics
-                else "Use T_map_cam_optimized as camera-to-map transform if your pipeline expects T_map_cam."
+                else (
+                    "Use T_map_cam_optimized as camera-to-map transform "
+                    "if your pipeline expects T_map_cam."
+                )
             )
         ),
     }
