@@ -70,8 +70,11 @@ The absolute optimized transform, its inverse, the correction, and all
 per-frame map/camera compositions are saved for later reuse and reselection.
 
 
+The reported translation error is the object-position disagreement in the LiDAR frame
+It is not the camera–LiDAR calibration translation itself.
 
-
+translation_error_mm: object-pose disagreement between GigaPose and EPnP.
+correction_translation_norm_mm: how far the optimized camera–LiDAR calibration moved from its initial value.
 """
 
 from __future__ import annotations
@@ -1405,12 +1408,29 @@ def compute_sample_metadata_errors(
             T_lidar_camera @ T_camera_object_gigapose
         )
 
-        translation_error_mm = float(
-            np.linalg.norm(
-                T_lidar_object_pred[:3, 3]
-                - T_lidar_object_target[:3, 3]
-            )
+        # translation_error_mm = float(
+        #     np.linalg.norm(
+        #         T_lidar_object_pred[:3, 3]
+        #         - T_lidar_object_target[:3, 3]
+        #     )
+        # )
+        translation_difference = (
+            T_lidar_object_pred[:3, 3]
+            - T_lidar_object_target[:3, 3]
         )
+
+        translation_error_xy_mm = float(
+            np.linalg.norm(translation_difference[:2])
+        )
+
+        translation_error_z_mm = float(
+            abs(translation_difference[2])
+        )
+
+        translation_error_xyz_mm = float(
+            np.linalg.norm(translation_difference)
+        )
+        
 
         rotation_error = rotation_error_deg(
             T_lidar_object_pred[:3, :3],
@@ -1466,7 +1486,9 @@ def compute_sample_metadata_errors(
                 "metadata_path": sample.get("metadata_path", ""),
                 "target_pose_path": sample.get("target_pose_path", ""),
                 "target_pose_key": sample.get("target_pose_key", ""),
-                "translation_error_mm": translation_error_mm,
+                "translation_error_mm": translation_error_xyz_mm,
+                "translation_error_xy_mm": translation_error_xy_mm,
+                "translation_error_z_mm": translation_error_z_mm,
                 "rotation_error_deg": rotation_error,
                 "image_center_error_px": image_center_error_px,
                 "T_lidar_object_pred": matrix_to_text(
@@ -1571,7 +1593,13 @@ def compute_sample_epnp_label_extrinsic_errors(
 
 def summarize_errors(rows: list[dict[str, Any]], prefix: str) -> dict[str, float]:
     out = {}
-    for key in ("translation_error_mm", "rotation_error_deg", "image_center_error_px"):
+    for key in (
+    "translation_error_mm",
+    "translation_error_xy_mm",
+    "translation_error_z_mm",
+    "rotation_error_deg",
+    "image_center_error_px",
+):
         if not rows or key not in rows[0]:
             continue
         vals = np.asarray([float(row[key]) for row in rows], dtype=float)
