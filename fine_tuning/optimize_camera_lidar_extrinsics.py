@@ -872,14 +872,19 @@ def metadata_session_key(metadata_path: str | Path) -> str:
 def corrected_lidar_map_z_mm(label_data: dict[str, Any]) -> float | None:
     """Read the mesh-frame LiDAR altitude recorded by hybrid EPnP labels."""
 
-    value = (
-        label_data.get("gt_xy_mesh_z_label", {})
-        .get("ego_z_compensation", {})
-        .get("corrected_z_m")
-    )
+    hybrid = label_data.get("gt_xy_mesh_z_label")
+    if not isinstance(hybrid, dict):
+        return None
+    ego = hybrid.get("ego_z_compensation")
+    if not isinstance(ego, dict):
+        return None
+    value = ego.get("corrected_z_m")
     if value is None:
         return None
-    value_mm = float(value) * 1000.0
+    try:
+        value_mm = float(value) * 1000.0
+    except (TypeError, ValueError):
+        return None
     return value_mm if np.isfinite(value_mm) else None
 
 
@@ -1008,6 +1013,8 @@ def load_metadata_lidar_trajectory(
         "trajectory_poses_loaded": 0,
         "trajectory_missing_lidar_timestamp": 0,
         "trajectory_malformed_metadata": 0,
+        "trajectory_duplicate_timestamps": 0,
+        "trajectory_duplicate_pose_conflicts": 0,
     }
     for path in sorted(metadata_dir.glob("sample_*.yaml")):
         diagnostics["metadata_files_scanned"] += 1
@@ -1020,7 +1027,19 @@ def load_metadata_lidar_trajectory(
                 diagnostics["trajectory_missing_lidar_timestamp"] += 1
                 continue
             pose = matrix_from_yaml_key(metadata, "t_map_lidar", "m")
-            poses_by_timestamp.setdefault(timestamp_ns, pose)
+            previous = poses_by_timestamp.get(timestamp_ns)
+            if previous is None:
+                poses_by_timestamp[timestamp_ns] = pose
+            else:
+                diagnostics["trajectory_duplicate_timestamps"] += 1
+                if (
+                    np.linalg.norm(previous[:3, 3] - pose[:3, 3]) > 1e-3
+                    or rotation_error_deg(
+                        previous[:3, :3], pose[:3, :3]
+                    )
+                    > 1e-6
+                ):
+                    diagnostics["trajectory_duplicate_pose_conflicts"] += 1
         except Exception:
             diagnostics["trajectory_malformed_metadata"] += 1
 
@@ -1157,7 +1176,7 @@ def prepare_target_map_lidar_transforms(
         sample["timestamp_alignment_rotation_shift_deg"] = (
             time_rotation_shift_deg
         )
-        if sample["timestamp_alignment_status"] == "interpolated":
+        if sample["timestamp_alignment_status"] in ("interpolated", "exact"):
             time_translation_shifts_mm.append(time_translation_shift_mm)
             time_rotation_shifts_deg.append(time_rotation_shift_deg)
         target = time_aligned.copy()
@@ -1982,7 +2001,15 @@ def optimized_sample_extrinsic_rows(
                     ).reshape(4, 4)
                 ),
                 "T_map_lidar_target": matrix_to_text(T_map_lidar),
+                # Keep the historical column as the inverse of the pose that
+                # was actually used, and expose both conventions explicitly.
                 "T_lidar_map": matrix_to_text(np.linalg.inv(T_map_lidar)),
+                "T_lidar_map_raw": matrix_to_text(
+                    np.linalg.inv(T_map_lidar_raw)
+                ),
+                "T_lidar_map_target": matrix_to_text(
+                    np.linalg.inv(T_map_lidar)
+                ),
                 "corrected_lidar_map_z_mm": sample.get(
                     "corrected_lidar_map_z_mm", ""
                 ),
@@ -2221,6 +2248,15 @@ def main() -> None:
         raise SystemExit(
             "Use either --use-sample-metadata or "
             "--use-epnp-label-extrinsics, not both."
+        )
+    if (
+        args.use_sample_metadata
+        and args.target_lidar_z_mode == "epnp_corrected"
+        and not args.epnp_map_pose_key
+    ):
+        raise ValueError(
+            "--target-lidar-z-mode epnp_corrected requires "
+            "--epnp-map-pose-key so the hybrid EPnP JSON is loaded."
         )
     if (
         args.use_sample_metadata

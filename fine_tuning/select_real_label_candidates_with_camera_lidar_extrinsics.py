@@ -530,6 +530,15 @@ def make_candidate_rows(
                         "target_lidar_z_replacement_mm": label.get(
                             "target_lidar_z_replacement_mm", ""
                         ),
+                        "timestamp_interpolation_left_ns": label.get(
+                            "timestamp_interpolation_left_ns", ""
+                        ),
+                        "timestamp_interpolation_right_ns": label.get(
+                            "timestamp_interpolation_right_ns", ""
+                        ),
+                        "timestamp_interpolation_alpha": label.get(
+                            "timestamp_interpolation_alpha", ""
+                        ),
                         "T_lidar_camera_prior": base.matrix_to_text(
                             T_lidar_camera_prior
                         ),
