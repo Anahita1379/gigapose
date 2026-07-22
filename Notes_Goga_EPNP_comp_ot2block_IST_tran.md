@@ -957,6 +957,44 @@ python -m fine_tuning.select_real_label_candidates_with_camera_lidar_extrinsics 
   --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_camera_lidar_time_aligned
  
 
+
+
+python -m fine_tuning.select_real_label_candidates_with_centered_camera_lidar_extrinsics \
+  --gigapose-predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --optimized-extrinsics gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/extrinsic_optimization_front_aligned_centered_z_corrected/optimized_extrinsics.json \
+  --frame-transform-side right \
+  --frame-transform-refine-iterations 5 \
+  --frame-transform-inlier-translation-mm 5000 \
+  --frame-transform-inlier-rotation-deg 60 \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-camera-pose-key T_camera_object_centered \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --min-score 0.05 \
+  --max-translation-error-mm 2000 \
+  --max-rotation-error-deg 30 \
+  --max-roll-error-deg 5 \
+  --max-pitch-error-deg 5 \
+  --max-yaw-error-deg 15 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_centered_calibration
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_centered_calibration/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_centered_calibration/visual_overlays \
+  --projection-model metadata \
+  --max-images 100 \
+  --draw-mask-bbox
+
+  
+
  python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
   --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_camera_lidar_time_aligned/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
