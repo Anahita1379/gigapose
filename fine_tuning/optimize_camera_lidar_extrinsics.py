@@ -42,7 +42,7 @@ For sample i, both object poses are compared in the LiDAR frame:
         = T_lidar_camera_optimized @ T_gigapose_cam_obj_i
 
     T_lidar_object_epnp
-        = inv(T_map_lidar_i) @ T_map_object_raw_i
+        = inv(T_map_lidar_target_i) @ T_map_object_raw_i
         
 
 When the GigaPose CAD frame differs from the EPnP centered-object frame, the
@@ -60,7 +60,14 @@ For the ARCL/Assetto real folders, the ego vehicle moves, so each frame has its
 own ``t_map_lidar`` metadata.  In that case use ``--use-sample-metadata`` and
 the optimized model becomes:
 
-    T_map_object_raw_i ≈ T_map_lidar_i @ T_lidar_camera_optimized @ T_gigapose_cam_obj_i
+    T_map_object_raw_i ≈ T_map_lidar_target_i @ T_lidar_camera_optimized @ T_gigapose_cam_obj_i
+
+``T_map_lidar_target_i`` is preprocessed before optimization. For mesh-z hybrid
+EPnP labels, only its map-frame z translation is replaced by
+``gt_xy_mesh_z_label.ego_z_compensation.corrected_z_m``. Optionally, its raw
+LiDAR-time pose is first interpolated to the image timestamp using neighboring
+metadata poses. The exact policy and diagnostics are saved with the optimized
+extrinsics and reused by the matching selector.
 
 The per-sample priors are used only to construct and diagnose the common
 initial transform. The result is one reusable physical camera-LiDAR transform
@@ -198,6 +205,57 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Optional selected CSV field containing metadata YAML path. If absent, "
             "the script derives metadata/sample_<timestamp>_<id>.yaml from epnp_label_path."
+        ),
+    )
+    parser.add_argument(
+        "--target-lidar-z-mode",
+        choices=("raw", "epnp_corrected"),
+        default="epnp_corrected",
+        help=(
+            "Map-frame z convention for t_map_lidar when constructing the "
+            "EPnP target. 'epnp_corrected' replaces only t_map_lidar[2,3] "
+            "with gt_xy_mesh_z_label.ego_z_compensation.corrected_z_m from "
+            "the EPnP label. This is required for mesh-z hybrid labels."
+        ),
+    )
+    parser.add_argument(
+        "--allow-missing-corrected-lidar-z",
+        action="store_true",
+        help=(
+            "With --target-lidar-z-mode epnp_corrected, allow labels without "
+            "corrected_z_m to fall back to raw metadata z. By default the run "
+            "fails instead of silently mixing vertical frames."
+        ),
+    )
+    parser.add_argument(
+        "--timestamp-alignment",
+        choices=("raw", "interpolate_metadata"),
+        default="raw",
+        help=(
+            "How to align t_map_lidar to the image timestamp. "
+            "'interpolate_metadata' scans each session/camera metadata folder, "
+            "interpolates translation and SO(3) rotation between bracketing "
+            "LiDAR poses, and then applies the selected target-lidar z mode."
+        ),
+    )
+    parser.add_argument(
+        "--timestamp-max-bracket-gap-ms",
+        type=float,
+        default=200.0,
+        help=(
+            "Maximum time between the two LiDAR trajectory poses used to "
+            "interpolate an image-time pose."
+        ),
+    )
+    parser.add_argument(
+        "--timestamp-fallback",
+        choices=("error", "skip", "raw"),
+        default="error",
+        help=(
+            "Behavior when timestamp interpolation cannot be performed. "
+            "'skip' is recommended for calibration because it omits unaligned "
+            "boundary samples; 'error' stops immediately; 'raw' keeps the "
+            "original pose and records the fallback in diagnostics."
         ),
     )
     parser.add_argument(
@@ -811,6 +869,373 @@ def metadata_session_key(metadata_path: str | Path) -> str:
     return str(path.parent)
 
 
+def corrected_lidar_map_z_mm(label_data: dict[str, Any]) -> float | None:
+    """Read the mesh-frame LiDAR altitude recorded by hybrid EPnP labels."""
+
+    value = (
+        label_data.get("gt_xy_mesh_z_label", {})
+        .get("ego_z_compensation", {})
+        .get("corrected_z_m")
+    )
+    if value is None:
+        return None
+    value_mm = float(value) * 1000.0
+    return value_mm if np.isfinite(value_mm) else None
+
+
+def _nested_items(
+    value: Any, prefix: tuple[str, ...] = ()
+) -> list[tuple[tuple[str, ...], Any]]:
+    items: list[tuple[tuple[str, ...], Any]] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            path = (*prefix, str(key).lower())
+            items.append((path, child))
+            items.extend(_nested_items(child, path))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            items.extend(_nested_items(child, (*prefix, str(index))))
+    return items
+
+
+def _timestamp_value_ns(value: Any, key_path: tuple[str, ...]) -> int | None:
+    """Convert common scalar/ROS timestamp representations to nanoseconds."""
+
+    if isinstance(value, dict):
+        sec = value.get("sec", value.get("secs"))
+        nsec = value.get(
+            "nanosec", value.get("nsec", value.get("nsecs", 0))
+        )
+        if sec is not None:
+            try:
+                return int(round(float(sec) * 1e9 + float(nsec)))
+            except (TypeError, ValueError):
+                return None
+
+    number: float | None = None
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        number = float(value)
+    elif isinstance(value, str):
+        stripped = value.strip()
+        try:
+            number = float(stripped)
+        except ValueError:
+            # Sensor file paths often carry the timestamp in their basename.
+            tokens = re.findall(r"(?<!\d)(\d{10,})(?!\d)", stripped)
+            if tokens:
+                number = float(max(tokens, key=len))
+    if number is None or not np.isfinite(number):
+        return None
+
+    joined = ".".join(key_path)
+    if any(token in joined for token in ("_sec", "seconds", ".sec")) and not any(
+        token in joined for token in ("nsec", "nanosec")
+    ):
+        number *= 1e9
+    elif any(token in joined for token in ("_ms", "millisecond")):
+        number *= 1e6
+    elif any(token in joined for token in ("_us", "microsecond")):
+        number *= 1e3
+    # Unqualified timestamps in this dataset are already nanoseconds.
+    return int(round(number))
+
+
+def extract_sensor_timestamp_ns(
+    metadata: dict[str, Any], sensor: str, metadata_path: str | Path
+) -> int | None:
+    """Find an image or LiDAR timestamp without assuming one YAML layout."""
+
+    sensor_tokens = {
+        "image": ("image", "camera", "rgb", "color"),
+        "lidar": ("lidar", "pointcloud", "point_cloud", "points"),
+    }[sensor]
+    candidates: list[tuple[int, int]] = []
+    for key_path, value in _nested_items(metadata):
+        joined = ".".join(key_path)
+        if not any(token in joined for token in sensor_tokens):
+            continue
+        if not any(
+            token in joined
+            for token in ("timestamp", "stamp", "time_ns", "file", "path")
+        ):
+            continue
+        timestamp_ns = _timestamp_value_ns(value, key_path)
+        if timestamp_ns is None:
+            continue
+        score = 0
+        if "timestamp_ns" in joined or "time_ns" in joined:
+            score += 8
+        if "timestamp" in joined:
+            score += 4
+        if "stamp" in joined:
+            score += 2
+        if key_path and any(token in key_path[-1] for token in sensor_tokens):
+            score += 2
+        candidates.append((score, timestamp_ns))
+
+    if candidates:
+        return max(candidates, key=lambda item: item[0])[1]
+
+    if sensor == "image":
+        # sample_<timestamp>_<instance>.yaml uses the image timestamp.
+        match = re.match(r"sample_(\d+)_\d+$", Path(metadata_path).stem)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def interpolate_transform(
+    T0: np.ndarray, T1: np.ndarray, alpha: float
+) -> np.ndarray:
+    """Interpolate SE(3): linear translation and geodesic SO(3) rotation."""
+
+    alpha = float(np.clip(alpha, 0.0, 1.0))
+    out = np.eye(4, dtype=float)
+    out[:3, 3] = (1.0 - alpha) * T0[:3, 3] + alpha * T1[:3, 3]
+    relative = T0[:3, :3].T @ T1[:3, :3]
+    out[:3, :3] = T0[:3, :3] @ so3_exp(alpha * so3_log(relative))
+    return out
+
+
+def load_metadata_lidar_trajectory(
+    metadata_dir: Path,
+) -> tuple[np.ndarray, list[np.ndarray], dict[str, int]]:
+    """Load the LiDAR-time ego trajectory represented by a metadata folder."""
+
+    poses_by_timestamp: dict[int, np.ndarray] = {}
+    diagnostics = {
+        "metadata_files_scanned": 0,
+        "trajectory_poses_loaded": 0,
+        "trajectory_missing_lidar_timestamp": 0,
+        "trajectory_malformed_metadata": 0,
+    }
+    for path in sorted(metadata_dir.glob("sample_*.yaml")):
+        diagnostics["metadata_files_scanned"] += 1
+        try:
+            metadata = load_yaml(path)
+            timestamp_ns = extract_sensor_timestamp_ns(
+                metadata, "lidar", path
+            )
+            if timestamp_ns is None:
+                diagnostics["trajectory_missing_lidar_timestamp"] += 1
+                continue
+            pose = matrix_from_yaml_key(metadata, "t_map_lidar", "m")
+            poses_by_timestamp.setdefault(timestamp_ns, pose)
+        except Exception:
+            diagnostics["trajectory_malformed_metadata"] += 1
+
+    timestamps = np.asarray(sorted(poses_by_timestamp), dtype=np.int64)
+    poses = [poses_by_timestamp[int(timestamp)] for timestamp in timestamps]
+    diagnostics["trajectory_poses_loaded"] = len(poses)
+    return timestamps, poses, diagnostics
+
+
+def prepare_target_map_lidar_transforms(
+    samples: list[dict[str, Any]],
+    target_lidar_z_mode: str,
+    allow_missing_corrected_lidar_z: bool,
+    timestamp_alignment: str,
+    timestamp_max_bracket_gap_ms: float,
+    timestamp_fallback: str,
+) -> dict[str, Any]:
+    """Build vertically and temporally consistent map<-LiDAR target poses."""
+
+    trajectory_cache: dict[
+        Path, tuple[np.ndarray, list[np.ndarray], dict[str, int]]
+    ] = {}
+    diagnostics: dict[str, Any] = {
+        "target_lidar_z_mode": target_lidar_z_mode,
+        "timestamp_alignment": timestamp_alignment,
+        "samples_total": len(samples),
+        "samples_corrected_z": 0,
+        "samples_missing_corrected_z": 0,
+        "samples_timestamp_interpolated": 0,
+        "samples_timestamp_skipped": 0,
+        "samples_timestamp_raw_fallback": 0,
+        "timestamp_failures": {},
+    }
+    offsets_ms: list[float] = []
+    bracket_gaps_ms: list[float] = []
+    time_translation_shifts_mm: list[float] = []
+    time_rotation_shifts_deg: list[float] = []
+    z_replacements_mm: list[float] = []
+    prepared_samples: list[dict[str, Any]] = []
+
+    for sample in samples:
+        raw = np.asarray(sample["T_map_lidar"], dtype=float).reshape(4, 4)
+        time_aligned = raw.copy()
+        metadata_path = Path(sample["metadata_path"])
+        metadata = sample["metadata"]
+        image_timestamp_ns = extract_sensor_timestamp_ns(
+            metadata, "image", metadata_path
+        )
+        lidar_timestamp_ns = extract_sensor_timestamp_ns(
+            metadata, "lidar", metadata_path
+        )
+        sample["image_timestamp_ns"] = image_timestamp_ns
+        sample["lidar_timestamp_ns"] = lidar_timestamp_ns
+        if image_timestamp_ns is not None and lidar_timestamp_ns is not None:
+            offsets_ms.append(
+                (image_timestamp_ns - lidar_timestamp_ns) / 1e6
+            )
+
+        if timestamp_alignment == "interpolate_metadata":
+            failure: str | None = None
+            metadata_dir = metadata_path.parent
+            if metadata_dir not in trajectory_cache:
+                trajectory_cache[metadata_dir] = load_metadata_lidar_trajectory(
+                    metadata_dir
+                )
+            timestamps, poses, _ = trajectory_cache[metadata_dir]
+            if image_timestamp_ns is None:
+                failure = "missing_image_timestamp"
+            elif timestamps.size < 2:
+                failure = "insufficient_trajectory"
+            else:
+                right = int(np.searchsorted(timestamps, image_timestamp_ns))
+                if (
+                    right < timestamps.size
+                    and int(timestamps[right]) == image_timestamp_ns
+                ):
+                    time_aligned = poses[right].copy()
+                    sample["timestamp_interpolation_left_ns"] = (
+                        image_timestamp_ns
+                    )
+                    sample["timestamp_interpolation_right_ns"] = (
+                        image_timestamp_ns
+                    )
+                    sample["timestamp_interpolation_alpha"] = 0.0
+                    sample["timestamp_alignment_status"] = "exact"
+                    diagnostics["samples_timestamp_interpolated"] += 1
+                elif right == 0 or right >= timestamps.size:
+                    failure = "image_timestamp_not_bracketed"
+                else:
+                    left = right - 1
+                    t0, t1 = int(timestamps[left]), int(timestamps[right])
+                    gap_ms = (t1 - t0) / 1e6
+                    if gap_ms > timestamp_max_bracket_gap_ms:
+                        failure = "trajectory_bracket_too_wide"
+                    else:
+                        alpha = (image_timestamp_ns - t0) / float(t1 - t0)
+                        time_aligned = interpolate_transform(
+                            poses[left], poses[right], alpha
+                        )
+                        sample["timestamp_interpolation_left_ns"] = t0
+                        sample["timestamp_interpolation_right_ns"] = t1
+                        sample["timestamp_interpolation_alpha"] = float(alpha)
+                        sample["timestamp_alignment_status"] = "interpolated"
+                        diagnostics["samples_timestamp_interpolated"] += 1
+                        bracket_gaps_ms.append(gap_ms)
+            if failure is not None:
+                failures = diagnostics["timestamp_failures"]
+                failures[failure] = failures.get(failure, 0) + 1
+                sample["timestamp_alignment_status"] = f"raw_fallback:{failure}"
+                if timestamp_fallback == "error":
+                    raise ValueError(
+                        f"Cannot timestamp-align {metadata_path}: {failure}. "
+                        "Use --timestamp-fallback skip to omit this sample, or "
+                        "raw only if an explicitly recorded fallback is acceptable."
+                    )
+                if timestamp_fallback == "skip":
+                    diagnostics["samples_timestamp_skipped"] += 1
+                    continue
+                diagnostics["samples_timestamp_raw_fallback"] += 1
+        else:
+            sample["timestamp_alignment_status"] = "raw"
+
+        sample["T_map_lidar_raw"] = raw.copy()
+        sample["T_map_lidar_time_aligned"] = time_aligned.copy()
+        time_translation_shift_mm = float(
+            np.linalg.norm(time_aligned[:3, 3] - raw[:3, 3])
+        )
+        time_rotation_shift_deg = rotation_error_deg(
+            time_aligned[:3, :3], raw[:3, :3]
+        )
+        sample["timestamp_alignment_translation_shift_mm"] = (
+            time_translation_shift_mm
+        )
+        sample["timestamp_alignment_rotation_shift_deg"] = (
+            time_rotation_shift_deg
+        )
+        if sample["timestamp_alignment_status"] == "interpolated":
+            time_translation_shifts_mm.append(time_translation_shift_mm)
+            time_rotation_shifts_deg.append(time_rotation_shift_deg)
+        target = time_aligned.copy()
+        corrected_z_mm = corrected_lidar_map_z_mm(sample.get("label_data", {}))
+        sample["corrected_lidar_map_z_mm"] = corrected_z_mm
+        if target_lidar_z_mode == "epnp_corrected":
+            if corrected_z_mm is None:
+                diagnostics["samples_missing_corrected_z"] += 1
+                if not allow_missing_corrected_lidar_z:
+                    raise ValueError(
+                        f"{sample.get('target_pose_path')} has no "
+                        "gt_xy_mesh_z_label.ego_z_compensation.corrected_z_m. "
+                        "Use --allow-missing-corrected-lidar-z only to permit "
+                        "an explicitly reported raw-z fallback."
+                    )
+            else:
+                z_replacement_mm = float(corrected_z_mm - target[2, 3])
+                target[2, 3] = corrected_z_mm
+                sample["target_lidar_z_replacement_mm"] = z_replacement_mm
+                z_replacements_mm.append(z_replacement_mm)
+                diagnostics["samples_corrected_z"] += 1
+        sample["T_map_lidar_target"] = target
+        prepared_samples.append(sample)
+
+    samples[:] = prepared_samples
+    diagnostics["samples_used"] = len(samples)
+    if not samples:
+        raise ValueError(
+            "Target LiDAR preprocessing removed every sample. Inspect timestamp "
+            "fields, trajectory availability, and the bracket-gap threshold."
+        )
+
+    for _, _, trajectory_diagnostics in trajectory_cache.values():
+        for key, value in trajectory_diagnostics.items():
+            diagnostics[key] = diagnostics.get(key, 0) + value
+    if offsets_ms:
+        values = np.asarray(offsets_ms, dtype=float)
+        diagnostics.update(
+            {
+                "image_minus_lidar_offset_ms_mean": float(np.mean(values)),
+                "image_minus_lidar_offset_ms_median": float(np.median(values)),
+                "image_minus_lidar_offset_ms_p90_abs": float(
+                    np.percentile(np.abs(values), 90)
+                ),
+            }
+        )
+    if bracket_gaps_ms:
+        values = np.asarray(bracket_gaps_ms, dtype=float)
+        diagnostics.update(
+            {
+                "trajectory_bracket_gap_ms_median": float(np.median(values)),
+                "trajectory_bracket_gap_ms_max": float(np.max(values)),
+            }
+        )
+    for name, values in (
+        ("timestamp_translation_shift_mm", time_translation_shifts_mm),
+        ("timestamp_rotation_shift_deg", time_rotation_shifts_deg),
+        ("target_lidar_z_replacement_mm", z_replacements_mm),
+    ):
+        if not values:
+            continue
+        array = np.asarray(values, dtype=float)
+        diagnostics[f"{name}_mean"] = float(np.mean(array))
+        diagnostics[f"{name}_median"] = float(np.median(array))
+        diagnostics[f"{name}_p90_abs"] = float(
+            np.percentile(np.abs(array), 90)
+        )
+    return diagnostics
+
+
+def resolve_target_map_lidar(sample: dict[str, Any]) -> np.ndarray:
+    """Return the preprocessed map<-LiDAR pose used by target residuals."""
+
+    return np.asarray(
+        sample.get("T_map_lidar_target", sample["T_map_lidar"]), dtype=float
+    ).reshape(4, 4)
+
+
 def apply_map_z_mode(
     T_map_obj: np.ndarray,
     label_data: dict[str, Any],
@@ -1015,6 +1440,11 @@ def load_selected_samples(
     metadata_path_field: str,
     image_center_map_z_mode: str,
     session_z_scale: float,
+    target_lidar_z_mode: str,
+    allow_missing_corrected_lidar_z: bool,
+    timestamp_alignment: str,
+    timestamp_max_bracket_gap_ms: float,
+    timestamp_fallback: str,
 ) -> list[dict[str, Any]]:
     rows = []
     malformed_count = 0
@@ -1130,6 +1560,7 @@ def load_selected_samples(
                     "source_csv_epnp_label_path": row.get("epnp_label_path", ""),
                     "target_pose_key": epnp_map_pose_key or "selected_csv:T_epnp_obj",
                     "camera_pose_key": epnp_camera_pose_key if use_epnp_label_extrinsics else "",
+                    "label_data": label_data,
                     **metadata_values,
                 }
             )
@@ -1155,6 +1586,19 @@ def load_selected_samples(
                 f"{example_text}"
             )
         raise ValueError(f"No valid selected samples found in {path}")
+    if use_sample_metadata:
+        target_preprocessing_summary = prepare_target_map_lidar_transforms(
+            rows,
+            target_lidar_z_mode,
+            allow_missing_corrected_lidar_z,
+            timestamp_alignment,
+            timestamp_max_bracket_gap_ms,
+            timestamp_fallback,
+        )
+        for sample in rows:
+            sample["target_preprocessing_summary"] = (
+                target_preprocessing_summary
+            )
     if use_sample_metadata and image_center_map_z_mode in ("session_lidar_offset", "session_lidar_affine"):
         add_session_lidar_z_stats(rows)
         for sample in rows:
@@ -1248,7 +1692,7 @@ def residual_vector_sample_metadata(
     t_idx = translation_component_indices(translation_residual_components)
 
     for sample in samples:
-        T_map_lidar = sample["T_map_lidar"]
+        T_map_lidar = resolve_target_map_lidar(sample)
         T_map_object = sample["T_target_obj"]
         T_camera_object_gigapose = sample["T_gigapose_cam_obj"]
 
@@ -1393,7 +1837,7 @@ def compute_sample_metadata_errors(
     rows: list[dict[str, Any]] = []
 
     for sample in samples:
-        T_map_lidar = sample["T_map_lidar"]
+        T_map_lidar = resolve_target_map_lidar(sample)
         T_map_object = sample["T_target_obj"]
         T_camera_object_gigapose = sample["T_gigapose_cam_obj"]
 
@@ -1511,7 +1955,10 @@ def optimized_sample_extrinsic_rows(
 
     rows: list[dict[str, Any]] = []
     for sample in samples:
-        T_map_lidar = np.asarray(sample["T_map_lidar"], dtype=float).reshape(4, 4)
+        T_map_lidar_raw = np.asarray(
+            sample.get("T_map_lidar_raw", sample["T_map_lidar"]), dtype=float
+        ).reshape(4, 4)
+        T_map_lidar = resolve_target_map_lidar(sample)
         T_lidar_camera_prior = np.asarray(
             sample["T_lidar_camera_prior"], dtype=float
         ).reshape(4, 4)
@@ -1526,8 +1973,42 @@ def optimized_sample_extrinsic_rows(
                 "instance_id": sample.get("instance_id", ""),
                 "metadata_path": sample.get("metadata_path", ""),
                 "target_pose_path": sample.get("target_pose_path", ""),
-                "T_map_lidar": matrix_to_text(T_map_lidar),
+                "T_map_lidar": matrix_to_text(T_map_lidar_raw),
+                "T_map_lidar_raw": matrix_to_text(T_map_lidar_raw),
+                "T_map_lidar_time_aligned": matrix_to_text(
+                    np.asarray(
+                        sample.get("T_map_lidar_time_aligned", T_map_lidar_raw),
+                        dtype=float,
+                    ).reshape(4, 4)
+                ),
+                "T_map_lidar_target": matrix_to_text(T_map_lidar),
                 "T_lidar_map": matrix_to_text(np.linalg.inv(T_map_lidar)),
+                "corrected_lidar_map_z_mm": sample.get(
+                    "corrected_lidar_map_z_mm", ""
+                ),
+                "image_timestamp_ns": sample.get("image_timestamp_ns", ""),
+                "lidar_timestamp_ns": sample.get("lidar_timestamp_ns", ""),
+                "timestamp_alignment_status": sample.get(
+                    "timestamp_alignment_status", ""
+                ),
+                "timestamp_alignment_translation_shift_mm": sample.get(
+                    "timestamp_alignment_translation_shift_mm", ""
+                ),
+                "timestamp_alignment_rotation_shift_deg": sample.get(
+                    "timestamp_alignment_rotation_shift_deg", ""
+                ),
+                "target_lidar_z_replacement_mm": sample.get(
+                    "target_lidar_z_replacement_mm", ""
+                ),
+                "timestamp_interpolation_left_ns": sample.get(
+                    "timestamp_interpolation_left_ns", ""
+                ),
+                "timestamp_interpolation_right_ns": sample.get(
+                    "timestamp_interpolation_right_ns", ""
+                ),
+                "timestamp_interpolation_alpha": sample.get(
+                    "timestamp_interpolation_alpha", ""
+                ),
                 "T_lidar_camera_prior": matrix_to_text(T_lidar_camera_prior),
                 "T_lidar_camera_optimized": matrix_to_text(
                     T_lidar_camera_optimized
@@ -1705,6 +2186,13 @@ def validate_optimization_args(args: argparse.Namespace) -> None:
             raise ValueError(f"--{name.replace('_', '-')} must be non-negative")
     if args.max_samples is not None and args.max_samples <= 0:
         raise ValueError("--max-samples must be positive when provided")
+    if args.timestamp_max_bracket_gap_ms <= 0:
+        raise ValueError("--timestamp-max-bracket-gap-ms must be positive")
+    if not args.use_sample_metadata and args.timestamp_alignment != "raw":
+        raise ValueError(
+            "Timestamp preprocessing requires "
+            "--use-sample-metadata."
+        )
 
 
 def write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -1733,6 +2221,18 @@ def main() -> None:
         raise SystemExit(
             "Use either --use-sample-metadata or "
             "--use-epnp-label-extrinsics, not both."
+        )
+    if (
+        args.use_sample_metadata
+        and args.target_lidar_z_mode == "epnp_corrected"
+        and args.image_center_weight > 0
+        and args.image_center_map_z_mode != "raw"
+    ):
+        raise ValueError(
+            "Use --image-center-map-z-mode raw with "
+            "--target-lidar-z-mode epnp_corrected. The corrected LiDAR z and "
+            "raw mesh-z object pose are already in the same vertical frame; "
+            "applying a second image-center z conversion would be inconsistent."
         )
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1780,6 +2280,14 @@ def main() -> None:
         args.metadata_path_field,
         args.image_center_map_z_mode,
         args.session_z_scale,
+        args.target_lidar_z_mode,
+        args.allow_missing_corrected_lidar_z,
+        args.timestamp_alignment,
+        args.timestamp_max_bracket_gap_ms,
+        args.timestamp_fallback,
+    )
+    target_preprocessing_summary = (
+        samples[0].get("target_preprocessing_summary", {}) if samples else {}
     )
     calibrated_camera = validate_single_camera(samples) if args.use_sample_metadata else None
     if args.use_sample_metadata:
@@ -1938,6 +2446,30 @@ def main() -> None:
         )
     if not result.success:
         warnings.append(f"Optimizer did not report success: {result.message}")
+    if args.use_sample_metadata:
+        timestamp_offset_p90 = target_preprocessing_summary.get(
+            "image_minus_lidar_offset_ms_p90_abs"
+        )
+        if (
+            args.timestamp_alignment == "raw"
+            and timestamp_offset_p90 is not None
+            and float(timestamp_offset_p90) > 5.0
+        ):
+            warnings.append(
+                "Image/LiDAR timestamp offset p90 is "
+                f"{float(timestamp_offset_p90):.3f} ms, but timestamp alignment "
+                "is raw; the extrinsic may absorb vehicle motion."
+            )
+        fallback_count = int(
+            target_preprocessing_summary.get(
+                "samples_timestamp_raw_fallback", 0
+            )
+        )
+        if fallback_count:
+            warnings.append(
+                f"{fallback_count} samples used raw timestamp fallback; inspect "
+                "target_map_lidar_preprocessing.timestamp_failures."
+            )
     for metric in (
         "translation_error_mm_median",
         "rotation_error_deg_median",
@@ -2003,6 +2535,14 @@ def main() -> None:
             else None
         ),
         "metadata_prior_variation": prior_variation_summary,
+        "target_map_lidar_preprocessing": target_preprocessing_summary,
+        "target_lidar_z_mode": args.target_lidar_z_mode,
+        "allow_missing_corrected_lidar_z": (
+            args.allow_missing_corrected_lidar_z
+        ),
+        "timestamp_alignment": args.timestamp_alignment,
+        "timestamp_max_bracket_gap_ms": args.timestamp_max_bracket_gap_ms,
+        "timestamp_fallback": args.timestamp_fallback,
         "T_lidar_camera_initial": (
             T_initial.tolist() if args.use_sample_metadata else None
         ),
@@ -2038,10 +2578,12 @@ def main() -> None:
         "session_z_scale": args.session_z_scale,
         "projection_model": args.projection_model,
         "note": (
-            "Sample-metadata mode robustly combines all metadata priors into "
+            "Sample-metadata mode first constructs T_map_lidar_target by "
+            "applying the saved vertical-frame and timestamp-alignment policy. "
+            "It robustly combines all metadata priors into "
             "T_lidar_camera_initial, then estimates one fixed physical "
             "T_lidar_camera_optimized for the calibrated camera. For any frame "
-            "i, use T_map_camera_i = t_map_lidar_i @ "
+            "i, use T_map_camera_i = T_map_lidar_target_i @ "
             "T_lidar_camera_optimized. The absolute optimized transform is "
             "reusable across dates for the same unchanged camera calibration."
             if args.use_sample_metadata
@@ -2091,6 +2633,14 @@ def main() -> None:
             if args.use_sample_metadata
             else None
         ),
+        "target_map_lidar_preprocessing": target_preprocessing_summary,
+        "target_lidar_z_mode": args.target_lidar_z_mode,
+        "allow_missing_corrected_lidar_z": (
+            args.allow_missing_corrected_lidar_z
+        ),
+        "timestamp_alignment": args.timestamp_alignment,
+        "timestamp_max_bracket_gap_ms": args.timestamp_max_bracket_gap_ms,
+        "timestamp_fallback": args.timestamp_fallback,
         "optimized_extrinsics_per_sample_csv": (
             str(per_sample_extrinsics_path)
             if per_sample_extrinsics_path is not None

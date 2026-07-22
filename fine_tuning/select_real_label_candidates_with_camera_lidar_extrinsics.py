@@ -7,7 +7,7 @@ extrinsic produced by ``optimize_camera_lidar_extrinsics.py`` with
 For sample i, let
 
     M_i = T_map_object
-    L_i = t_map_lidar_i
+    L_i = T_map_lidar_target_i
     C^* = optimized fixed T_lidar_camera
 
 The corrected transforms are
@@ -15,7 +15,9 @@ The corrected transforms are
     T_map_camera_opt_i = L_i @ C^*
     E_opt_i = inv(T_map_camera_opt_i) @ M_i
 
-The selector compares the frame-aligned GigaPose prediction with ``E_opt_i``.
+The selector reconstructs ``T_map_lidar_target_i`` with the vertical/timestamp
+policy saved in the optimization JSON, then compares the frame-aligned
+GigaPose prediction with ``E_opt_i``.
 The same saved absolute calibration is reused for every sample and date from
 that camera. Front, rear, and stereo-left calibrations remain separate.
 
@@ -59,6 +61,8 @@ from fine_tuning.optimize_camera_lidar_extrinsics import (
     matrix_3x4_or_4x4_to_transform,
     metadata_camera_name,
     metadata_path_from_row,
+    prepare_target_map_lidar_transforms,
+    resolve_target_map_lidar,
 )
 
 
@@ -338,6 +342,9 @@ def load_epnp_extrinsic_labels(
                         "T_map_camera_initial": T_map_camera_initial,
                         "metadata_path": str(metadata_path),
                         "metadata_camera": metadata_camera_name(metadata_path),
+                        "metadata": metadata,
+                        "label_data": record,
+                        "target_pose_path": str(path),
                         "T_map_lidar": T_map_lidar,
                         "T_lidar_camera_prior": T_lidar_camera_prior,
                     }
@@ -375,7 +382,8 @@ def make_candidate_rows(
             T_map_object = label["T_map_object"]
             T_camera_object_original = label["T_camera_object_original"]
             T_map_camera_label_derived = label["T_map_camera_initial"]
-            T_map_lidar = label["T_map_lidar"]
+            T_map_lidar_raw = label["T_map_lidar"]
+            T_map_lidar = resolve_target_map_lidar(label)
             T_lidar_camera_prior = label["T_lidar_camera_prior"]
             T_camera_lidar_optimized = np.linalg.inv(
                 T_lidar_camera_optimized
@@ -485,7 +493,43 @@ def make_candidate_rows(
                         "T_camera_map_optimized": base.matrix_to_text(
                             T_camera_map_optimized
                         ),
-                        "T_map_lidar": base.matrix_to_text(T_map_lidar),
+                        "T_map_lidar": base.matrix_to_text(T_map_lidar_raw),
+                        "T_map_lidar_raw": base.matrix_to_text(
+                            T_map_lidar_raw
+                        ),
+                        "T_map_lidar_time_aligned": base.matrix_to_text(
+                            np.asarray(
+                                label.get(
+                                    "T_map_lidar_time_aligned",
+                                    T_map_lidar_raw,
+                                ),
+                                dtype=float,
+                            ).reshape(4, 4)
+                        ),
+                        "T_map_lidar_target": base.matrix_to_text(
+                            T_map_lidar
+                        ),
+                        "corrected_lidar_map_z_mm": label.get(
+                            "corrected_lidar_map_z_mm", ""
+                        ),
+                        "image_timestamp_ns": label.get(
+                            "image_timestamp_ns", ""
+                        ),
+                        "lidar_timestamp_ns": label.get(
+                            "lidar_timestamp_ns", ""
+                        ),
+                        "timestamp_alignment_status": label.get(
+                            "timestamp_alignment_status", ""
+                        ),
+                        "timestamp_alignment_translation_shift_mm": label.get(
+                            "timestamp_alignment_translation_shift_mm", ""
+                        ),
+                        "timestamp_alignment_rotation_shift_deg": label.get(
+                            "timestamp_alignment_rotation_shift_deg", ""
+                        ),
+                        "target_lidar_z_replacement_mm": label.get(
+                            "target_lidar_z_replacement_mm", ""
+                        ),
                         "T_lidar_camera_prior": base.matrix_to_text(
                             T_lidar_camera_prior
                         ),
@@ -601,6 +645,29 @@ def main() -> None:
             f"{loaded_cameras}."
         )
 
+    # Reproduce the exact map<-LiDAR target convention used during calibration.
+    # Older calibration JSONs have no policy and retain the historical raw pose.
+    target_lidar_z_mode = str(
+        extrinsics_data.get("target_lidar_z_mode", "raw")
+    )
+    timestamp_alignment = str(
+        extrinsics_data.get("timestamp_alignment", "raw")
+    )
+    target_preprocessing_summary = prepare_target_map_lidar_transforms(
+        labels,
+        target_lidar_z_mode=target_lidar_z_mode,
+        allow_missing_corrected_lidar_z=bool(
+            extrinsics_data.get("allow_missing_corrected_lidar_z", False)
+        ),
+        timestamp_alignment=timestamp_alignment,
+        timestamp_max_bracket_gap_ms=float(
+            extrinsics_data.get("timestamp_max_bracket_gap_ms", 200.0)
+        ),
+        timestamp_fallback=str(
+            extrinsics_data.get("timestamp_fallback", "error")
+        ),
+    )
+
     preds_by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
     epnp_by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in predictions:
@@ -703,6 +770,9 @@ def main() -> None:
         "optimized_extrinsics": str(extrinsics_path),
         "optimization_mode": extrinsics_data.get("optimization_mode"),
         "calibrated_camera": calibrated_camera,
+        "target_lidar_z_mode": target_lidar_z_mode,
+        "timestamp_alignment": timestamp_alignment,
+        "target_map_lidar_preprocessing": target_preprocessing_summary,
         "epnp_map_pose_key": args.epnp_map_pose_key,
         "epnp_camera_pose_key": args.epnp_camera_pose_key,
         "epnp_map_pose_unit": args.epnp_map_pose_unit,
