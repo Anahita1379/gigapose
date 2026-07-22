@@ -906,3 +906,13 @@ python -m fine_tuning.optimize_camera_lidar_extrinsics \
   --frame-transform-side right \
   --max-images 100 \
   --draw-mask-bbox
+
+
+  python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_camera_lidar_time_aligned/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_camera_lidar_time_aligned/visual_overlays_metadata_equidistant \
+  --projection-model metadata \
+  --frame-transform-side right \
+  --draw-mask-bbox \
+  --max-images 100
