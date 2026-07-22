@@ -848,6 +848,32 @@ python -m fine_tuning.optimize_camera_lidar_extrinsics \
   --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_time_aligned_fixed
 
 
+lets try optimization again: 
+python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
+  --selected-samples gigaPose_datasets/results/rgb_self_recovery_realData_dataset/combined_front_selected_samples_for_optimization.csv \
+  --use-sample-metadata \
+  --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --gigapose-pose-source raw \
+  --timestamp-alignment raw \
+  --target-lidar-z-mode raw \
+  --translation-residual-components xyz \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 0 \
+  --projection-model metadata \
+  --translation-prior-weight 1000 \
+  --rotation-prior-weight 20 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_direct_centered
+
+
+
+
+
+
   python -m fine_tuning.select_real_label_candidates_with_camera_lidar_extrinsics \
   --gigapose-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/tracked_predictions.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
