@@ -29,7 +29,8 @@ Unlike the older experimental optimizer, this script deliberately:
 * performs no image/LiDAR timestamp interpolation;
 * optionally reconciles the exported map-Z convention from the EPnP hybrid
   label without changing the stored LiDAR rotation or XY translation;
-* uses raw ``T_gigapose_cam_obj`` rather than an empirical aligned pose; and
+* can use either raw ``T_gigapose_cam_obj`` or the explicitly requested
+  ``T_gigapose_aligned_epnp_obj`` stored in the selected-samples CSV; and
 * explicitly converts ``T_map_object_raw`` to the centered object convention.
 """
 
@@ -101,11 +102,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--gigapose-pose-source",
-        choices=("raw",),
+        choices=("raw", "aligned"),
         default="raw",
         help=(
-            "Only raw is accepted. The explicit CAD origin transform replaces "
-            "the empirical aligned-pose transform."
+            "GigaPose pose column used by the calibration. 'aligned' reads "
+            "T_gigapose_aligned_epnp_obj from every selected CSV row; use it "
+            "when the existing raw/EPnP frame-alignment stage is part of the "
+            "prediction pipeline."
         ),
     )
     parser.add_argument(
@@ -425,7 +428,7 @@ def main() -> None:
     samples = base.load_selected_samples(
         args.selected_samples,
         args.max_samples,
-        "raw_csv",
+        "aligned_csv" if args.gigapose_pose_source == "aligned" else "raw_csv",
         None,
         None,
         args.epnp_map_pose_key,
@@ -524,7 +527,11 @@ def main() -> None:
             args.allow_missing_corrected_lidar_z
         ),
         "map_lidar_z_replacement": args.target_lidar_z_mode == "epnp_corrected",
-        "gigapose_pose_source": "T_gigapose_cam_obj (raw centered-object pose)",
+        "gigapose_pose_source": (
+            "T_gigapose_aligned_epnp_obj"
+            if args.gigapose_pose_source == "aligned"
+            else "T_gigapose_cam_obj (raw centered-object pose)"
+        ),
         "epnp_pose_source": args.epnp_map_pose_key,
         "raw_object_center_m": raw_center_m.tolist(),
         "raw_object_center_mm": (raw_center_m * 1000.0).tolist(),

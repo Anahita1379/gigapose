@@ -66,6 +66,8 @@ class CenteredCameraLidarSelectorTest(unittest.TestCase):
             labels,
             T_lidar_camera,
             T_object_raw_centered,
+            None,
+            "right",
             20,
             Path("/tmp/optimized_extrinsics.json"),
         )
@@ -75,6 +77,63 @@ class CenteredCameraLidarSelectorTest(unittest.TestCase):
         self.assertLess(float(rows[0]["rotation_error_deg"]), 1e-9)
         self.assertEqual(rows[0]["frame_transform_applied"], "none")
         self.assertEqual(
+            rows[0]["T_gigapose_cam_obj"],
+            rows[0]["T_gigapose_aligned_epnp_obj"],
+        )
+
+    def test_candidate_applies_explicit_right_alignment_when_requested(self) -> None:
+        T_lidar_camera = transform([600.0, -100.0, 250.0])
+        T_map_lidar = transform([4000.0, -2000.0, -34000.0])
+        T_object_raw_centered = transform([-241.0, 1.0, 333.0])
+        T_camera_object_centered = transform([500.0, 200.0, 22000.0])
+        frame_transform = transform([120.0, -40.0, 25.0])
+        T_gigapose_raw = T_camera_object_centered @ np.linalg.inv(frame_transform)
+        T_map_object_raw = (
+            T_map_lidar
+            @ T_lidar_camera
+            @ T_camera_object_centered
+            @ np.linalg.inv(T_object_raw_centered)
+        )
+        predictions = {
+            "image_1": [
+                {
+                    "T_gigapose": T_gigapose_raw,
+                    "scene_id": 1,
+                    "im_id": 1,
+                    "obj_id": 1,
+                    "row_index": 0,
+                    "score": 0.9,
+                }
+            ]
+        }
+        labels = {
+            "image_1": [
+                {
+                    "T_map_lidar": T_map_lidar,
+                    "T_map_lidar_target": T_map_lidar,
+                    "T_map_object": T_map_object_raw,
+                    "T_camera_object_original": T_camera_object_centered,
+                    "epnp_label_path": "/tmp/label.json",
+                    "epnp_record_index": 0,
+                    "metadata_path": "/tmp/sample.yaml",
+                }
+            ]
+        }
+
+        rows = make_candidate_rows(
+            predictions,
+            labels,
+            T_lidar_camera,
+            T_object_raw_centered,
+            frame_transform,
+            "right",
+            20,
+            Path("/tmp/optimized_extrinsics.json"),
+        )
+
+        self.assertLess(float(rows[0]["translation_error_mm"]), 1e-9)
+        self.assertEqual(rows[0]["frame_transform_applied"], "right")
+        self.assertNotEqual(
             rows[0]["T_gigapose_cam_obj"],
             rows[0]["T_gigapose_aligned_epnp_obj"],
         )

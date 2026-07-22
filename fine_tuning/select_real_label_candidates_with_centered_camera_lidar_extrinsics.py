@@ -13,8 +13,9 @@ For every EPnP label it reconstructs the centered camera-frame target as
           @ T_object_raw_object_centered
 
 where ``T_map_lidar_target`` replays the vertical convention recorded in the
-optimizer JSON.  GigaPose already predicts ``T_camera_object_centered``, so its
-raw pose is compared directly with this target.
+optimizer JSON.  The selector also replays the GigaPose pose-source convention:
+raw calibrations use raw predictions directly, while aligned calibrations
+estimate or load the same explicit GigaPose-to-EPnP frame transform.
 """
 
 from __future__ import annotations
@@ -74,6 +75,19 @@ def parse_args() -> argparse.Namespace:
         default="auto",
     )
     parser.add_argument("--optimized-extrinsics", type=Path, required=True)
+    parser.add_argument("--frame-transform-json", type=Path, default=None)
+    parser.add_argument(
+        "--frame-transform-side", choices=("left", "right"), default="right"
+    )
+    parser.add_argument(
+        "--frame-transform-refine-iterations", type=int, default=5
+    )
+    parser.add_argument(
+        "--frame-transform-inlier-translation-mm", type=float, default=None
+    )
+    parser.add_argument(
+        "--frame-transform-inlier-rotation-deg", type=float, default=None
+    )
     parser.add_argument(
         "--allow-unsafe-calibration",
         action="store_true",
@@ -174,6 +188,8 @@ def make_candidate_rows(
     labels_by_key: dict[str, list[dict[str, Any]]],
     T_lidar_camera: np.ndarray,
     T_object_raw_object_centered: np.ndarray,
+    gigapose_frame_transform: np.ndarray | None,
+    gigapose_frame_transform_side: str,
     max_candidates_per_key: int,
     extrinsics_path: Path,
 ) -> list[dict[str, Any]]:
@@ -202,9 +218,18 @@ def make_candidate_rows(
             T_map_camera = T_map_lidar_target @ T_lidar_camera
 
             for prediction in predictions:
-                T_gigapose = np.asarray(
+                T_gigapose_raw = np.asarray(
                     prediction["T_gigapose"], dtype=float
                 ).reshape(4, 4)
+                T_gigapose = (
+                    select_base.apply_frame_transform(
+                        T_gigapose_raw,
+                        gigapose_frame_transform,
+                        gigapose_frame_transform_side,
+                    )
+                    if gigapose_frame_transform is not None
+                    else T_gigapose_raw
+                )
                 translation_error, rotation_error = pose_errors(
                     T_gigapose, T_camera_object_centered
                 )
@@ -216,6 +241,9 @@ def make_candidate_rows(
                 )
                 map_translation_error, map_rotation_error = pose_errors(
                     T_map_camera @ T_gigapose, T_map_object_centered
+                )
+                raw_translation_error, raw_rotation_error = pose_errors(
+                    T_gigapose_raw, label["T_camera_object_original"]
                 )
                 original_translation_error, original_rotation_error = pose_errors(
                     T_gigapose, label["T_camera_object_original"]
@@ -236,8 +264,8 @@ def make_candidate_rows(
                         "roll_error_deg": roll_error,
                         "pitch_error_deg": pitch_error,
                         "yaw_error_deg": yaw_error,
-                        "raw_translation_error_mm": original_translation_error,
-                        "raw_rotation_error_deg": original_rotation_error,
+                        "raw_translation_error_mm": raw_translation_error,
+                        "raw_rotation_error_deg": raw_rotation_error,
                         "original_translation_error_mm": original_translation_error,
                         "original_rotation_error_deg": original_rotation_error,
                         "optimized_camera_translation_error_mm": translation_error,
@@ -251,10 +279,8 @@ def make_candidate_rows(
                             map_rotation_error - rotation_error
                         ),
                         "T_gigapose_cam_obj": select_base.matrix_to_text(
-                            T_gigapose
+                            T_gigapose_raw
                         ),
-                        # Compatibility field for both existing visualizers. No
-                        # empirical alignment is applied in this selector.
                         "T_gigapose_aligned_epnp_obj": select_base.matrix_to_text(
                             T_gigapose
                         ),
@@ -314,7 +340,11 @@ def make_candidate_rows(
                         ),
                         "sample_metadata_path": label["metadata_path"],
                         "optimized_extrinsics_path": str(extrinsics_path),
-                        "frame_transform_applied": "none",
+                        "frame_transform_applied": (
+                            gigapose_frame_transform_side
+                            if gigapose_frame_transform is not None
+                            else "none"
+                        ),
                     }
                 )
     rows.sort(
@@ -447,11 +477,66 @@ def main() -> None:
     for label in labels:
         labels_by_key[str(label["match_key"])].append(label)
 
+    pose_source = str(
+        calibration.get("preprocessing", {}).get(
+            "gigapose_pose_source", "T_gigapose_cam_obj"
+        )
+    )
+    uses_aligned_pose = "aligned" in pose_source.lower()
+    estimated_pairs = 0
+    refinement_history: list[dict[str, Any]] = []
+    gigapose_frame_transform: np.ndarray | None = None
+    if uses_aligned_pose:
+        if args.frame_transform_json is not None:
+            gigapose_frame_transform = select_base.load_frame_transform(
+                args.frame_transform_json
+            )
+            frame_transform_source = str(args.frame_transform_json)
+        else:
+            one_to_one = select_base.initial_one_to_one_pairs(
+                predictions_by_key, labels_by_key
+            )
+            gigapose_frame_transform = select_base.estimate_frame_transform(
+                one_to_one, args.frame_transform_side
+            )
+            estimated_pairs = len(one_to_one)
+            inlier_translation = (
+                args.frame_transform_inlier_translation_mm
+                if args.frame_transform_inlier_translation_mm is not None
+                else args.max_translation_error_mm
+            )
+            inlier_rotation = (
+                args.frame_transform_inlier_rotation_deg
+                if args.frame_transform_inlier_rotation_deg is not None
+                else args.max_rotation_error_deg
+            )
+            (
+                gigapose_frame_transform,
+                refinement_history,
+            ) = select_base.refine_frame_transform(
+                one_to_one,
+                args.frame_transform_side,
+                gigapose_frame_transform,
+                args.frame_transform_refine_iterations,
+                inlier_translation,
+                inlier_rotation,
+            )
+            frame_transform_source = "estimated_from_current_one_to_one_pairs"
+    else:
+        if args.frame_transform_json is not None:
+            raise ValueError(
+                "This calibration used raw GigaPose poses; refusing an external "
+                "frame transform because it would not replay the calibration."
+            )
+        frame_transform_source = "none_raw_pose_calibration"
+
     all_candidates = make_candidate_rows(
         predictions_by_key,
         labels_by_key,
         T_lidar_camera,
         T_object_raw_object_centered,
+        gigapose_frame_transform,
+        args.frame_transform_side,
         args.max_candidates_per_key,
         calibration_path,
     )
@@ -481,21 +566,18 @@ def main() -> None:
         args.output_dir / "best_candidate_per_epnp_label.csv", best_candidates
     )
     select_base.write_csv(args.output_dir / "selected_samples.csv", selected)
-    (args.output_dir / "frame_transform_gigapose_to_epnp.json").write_text(
-        json.dumps(
-            {
-                "description": (
-                    "Identity compatibility transform. Raw GigaPose centered "
-                    "poses are compared directly; no empirical transform is applied."
-                ),
-                "frame_transform_side": "right",
-                "T_epnp_gigapose": np.eye(4).tolist(),
-                "T_epnp_gigapose_right": np.eye(4).tolist(),
-                "estimated_from_pairs": 0,
-                "translation_unit": "mm",
-            },
-            indent=2,
-        )
+    frame_transform_path = (
+        args.output_dir / "frame_transform_gigapose_to_epnp.json"
+    )
+    select_base.save_frame_transform(
+        frame_transform_path,
+        (
+            gigapose_frame_transform
+            if gigapose_frame_transform is not None
+            else np.eye(4)
+        ),
+        estimated_pairs,
+        args.frame_transform_side,
     )
 
     report: dict[str, Any] = {
@@ -511,7 +593,16 @@ def main() -> None:
             "calibration_valid_for_reuse"
         ),
         "allow_unsafe_calibration": args.allow_unsafe_calibration,
-        "frame_transform_applied": "none",
+        "gigapose_pose_source": pose_source,
+        "frame_transform_applied": (
+            args.frame_transform_side if uses_aligned_pose else "none"
+        ),
+        "frame_transform_source": frame_transform_source,
+        "frame_transform_estimated_from_one_to_one_pairs": estimated_pairs,
+        "frame_transform_refine_iterations": (
+            args.frame_transform_refine_iterations if uses_aligned_pose else 0
+        ),
+        "frame_transform_refinement_history": refinement_history,
         "target_lidar_z_mode": target_lidar_z_mode,
         "target_map_lidar_preprocessing": preprocessing_summary,
         "raw_object_center_m": calibration.get("preprocessing", {}).get(
