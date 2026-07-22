@@ -839,24 +839,24 @@ python -m fine_tuning.optimize_camera_lidar_extrinsics \
   --epnp-map-pose-key T_map_object_raw \
   --epnp-map-pose-unit m \
   --target-lidar-z-mode epnp_corrected \
-  --timestamp-alignment raw \
+  --timestamp-max-bracket-gap-ms 500 \
+  --timestamp-fallback skip \
+  --timestamp-alignment interpolate_metadata \
   --translation-residual-components xyz \
   --translation-sigma-mm 1000 \
   --rotation-sigma-deg 10 \
-  --image-center-weight 0 \
+  --image-center-weight 5 \
   --image-center-map-z-mode raw \
   --projection-model metadata \
   --translation-prior-weight 10000 \
   --rotation-prior-weight 100 \
   --robust-loss soft_l1 \
-  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/extrinsic_optimization_front_camera_z_corrected
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/extrinsic_optimization_front_camera_z_corrected_time
 
 
 
---timestamp-max-bracket-gap-ms 200 \
-  --timestamp-fallback skip \
-  --timestamp-alignment interpolate_metadata \
 
+--timestamp-alignment raw \
 
 
 
