@@ -925,6 +925,17 @@ python -m fine_tuning.select_real_label_candidates_with_camera_lidar_extrinsics 
   --max-images 100 \
   --draw-mask-bbox
 
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_camera_lidar_time_aligned/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_camera_lidar_time_aligned/visual_overlays_metadata_equidistant \
+  --projection-model metadata \
+  --frame-transform-side right \
+  --draw-mask-bbox \
+  --max-images 100
+
+
+
 ```
 ----------------------------------------------------
 Done so far, need to rerun the selection using the new extrinsics and then visulaize it to check if correct
