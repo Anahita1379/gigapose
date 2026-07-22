@@ -869,7 +869,25 @@ python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
   --robust-loss soft_l1 \
   --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_direct_centered
 
-
+python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
+  --selected-samples gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/combined_front_selected_samples_for_optimization_new.csv \
+  --use-sample-metadata \
+  --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --gigapose-pose-source raw \
+  --timestamp-alignment raw \
+  --target-lidar-z-mode epnp_corrected \
+  --translation-residual-components xyz \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 0 \
+  --projection-model metadata \
+  --translation-prior-weight 1000 \
+  --rotation-prior-weight 20 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/extrinsic_optimization_front_direct_centered_z_corrected
 
 
 
