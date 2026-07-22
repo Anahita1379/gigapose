@@ -197,6 +197,8 @@ class CenteredCameraLidarOptimizerTest(unittest.TestCase):
                     str(output_dir),
                     "--epnp-map-pose-unit",
                     "m",
+                    "--target-lidar-z-mode",
+                    "raw",
                     "--max-nfev",
                     "100",
                 ],

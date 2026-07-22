@@ -10,7 +10,7 @@ Pose convention
 sample this optimizer constructs
 
     T_lidar_object_centered_target
-        = inv(T_map_lidar)
+        = inv(T_map_lidar_target)
           @ T_map_object_raw
           @ T_object_raw_object_centered
 
@@ -27,7 +27,8 @@ Unlike the older experimental optimizer, this script deliberately:
 
 * uses the stored per-sample ``T_map_lidar`` directly;
 * performs no image/LiDAR timestamp interpolation;
-* performs no map-Z replacement;
+* optionally reconciles the exported map-Z convention from the EPnP hybrid
+  label without changing the stored LiDAR rotation or XY translation;
 * uses raw ``T_gigapose_cam_obj`` rather than an empirical aligned pose; and
 * explicitly converts ``T_map_object_raw`` to the centered object convention.
 """
@@ -115,9 +116,22 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--target-lidar-z-mode",
-        choices=("raw",),
-        default="raw",
-        help="Only raw is accepted: do not replace the map-Z of t_map_lidar.",
+        choices=("raw", "epnp_corrected"),
+        default="epnp_corrected",
+        help=(
+            "Vertical map convention used for t_map_lidar. epnp_corrected "
+            "replaces only its map-Z with "
+            "gt_xy_mesh_z_label.ego_z_compensation.corrected_z_m; timestamps, "
+            "rotation, and XY remain untouched."
+        ),
+    )
+    parser.add_argument(
+        "--allow-missing-corrected-lidar-z",
+        action="store_true",
+        help=(
+            "With --target-lidar-z-mode epnp_corrected, explicitly permit a "
+            "raw-Z fallback for labels missing corrected_z_m."
+        ),
     )
     parser.add_argument(
         "--translation-residual-components",
@@ -149,6 +163,17 @@ def parse_args() -> argparse.Namespace:
         default="soft_l1",
     )
     parser.add_argument("--max-nfev", type=int, default=500)
+    parser.add_argument(
+        "--max-reusable-correction-mm",
+        type=float,
+        default=2000.0,
+        help=(
+            "Maximum optimized correction translation considered safe to reuse "
+            "as a physical camera-LiDAR calibration. The result is still saved "
+            "for diagnostics when this limit is exceeded, but matching selectors "
+            "will reject it unless explicitly overridden."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -157,6 +182,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--max-samples must be positive")
     if args.max_nfev <= 0:
         raise ValueError("--max-nfev must be positive")
+    if args.max_reusable_correction_mm <= 0:
+        raise ValueError("--max-reusable-correction-mm must be positive")
     if args.translation_sigma_mm <= 0:
         raise ValueError("--translation-sigma-mm must be positive")
     if args.rotation_sigma_deg <= 0:
@@ -231,8 +258,9 @@ def residual_vector_centered(
     residuals: list[float] = []
 
     for sample in samples:
-        # Directly use the stored map<-LiDAR transform. No timestamp or Z rewrite.
-        T_map_lidar = np.asarray(sample["T_map_lidar"], dtype=float).reshape(4, 4)
+        # Timestamp handling is direct/raw. The optional target pose differs
+        # only in map Z when EPnP's recorded vertical convention is requested.
+        T_map_lidar = base.resolve_target_map_lidar(sample)
         T_map_object_centered = np.asarray(
             sample["T_map_object_centered"], dtype=float
         ).reshape(4, 4)
@@ -296,7 +324,8 @@ def centered_per_sample_rows(
     T_camera_lidar_optimized = np.linalg.inv(T_lidar_camera_optimized)
     rows: list[dict[str, Any]] = []
     for sample in samples:
-        T_map_lidar = np.asarray(sample["T_map_lidar"], dtype=float).reshape(4, 4)
+        T_map_lidar_raw = np.asarray(sample["T_map_lidar"], dtype=float).reshape(4, 4)
+        T_map_lidar = base.resolve_target_map_lidar(sample)
         T_map_object_raw = np.asarray(sample["T_map_object_raw"], dtype=float)
         T_map_object_centered = np.asarray(sample["T_map_object_centered"], dtype=float)
         T_camera_object_gigapose = np.asarray(sample["T_gigapose_cam_obj"], dtype=float)
@@ -313,7 +342,17 @@ def centered_per_sample_rows(
                 "score": sample.get("score", ""),
                 "metadata_path": sample.get("metadata_path", ""),
                 "epnp_label_path": sample.get("target_pose_path", ""),
-                "T_map_lidar_used_directly": base.matrix_to_text(T_map_lidar),
+                "T_map_lidar_raw": base.matrix_to_text(T_map_lidar_raw),
+                "T_map_lidar_target": base.matrix_to_text(T_map_lidar),
+                "target_lidar_z_mode": sample.get("target_preprocessing_summary", {}).get(
+                    "target_lidar_z_mode", "raw"
+                ),
+                "corrected_lidar_map_z_mm": sample.get(
+                    "corrected_lidar_map_z_mm", ""
+                ),
+                "target_lidar_z_replacement_mm": sample.get(
+                    "target_lidar_z_replacement_mm", ""
+                ),
                 "T_map_object_raw": base.matrix_to_text(T_map_object_raw),
                 "T_object_raw_object_centered": base.matrix_to_text(
                     sample["T_object_raw_object_centered"]
@@ -380,8 +419,9 @@ def main() -> None:
     raw_center_m = np.asarray(args.raw_object_center_m, dtype=float)
     T_object_raw_object_centered = raw_from_centered_transform(raw_center_m)
 
-    # The base loader handles CSV/JSON/YAML parsing and unit conversion. Every
-    # policy that previously altered t_map_lidar is fixed to the direct/raw path.
+    # The base loader handles CSV/JSON/YAML parsing and unit conversion. Time is
+    # always direct/raw here; only the explicitly selected map-Z convention may
+    # alter the target transform.
     samples = base.load_selected_samples(
         args.selected_samples,
         args.max_samples,
@@ -399,8 +439,8 @@ def main() -> None:
         args.metadata_path_field,
         "raw",
         1.0,
-        "raw",
-        False,
+        args.target_lidar_z_mode,
+        args.allow_missing_corrected_lidar_z,
         "raw",
         1.0,
         "error",
@@ -410,6 +450,9 @@ def main() -> None:
     )
     calibrated_camera = base.validate_single_camera(samples)
     apply_centered_object_convention(samples, T_object_raw_object_centered)
+    target_preprocessing_summary = dict(
+        samples[0].get("target_preprocessing_summary", {})
+    )
 
     T_lidar_camera_initial, prior_summary = base.resolve_lidar_camera_initial(samples)
     before_rows = base.compute_sample_metadata_errors(
@@ -449,6 +492,18 @@ def main() -> None:
     warnings = metric_warnings(before_summary, after_summary)
     if not result.success:
         warnings.append(f"Optimizer did not report success: {result.message}")
+    correction_translation_norm_mm = float(np.linalg.norm(xi[3:6]))
+    calibration_valid_for_reuse = bool(
+        result.success
+        and correction_translation_norm_mm <= args.max_reusable_correction_mm
+    )
+    if correction_translation_norm_mm > args.max_reusable_correction_mm:
+        warnings.append(
+            "Calibration correction translation is "
+            f"{correction_translation_norm_mm:.3f} mm, exceeding the reusable "
+            f"limit of {args.max_reusable_correction_mm:.3f} mm. This usually "
+            "indicates a remaining frame/unit convention mismatch."
+        )
 
     before_path = args.output_dir / "errors_before_optimization.csv"
     after_path = args.output_dir / "errors_after_optimization.csv"
@@ -464,16 +519,22 @@ def main() -> None:
         "timestamp_policy": "use_stored_T_map_lidar_directly",
         "timestamp_interpolation": False,
         "lidar_timestamp_imputation": False,
-        "map_lidar_z_replacement": False,
+        "target_lidar_z_mode": args.target_lidar_z_mode,
+        "allow_missing_corrected_lidar_z": (
+            args.allow_missing_corrected_lidar_z
+        ),
+        "map_lidar_z_replacement": args.target_lidar_z_mode == "epnp_corrected",
         "gigapose_pose_source": "T_gigapose_cam_obj (raw centered-object pose)",
         "epnp_pose_source": args.epnp_map_pose_key,
         "raw_object_center_m": raw_center_m.tolist(),
         "raw_object_center_mm": (raw_center_m * 1000.0).tolist(),
         "T_object_raw_object_centered": T_object_raw_object_centered.tolist(),
         "target_equation": (
-            "inv(T_map_lidar) @ T_map_object_raw @ T_object_raw_object_centered"
+            "inv(T_map_lidar_target) @ T_map_object_raw "
+            "@ T_object_raw_object_centered"
         ),
         "prediction_equation": ("T_lidar_camera @ T_camera_object_centered_gigapose"),
+        "target_map_lidar_preprocessing": target_preprocessing_summary,
     }
     extrinsics = {
         "format_version": 1,
@@ -485,6 +546,13 @@ def main() -> None:
         "translation_unit": "mm",
         "calibrated_camera": calibrated_camera,
         "optimization_mode": "direct_map_lidar_raw_object_to_centered_gigapose",
+        "calibration_valid_for_reuse": calibration_valid_for_reuse,
+        "max_reusable_correction_mm": args.max_reusable_correction_mm,
+        "target_lidar_z_mode": args.target_lidar_z_mode,
+        "allow_missing_corrected_lidar_z": (
+            args.allow_missing_corrected_lidar_z
+        ),
+        "timestamp_alignment": "raw",
         "preprocessing": preprocessing,
         "metadata_prior_policy": (
             "robust_common_initial_then_optimize_one_fixed_transform"
@@ -521,8 +589,10 @@ def main() -> None:
         "projection_model": args.projection_model,
         "translation_prior_weight": args.translation_prior_weight,
         "rotation_prior_weight": args.rotation_prior_weight,
-        "correction_translation_norm_mm": float(np.linalg.norm(xi[3:6])),
+        "correction_translation_norm_mm": correction_translation_norm_mm,
         "correction_rotation_norm_deg": float(np.degrees(np.linalg.norm(xi[:3]))),
+        "calibration_valid_for_reuse": calibration_valid_for_reuse,
+        "max_reusable_correction_mm": args.max_reusable_correction_mm,
         **preprocessing,
         **prior_summary,
         **before_summary,
