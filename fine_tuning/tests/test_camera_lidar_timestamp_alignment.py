@@ -39,6 +39,19 @@ def write_metadata(
 
 
 class CameraLidarTimestampAlignmentTest(unittest.TestCase):
+    @staticmethod
+    def sample_from_metadata(path: Path) -> dict[str, object]:
+        metadata = load_yaml(path)
+        return {
+            "T_map_lidar": matrix_from_yaml_key(
+                metadata, "t_map_lidar", "m"
+            ),
+            "metadata_path": str(path),
+            "metadata": metadata,
+            "label_data": {},
+            "target_pose_path": "synthetic.json",
+        }
+
     def test_interpolates_the_missing_timestamp_from_adjacent_anchors(self) -> None:
         image_0 = 3_902_128_165_726
         lidar_0 = 3_902_096_138_922
@@ -56,7 +69,7 @@ class CameraLidarTimestampAlignmentTest(unittest.TestCase):
             )
             write_metadata(metadata_dir, image_1, lidar_1, 100.0, 2)
 
-            timestamps, _, diagnostics, timestamp_info = (
+            timestamps, _, diagnostics, timestamp_info, segments = (
                 load_metadata_lidar_trajectory(
                     metadata_dir,
                     interpolate_missing_lidar_timestamps=True,
@@ -72,6 +85,7 @@ class CameraLidarTimestampAlignmentTest(unittest.TestCase):
                 missing_info["lidar_timestamp_ns"], expected_lidar
             )
             self.assertIn(expected_lidar, timestamps.tolist())
+            self.assertEqual(len(segments), 1)
             self.assertEqual(
                 diagnostics[
                     "trajectory_records_with_interpolated_lidar_timestamp"
@@ -162,7 +176,7 @@ class CameraLidarTimestampAlignmentTest(unittest.TestCase):
                 2,
             )
 
-            _, _, diagnostics, timestamp_info = load_metadata_lidar_trajectory(
+            _, _, diagnostics, timestamp_info, _ = load_metadata_lidar_trajectory(
                 metadata_dir,
                 interpolate_missing_lidar_timestamps=True,
                 timestamp_max_imputation_gap_ms=500.0,
@@ -199,7 +213,7 @@ class CameraLidarTimestampAlignmentTest(unittest.TestCase):
                 2,
             )
 
-            _, _, diagnostics, timestamp_info = load_metadata_lidar_trajectory(
+            timestamps, _, diagnostics, timestamp_info, segments = load_metadata_lidar_trajectory(
                 metadata_dir,
                 interpolate_missing_lidar_timestamps=True,
                 timestamp_max_imputation_gap_ms=1000.0,
@@ -217,6 +231,8 @@ class CameraLidarTimestampAlignmentTest(unittest.TestCase):
                 ],
                 1,
             )
+            self.assertEqual(timestamps.size, 0)
+            self.assertEqual(len(segments), 2)
 
     def test_refuses_ambiguous_duplicate_image_timestamp_anchors(self) -> None:
         base = 5_500_000_000_000
@@ -236,7 +252,7 @@ class CameraLidarTimestampAlignmentTest(unittest.TestCase):
                 3,
             )
 
-            _, _, diagnostics, timestamp_info = load_metadata_lidar_trajectory(
+            timestamps, _, diagnostics, timestamp_info, segments = load_metadata_lidar_trajectory(
                 metadata_dir,
                 interpolate_missing_lidar_timestamps=True,
                 timestamp_max_imputation_gap_ms=1000.0,
@@ -251,6 +267,126 @@ class CameraLidarTimestampAlignmentTest(unittest.TestCase):
             self.assertEqual(
                 diagnostics["trajectory_conflicting_anchor_timestamps"], 1
             )
+            self.assertEqual(timestamps.size, 0)
+            self.assertEqual(segments, {})
+
+    def test_pose_interpolation_never_crosses_a_clock_reset(self) -> None:
+        base = 7_000_000_000_000
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            metadata_dir = (
+                Path(temporary_directory)
+                / "session"
+                / "front"
+                / "metadata"
+            )
+            metadata_dir.mkdir(parents=True)
+            missing_path = write_metadata(
+                metadata_dir, base + 950_000_000, None, 0.5, 0
+            )
+            kept_path = write_metadata(
+                metadata_dir,
+                base + 1_000_000_000,
+                base + 1_000_000_000,
+                1.0,
+                1,
+            )
+            # The later image has an earlier LiDAR timestamp. Without strict
+            # segmentation, the missing sample can appear bracketed by the
+            # merged timestamps even though it crosses a clock reset.
+            write_metadata(
+                metadata_dir,
+                base + 2_000_000_000,
+                base + 900_000_000,
+                2.0,
+                2,
+            )
+
+            samples = [
+                self.sample_from_metadata(missing_path),
+                self.sample_from_metadata(kept_path),
+            ]
+            summary = prepare_target_map_lidar_transforms(
+                samples,
+                target_lidar_z_mode="raw",
+                allow_missing_corrected_lidar_z=False,
+                timestamp_alignment="interpolate_metadata",
+                timestamp_max_bracket_gap_ms=350.0,
+                timestamp_fallback="skip",
+                interpolate_missing_lidar_timestamps=True,
+                timestamp_max_imputation_gap_ms=2_000.0,
+                timestamp_max_offset_jump_ms=250.0,
+            )
+
+            self.assertEqual(len(samples), 1)
+            self.assertEqual(samples[0]["metadata_path"], str(kept_path))
+            self.assertEqual(
+                samples[0]["timestamp_alignment_status"], "exact"
+            )
+            self.assertEqual(summary["samples_total"], 2)
+            self.assertEqual(summary["samples_timestamp_skipped"], 1)
+            self.assertEqual(
+                summary["samples_with_observed_lidar_timestamp"], 1
+            )
+            self.assertEqual(
+                summary["samples_with_unresolved_lidar_timestamp"], 1
+            )
+            self.assertEqual(
+                summary["timestamp_failures"][
+                    "timestamp_segment_unresolved"
+                ],
+                1,
+            )
+
+    def test_pose_interpolation_is_disabled_for_conflicting_anchors(self) -> None:
+        base = 8_000_000_000_000
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            metadata_dir = (
+                Path(temporary_directory)
+                / "session"
+                / "front"
+                / "metadata"
+            )
+            metadata_dir.mkdir(parents=True)
+            missing_path = write_metadata(
+                metadata_dir, base + 950_000_000, None, 0.5, 0
+            )
+            write_metadata(
+                metadata_dir,
+                base + 1_000_000_000,
+                base + 900_000_000,
+                1.0,
+                1,
+            )
+            write_metadata(
+                metadata_dir,
+                base + 1_000_000_000,
+                base + 1_000_000_000,
+                1.0,
+                2,
+            )
+            write_metadata(
+                metadata_dir,
+                base + 1_100_000_000,
+                base + 1_100_000_000,
+                1.1,
+                3,
+            )
+
+            samples = [self.sample_from_metadata(missing_path)]
+            with self.assertRaisesRegex(
+                ValueError, "timestamp_segment_unresolved"
+            ):
+                prepare_target_map_lidar_transforms(
+                    samples,
+                    target_lidar_z_mode="raw",
+                    allow_missing_corrected_lidar_z=False,
+                    timestamp_alignment="interpolate_metadata",
+                    timestamp_max_bracket_gap_ms=350.0,
+                    timestamp_fallback="error",
+                    interpolate_missing_lidar_timestamps=True,
+                    timestamp_max_imputation_gap_ms=1_000.0,
+                    timestamp_max_offset_jump_ms=250.0,
+                )
 
     def test_never_uses_anchors_from_another_session(self) -> None:
         base = 6_000_000_000_000
@@ -272,7 +408,7 @@ class CameraLidarTimestampAlignmentTest(unittest.TestCase):
                 0,
             )
 
-            _, _, _, timestamp_info = load_metadata_lidar_trajectory(
+            _, _, _, timestamp_info, _ = load_metadata_lidar_trajectory(
                 first_dir,
                 interpolate_missing_lidar_timestamps=True,
                 timestamp_max_imputation_gap_ms=1000.0,

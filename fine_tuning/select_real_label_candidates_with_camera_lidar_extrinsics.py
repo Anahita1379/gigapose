@@ -524,6 +524,9 @@ def make_candidate_rows(
                         "lidar_timestamp_status": label.get(
                             "lidar_timestamp_status", ""
                         ),
+                        "trajectory_segment_id": label.get(
+                            "trajectory_segment_id", ""
+                        ),
                         "lidar_timestamp_imputation_left_image_ns": label.get(
                             "lidar_timestamp_imputation_left_image_ns", ""
                         ),
@@ -713,6 +716,9 @@ def main() -> None:
         timestamp_max_imputation_gap_ms=float(
             extrinsics_data.get("timestamp_max_imputation_gap_ms", 1000.0)
         ),
+        timestamp_max_offset_jump_ms=float(
+            extrinsics_data.get("timestamp_max_offset_jump_ms", 250.0)
+        ),
     )
 
     preds_by_key: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -824,6 +830,9 @@ def main() -> None:
         ),
         "timestamp_max_imputation_gap_ms": float(
             extrinsics_data.get("timestamp_max_imputation_gap_ms", 1000.0)
+        ),
+        "timestamp_max_offset_jump_ms": float(
+            extrinsics_data.get("timestamp_max_offset_jump_ms", 250.0)
         ),
         "target_map_lidar_preprocessing": target_preprocessing_summary,
         "epnp_map_pose_key": args.epnp_map_pose_key,
