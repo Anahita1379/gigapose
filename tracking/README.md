@@ -506,7 +506,7 @@ python -m tracking.train_recovery \
 
 
 
-  python -m tracking.train_recovery \
+  CUDA_VISIBLE_DEVICES=1 python -m tracking.train_recovery \
   --data gigaPose_datasets/results/tracking_recovery_data_no_depth/train.npz \
   --validation-data gigaPose_datasets/results/tracking_recovery_data_no_depth/val.npz \
   --output-dir gigaPose_datasets/results/tracking_recovery_head_no_depth \
@@ -517,8 +517,63 @@ python -m tracking.train_recovery \
   --device cuda \
   --logger wandb \
   --run-name assettocorsa_tracking_recovery_no_depth \
-  --wandb-project gigapose
+  --wandb-project gigapose_recovery_no_depth 
 ```
+python -m tracking.rgb_self_recovery.generate_dataset \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_new_dataset \
+  --split train_pbr_web_gsam_clean \
+  --mesh gigaPose_datasets/datasets/assettocorsa_new_dataset/models/obj_000001.ply \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_data/train \
+  --max-frames 10000 \
+  --candidates-per-instance 12 \
+  --overwrite
+
+
+python -m tracking.rgb_self_recovery.train \
+  --data gigaPose_datasets/results/rgb_self_recovery_data/train \
+  --validation-data gigaPose_datasets/results/rgb_self_recovery_data/val \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_model \
+  --epochs 1000 \
+  --batch-size 8 \
+  --num-workers 4 \
+  --learning-rate 2e-4 \
+  --weight-decay 1e-4 \
+  --center-weight 1.0 \
+  --log-depth-weight 1.0 \
+  --rotation-weight 1.0 \
+  --confidence-weight 0.5 \
+  --quality-weight 0.5 \
+  --ranking-weight 0.5 \
+  --patience 20 \
+  --min-delta 1e-4 \
+  --device cuda \
+  --logger wandb \
+  --run-name assettocorsa_rgb_self_recovery \
+  --wandb-project gigapose_rgb_self_recovery
+
+
+
+
+python -m tracking.rgb_self_recovery.run \
+  --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --split test \
+  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+  --association-config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_real_20260505v1_front_gsam_v4 \
+  --device cuda \
+  --top-k-gigapose 5 \
+  --beam-size 4 \
+  --max-candidates 48 \
+  --refinement-iterations 2 \
+  --global-interval 5 \
+  --broad-recovery-confidence 0.55 \
+  --normal-confidence 0.65 \
+  --lost-confidence 0.25 \
+  --save-overlays \
+  --overlay-every 10 \
+  --overwrite
+
 
 With `--validation-data`, every group in `train.npz` is used for optimization
 and every group in `val.npz` is used only for validation, checkpoint selection,
