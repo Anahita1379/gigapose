@@ -357,7 +357,147 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison \
   --max-images 100 \
   --draw-mask-bbox
 
+
+--------------------------------------------------------------
+---------------------------------------------------------------
+# 20260718 
+# front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/front/EPnPv2_gt_mesh_z_hybrid_labels
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear/EPnPv2_gt_mesh_z_hybrid_labels
+
+dataset: real_20260718_front_gsam_v4,  real_20260718_rear_gsam_v4
+
+
+preds: gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260718_front_gsam_v4-test_large_real_20260718_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
+
+  python -m fine_tuning.select_real_label_candidates \
+  --gigapose-predictions gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260718_front_gsam_v4-test_large_real_20260718_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_front_gsam_v4 \
+  --epnp-root  /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/front/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --frame-transform-side right \
+  --frame-transform-refine-iterations 5 \
+  --frame-transform-inlier-translation-mm 5000 \
+  --frame-transform-inlier-rotation-deg 60 \
+  --min-score 0.05 \
+  --max-translation-error-mm 3000 \
+  --max-rotation-error-deg 30 \
+  --max-roll-error-deg 10 \
+  --max-pitch-error-deg 10 \
+  --max-yaw-error-deg 15 \
+  --epnp-translation-unit m \
+  --output-dir gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison \
+  --candidate-csv gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2/visual_overlays \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/visual_overlays \
+  --frame-transform-side right \
+  --projection-model metadata \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2/visual_overlays_centered \
+  --frame-transform-side right \
+  --projection-model metadata \
+  --max-images 100 \
+  --draw-mask-bbox
+
+# ----------
+
+   python -m fine_tuning.select_real_label_candidates \
+  --gigapose-predictions gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_stereo_left_gsam_v4-test_large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --frame-transform-side right \
+  --frame-transform-refine-iterations 5 \
+  --frame-transform-inlier-translation-mm 5000 \
+  --frame-transform-inlier-rotation-deg 60 \
+  --min-score 0.05 \
+  --max-translation-error-mm 4000 \
+  --max-rotation-error-deg 30 \
+  --max-roll-error-deg 10 \
+  --max-pitch-error-deg 10 \
+  --max-yaw-error-deg 15 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new
+
+
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison \
+  --candidate-csv gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
+  --output-dir gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/visual_overlays \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 select_real_label_candidates.py gives you numeric comparison files. 

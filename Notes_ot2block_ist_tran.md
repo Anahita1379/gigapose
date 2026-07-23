@@ -269,11 +269,18 @@ CUDA_VISIBLE_DEVICES=1 python test.py \
   
 model_ckpt: gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_ot2block_pose_aware_ist_translation_residual/checkpoints/best-residual-step010000.ckpt
 
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name real_20260718_rear_gsam_v4 \
+  --grounded-sam-dir Grounded_Sam_v4 \
+
+
+
 ```bash
 python -m fine_tuning.residual_pose_training.infer \
-  --dataset-name real_20260505v1_front_gsam_v4 \
+  --dataset-name real_20260718_rear_gsam_v4 \
   --checkpoint gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_ot2block_pose_aware_ist_translation_residual/checkpoints/best-residual-step010000.ckpt \
-  --run-name large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran \
+  --run-name large_real_20260718_rear_gsam_v4_ot2blocks_IST_tran \
   --batch-size 32 \
   --num-workers 2 \
   --devices 1 \
@@ -283,12 +290,12 @@ python -m fine_tuning.residual_pose_training.infer \
 
 
 python -m fine_tuning.residual_pose_training.infer \
-  --dataset-name real_20260518v2v4_stereo_left_gsam_v4 \
+  --dataset-name real_20260718_front_gsam_v4 \
   --checkpoint gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_ot2block_pose_aware_ist_translation_residual/checkpoints/best-residual-step010000.ckpt \
-  --run-name large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran \
+  --run-name large_real_20260718_front_gsam_v4_ot2blocks_IST_tran \
   --batch-size 32 \
   --num-workers 2 \
-  --devices 1 \
+  --devices 0 \
   --no-rotation-residual \
   --max-center-offset-px 56 \
   --max-log-depth-residual 0.5

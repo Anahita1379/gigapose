@@ -298,22 +298,23 @@ Now it is time for real world stuff:
 
 
    new dataset:
+   20260718
     /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18
   -->
 
 Full prep command:
 ```bash
 CUDA_VISIBLE_DEVICES=1  python -m Assetto_data_prep.prepare_grounded_sam_inference \
-  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/front \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --dataset-name real_20260518v2v4_front_gsam_v4 \
+  --dataset-name real_20260718_front_gsam_v4 \
   --grounded-sam-dir Grounded_Sam_v4 \
   --overwrite
 
- CUDA_VISIBLE_DEVICES=1  python -m Assetto_data_prep.prepare_grounded_sam_inference \
-  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/rear \
+ CUDA_VISIBLE_DEVICES=0  python -m Assetto_data_prep.prepare_grounded_sam_inference \
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear \
   --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
-  --dataset-name real_20260518v2v4_rear_gsam_v4 \
+  --dataset-name real_20260718_rear_gsam_v4 \
   --grounded-sam-dir Grounded_Sam_v4 \
   --overwrite
 
@@ -327,15 +328,21 @@ CUDA_VISIBLE_DEVICES=1  python -m Assetto_data_prep.prepare_grounded_sam_inferen
 
   ```
 
+
+
+
+
+
+
 Then render templates:
 ```bash
 CUDA_VISIBLE_DEVICES=1 python -m src.scripts.render_custom_templates \
-  custom_dataset_name=real_20260518v2v4_front_gsam_v4 \
+  custom_dataset_name=real_20260718_front_gsam_v4 \
   machine.num_workers=1
 
 
-CUDA_VISIBLE_DEVICES=1 python -m src.scripts.render_custom_templates \
-  custom_dataset_name=real_20260518v2v4_rear_gsam_v4 \
+CUDA_VISIBLE_DEVICES=0 python -m src.scripts.render_custom_templates \
+  custom_dataset_name=real_20260718_rear_gsam_v4 \
   machine.num_workers=1
 
 
@@ -343,7 +350,15 @@ CUDA_VISIBLE_DEVICES=1 python -m src.scripts.render_custom_templates \
   custom_dataset_name=real_20260518v2v4_stereo_left_gsam_v4 \
   machine.num_workers=1
   ```
+
+
+
+
+
+
 Then run inference:
+
+
 ```bash
 CUDA_VISIBLE_DEVICES=1 python test.py \
   test_dataset_name=real_20260526_front_gsam_v4 \
