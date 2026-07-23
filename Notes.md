@@ -294,6 +294,11 @@ Now it is time for real world stuff:
  /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2 Done
   /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1 Done
    /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4 only front for now:
+
+
+
+   new dataset:
+    /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18
   -->
 
 Full prep command:
