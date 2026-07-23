@@ -419,6 +419,36 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
   --max-images 100 \
   --draw-mask-bbox
 
+
+
+  python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_front_gsam_v4 \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2/visual_overlays_epnp_center \
+  --frame-transform-side right \
+  --projection-model metadata \
+  --object-center-mode epnp_raw \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_front_gsam_v4 \
+  --split test \
+  --output-dir gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new2/visual_overlays_native_gigapose \
+  --frame-transform-side right \
+  --projection-model metadata \
+  --object-center-mode epnp_raw \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+
 # ----------
 
    python -m fine_tuning.select_real_label_candidates \

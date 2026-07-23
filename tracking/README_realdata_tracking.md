@@ -617,25 +617,25 @@ real_20260518v1v4_front_gsam_v4
 
 
 
- python -m tracking.rgb_self_recovery.run \
-  --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_front_gsam_v4-test_large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4 \
-  --split test \
-  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
-  --association-config tracking/configs/improved.json \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_gsam_v4 \
-  --device cuda \
-  --top-k-gigapose 5 \
-  --beam-size 4 \
-  --max-candidates 48 \
-  --refinement-iterations 2 \
-  --global-interval 5 \
-  --broad-recovery-confidence 0.55 \
-  --normal-confidence 0.65 \
-  --lost-confidence 0.25 \
-  --save-overlays \
-  --overlay-every 10 \
-  --overwrite
+#  python -m tracking.rgb_self_recovery.run \
+#   --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_front_gsam_v4-test_large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+#   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4 \
+#   --split test \
+#   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+#   --association-config tracking/configs/improved.json \
+#   --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_gsam_v4 \
+#   --device cuda \
+#   --top-k-gigapose 5 \
+#   --beam-size 4 \
+#   --max-candidates 48 \
+#   --refinement-iterations 2 \
+#   --global-interval 5 \
+#   --broad-recovery-confidence 0.55 \
+#   --normal-confidence 0.65 \
+#   --lost-confidence 0.25 \
+#   --save-overlays \
+#   --overlay-every 10 \
+#   --overwrite
 
 CUDA_VISIBLE_DEVICES=0 python -m tracking.rgb_self_recovery.run \
   --predictions  gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_front_gsam_v4-test_large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv  \
@@ -667,7 +667,7 @@ CUDA_VISIBLE_DEVICES=0 python -m tracking.rgb_self_recovery.run \
 # still need to run the selection and visualizer after
 
   python -m tracking.select_real_label_candidates \
-  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_gsam_v4/tracked_predictions.csv \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_rotation_gated/tracked_predictions.csv \
   --allowed-tracking-modes normal \
     --min-tracking-confidence 0.65 \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4 \
@@ -687,14 +687,17 @@ CUDA_VISIBLE_DEVICES=0 python -m tracking.rgb_self_recovery.run \
         --max-roll-error-deg 5 \
     --max-pitch-error-deg 5 \
     --max-yaw-error-deg 15 \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_gsam_v4/label_candidates_for_optimization
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_rotation_gated/label_candidates_for_optimization
 
+
+
+selection: 70 out of 111 
 
 python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
-  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_gsam_v4/label_candidates_for_optimization/selected_samples.csv \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_rotation_gated/label_candidates_for_optimization/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_gsam_v4/label_candidates_for_optimization/visual_overlays \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_rotation_gated/label_candidates_for_optimization/visual_overlays \
   --max-images 100 \
   --sort-by translation_error \
   --draw-mask-bbox \
@@ -713,25 +716,25 @@ real_20260518v1v4_rear_gsam_v4
  pred:  gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_rear_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_rear_gsam_v4-test_large_real_20260518v1v4_rear_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
 
 
- python -m tracking.rgb_self_recovery.run \
-  --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_rear_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_rear_gsam_v4-test_large_real_20260518v1v4_rear_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_rear_gsam_v4 \
-  --split test \
-  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
-  --association-config tracking/configs/improved.json \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_gsam_v4 \
-  --device cuda \
-  --top-k-gigapose 5 \
-  --beam-size 4 \
-  --max-candidates 48 \
-  --refinement-iterations 2 \
-  --global-interval 5 \
-  --broad-recovery-confidence 0.55 \
-  --normal-confidence 0.65 \
-  --lost-confidence 0.25 \
-  --save-overlays \
-  --overlay-every 10 \
-  --overwrite
+#  python -m tracking.rgb_self_recovery.run \
+#   --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_rear_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_rear_gsam_v4-test_large_real_20260518v1v4_rear_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+#   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_rear_gsam_v4 \
+#   --split test \
+#   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+#   --association-config tracking/configs/improved.json \
+#   --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_gsam_v4 \
+#   --device cuda \
+#   --top-k-gigapose 5 \
+#   --beam-size 4 \
+#   --max-candidates 48 \
+#   --refinement-iterations 2 \
+#   --global-interval 5 \
+#   --broad-recovery-confidence 0.55 \
+#   --normal-confidence 0.65 \
+#   --lost-confidence 0.25 \
+#   --save-overlays \
+#   --overlay-every 10 \
+#   --overwrite
 
 
 
@@ -768,7 +771,7 @@ CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
 
 
     python -m tracking.select_real_label_candidates \
-  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_gsam_v4/tracked_predictions.csv \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_rotation_gated/tracked_predictions.csv \
   --allowed-tracking-modes normal \
     --min-tracking-confidence 0.65 \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_rear_gsam_v4 \
@@ -788,14 +791,18 @@ CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
         --max-roll-error-deg 5 \
     --max-pitch-error-deg 5 \
     --max-yaw-error-deg 15 \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_gsam_v4/label_candidates_for_optimization
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_rotation_gated/label_candidates_for_optimization
+
+still in progress
+
+candidates:    out of 
 
 
 python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
-  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_gsam_v4/label_candidates_for_optimization/selected_samples.csv \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_rotation_gated/label_candidates_for_optimization/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_rear_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_gsam_v4/label_candidates_for_optimization/visual_overlays \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_rotation_gated/label_candidates_for_optimization/visual_overlays \
   --max-images 100 \
   --sort-by translation_error \
   --draw-mask-bbox \
@@ -803,20 +810,42 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
   --frame-transform-side right
 ```
 
+ 
+
+
+
 ```bash 
 stereo_left: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 real_20260518v1v4_stereo_left_gsam_v4
  pred:  gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_stereo_left_gsam_v4-test_large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
 
+#  python -m tracking.rgb_self_recovery.run \
+#   --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_stereo_left_gsam_v4-test_large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+#   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_stereo_left_gsam_v4 \
+#   --split test \
+#   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+#   --association-config tracking/configs/improved.json \
+#   --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_gsam_v4 \
+#   --device cuda \
+#   --top-k-gigapose 5 \
+#   --beam-size 4 \
+#   --max-candidates 48 \
+#   --refinement-iterations 2 \
+#   --global-interval 5 \
+#   --broad-recovery-confidence 0.55 \
+#   --normal-confidence 0.65 \
+#   --lost-confidence 0.25 \
+#   --save-overlays \
+#   --overlay-every 10 \
+#   --overwrite
 
-
- python -m tracking.rgb_self_recovery.run \
-  --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_stereo_left_gsam_v4-test_large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+CUDA_VISIBLE_DEVICES=0 python -m tracking.rgb_self_recovery.run \
+  --predictions  gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_stereo_left_gsam_v4-test_large_real_20260518v1v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv  \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_stereo_left_gsam_v4 \
   --split test \
   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
   --association-config tracking/configs/improved.json \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_gsam_v4 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_rotation_gated \
   --device cuda \
   --top-k-gigapose 5 \
   --beam-size 4 \
@@ -826,12 +855,20 @@ real_20260518v1v4_stereo_left_gsam_v4
   --broad-recovery-confidence 0.55 \
   --normal-confidence 0.65 \
   --lost-confidence 0.25 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --normal-max-rotation-step-deg 30 \
+  --uncertain-max-rotation-step-deg 60 \
+  --max-rank0-rotation-disagreement-deg 90 \
   --save-overlays \
   --overlay-every 10 \
+  --overlay-axis-length-m 1.0 \
   --overwrite
 
+
+
     python -m tracking.select_real_label_candidates \
-  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_gsam_v4/tracked_predictions.csv \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_rotation_gated/tracked_predictions.csv \
   --allowed-tracking-modes normal \
     --min-tracking-confidence 0.65 \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_stereo_left_gsam_v4 \
@@ -851,14 +888,16 @@ real_20260518v1v4_stereo_left_gsam_v4
         --max-roll-error-deg 5 \
     --max-pitch-error-deg 5 \
     --max-yaw-error-deg 15 \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_gsam_v4/label_candidates_for_optimization
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_rotation_gated/label_candidates_for_optimization
 
+
+candidates:  46  out of 170
 
 python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
-  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_gsam_v4/label_candidates_for_optimization/selected_samples.csv \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_rotation_gated/label_candidates_for_optimization/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_stereo_left_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_gsam_v4/label_candidates_for_optimization/visual_overlays \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_stereo_left_rotation_gated/label_candidates_for_optimization/visual_overlays \
   --max-images 100 \
   --sort-by translation_error \
   --draw-mask-bbox \
@@ -867,6 +906,8 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
 
 
 ```
+-----------------------------------------------------------
+----------------------------------------------------------------
 
 ```bash 
 # 20260518v2v4 
@@ -875,14 +916,35 @@ front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnP
 
  pred:  gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_front_gsam_v4-test_large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
 
+#  CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
+#   --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_front_gsam_v4-test_large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+#   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_front_gsam_v4 \
+#   --split test \
+#   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+#   --association-config tracking/configs/improved.json \
+#   --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_gsam_v4 \
+#   --device cuda \
+#   --top-k-gigapose 5 \
+#   --beam-size 4 \
+#   --max-candidates 48 \
+#   --refinement-iterations 2 \
+#   --global-interval 5 \
+#   --broad-recovery-confidence 0.55 \
+#   --normal-confidence 0.65 \
+#   --lost-confidence 0.25 \
+#   --save-overlays \
+#   --overlay-every 10 \
+#   --overwrite
 
- CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
-  --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_front_gsam_v4-test_large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+    
+
+  CUDA_VISIBLE_DEVICES=0 python -m tracking.rgb_self_recovery.run \
+  --predictions  gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_front_gsam_v4-test_large_real_20260518v2v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv  \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_front_gsam_v4 \
   --split test \
   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
   --association-config tracking/configs/improved.json \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_rotation_gated \
   --device cuda \
   --top-k-gigapose 5 \
   --beam-size 4 \
@@ -892,15 +954,19 @@ front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnP
   --broad-recovery-confidence 0.55 \
   --normal-confidence 0.65 \
   --lost-confidence 0.25 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --normal-max-rotation-step-deg 30 \
+  --uncertain-max-rotation-step-deg 60 \
+  --max-rank0-rotation-disagreement-deg 90 \
   --save-overlays \
   --overlay-every 10 \
+  --overlay-axis-length-m 1.0 \
   --overwrite
-
-    in progress
 
 
 python -m tracking.select_real_label_candidates \
-  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_gsam_v4/tracked_predictions.csv \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_rotation_gated/tracked_predictions.csv \
   --allowed-tracking-modes normal \
     --min-tracking-confidence 0.65 \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_front_gsam_v4 \
@@ -920,20 +986,27 @@ python -m tracking.select_real_label_candidates \
         --max-roll-error-deg 5 \
     --max-pitch-error-deg 5 \
     --max-yaw-error-deg 15 \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_gsam_v4/label_candidates_for_optimization
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_rotation_gated/label_candidates_for_optimization
 
+
+
+candidates: out of
 
 python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
-  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_gsam_v4/label_candidates_for_optimization/selected_samples.csv \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_rotation_gated/label_candidates_for_optimization/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_front_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_gsam_v4/label_candidates_for_optimization/visual_overlays \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_front_rotation_gated/label_candidates_for_optimization/visual_overlays \
   --max-images 100 \
   --sort-by translation_error \
   --draw-mask-bbox \
   --bbox-match-mode nearest_projected_center \
   --frame-transform-side right
 ```
+
+
+
+
 
 
 ```bash 
@@ -944,13 +1017,34 @@ real_20260518v2v4_stereo_left_gsam_v4
  pred:  gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_stereo_left_gsam_v4-test_large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
 
 
- python -m tracking.rgb_self_recovery.run \
-  --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_stereo_left_gsam_v4-test_large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+#  python -m tracking.rgb_self_recovery.run \
+#   --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_stereo_left_gsam_v4-test_large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+#   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
+#   --split test \
+#   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+#   --association-config tracking/configs/improved.json \
+#   --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_gsam_v4 \
+#   --device cuda \
+#   --top-k-gigapose 5 \
+#   --beam-size 4 \
+#   --max-candidates 48 \
+#   --refinement-iterations 2 \
+#   --global-interval 5 \
+#   --broad-recovery-confidence 0.55 \
+#   --normal-confidence 0.65 \
+#   --lost-confidence 0.25 \
+#   --save-overlays \
+#   --overlay-every 10 \
+#   --overwrite
+
+
+  CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
+  --predictions  gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v2v4_stereo_left_gsam_v4-test_large_real_20260518v2v4_stereo_left_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv  \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
   --split test \
   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
   --association-config tracking/configs/improved.json \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_gsam_v4 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_rotation_gated \
   --device cuda \
   --top-k-gigapose 5 \
   --beam-size 4 \
@@ -960,13 +1054,20 @@ real_20260518v2v4_stereo_left_gsam_v4
   --broad-recovery-confidence 0.55 \
   --normal-confidence 0.65 \
   --lost-confidence 0.25 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --normal-max-rotation-step-deg 30 \
+  --uncertain-max-rotation-step-deg 60 \
+  --max-rank0-rotation-disagreement-deg 90 \
   --save-overlays \
   --overlay-every 10 \
+  --overlay-axis-length-m 1.0 \
   --overwrite
 
 
+
 python -m tracking.select_real_label_candidates \
-  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_gsam_v4/tracked_predictions.csv \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_rotation_gated/tracked_predictions.csv \
   --allowed-tracking-modes normal \
     --min-tracking-confidence 0.65 \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
@@ -986,23 +1087,176 @@ python -m tracking.select_real_label_candidates \
         --max-roll-error-deg 5 \
     --max-pitch-error-deg 5 \
     --max-yaw-error-deg 15 \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_gsam_v4/label_candidates_for_optimization
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_rotation_gated/label_candidates_for_optimization
 
+
+candidates:   out of 
 
 python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
-  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_gsam_v4/label_candidates_for_optimization/selected_samples.csv \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_rotation_gated/label_candidates_for_optimization/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_gsam_v4/label_candidates_for_optimization/visual_overlays \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v2v4_stereo_left_rotation_gated/label_candidates_for_optimization/visual_overlays \
   --max-images 100 \
   --sort-by translation_error \
   --draw-mask-bbox \
   --bbox-match-mode nearest_projected_center \
   --frame-transform-side right
 
+ ```
 
+
+lets run the same thing for the new dataset, but won't include it in the optimization
+
+```bash 
+# 20260718 
+# front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/front/EPnPv2_gt_mesh_z_hybrid_labels
+dataset: real_20260718_front_gsam_v4
+preds: gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260718_front_gsam_v4-test_large_real_20260718_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
+
+
+  CUDA_VISIBLE_DEVICES=0 python -m tracking.rgb_self_recovery.run \
+  --predictions  gigaPose_datasets/results/large_real_20260718_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260718_front_gsam_v4-test_large_real_20260718_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv  \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_front_gsam_v4 \
+  --split test \
+  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+  --association-config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_front_rotation_gated \
+  --device cuda \
+  --top-k-gigapose 5 \
+  --beam-size 4 \
+  --max-candidates 48 \
+  --refinement-iterations 2 \
+  --global-interval 5 \
+  --broad-recovery-confidence 0.55 \
+  --normal-confidence 0.65 \
+  --lost-confidence 0.25 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --normal-max-rotation-step-deg 30 \
+  --uncertain-max-rotation-step-deg 60 \
+  --max-rank0-rotation-disagreement-deg 90 \
+  --save-overlays \
+  --overlay-every 10 \
+  --overlay-axis-length-m 1.0 \
+  --overwrite
+
+
+python -m tracking.select_real_label_candidates \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_front_rotation_gated/tracked_predictions.csv \
+  --allowed-tracking-modes normal \
+    --min-tracking-confidence 0.65 \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_front_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --frame-transform-side right \
+  --frame-transform-refine-iterations 5 \
+  --frame-transform-inlier-translation-mm 5000 \
+  --frame-transform-inlier-rotation-deg 60 \
+  --epnp-translation-unit m \
+  --min-score 0.05 \
+  --max-translation-error-mm 3000 \
+  --max-rotation-error-deg 30 \
+        --max-roll-error-deg 5 \
+    --max-pitch-error-deg 5 \
+    --max-yaw-error-deg 15 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_front_rotation_gated/label_candidates_for_optimization
+
+
+candidates: out of
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_front_rotation_gated/label_candidates_for_optimization/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_front_gsam_v4 \
+  --split test \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_front_rotation_gated/label_candidates_for_optimization/visual_overlays \
+  --max-images 100 \
+  --sort-by translation_error \
+  --draw-mask-bbox \
+  --bbox-match-mode nearest_projected_center \
+  --frame-transform-side right
+```
+<!-- ------------------------ -->
+
+```bash 
+# 20260718 
+dataset: real_20260718_rear_gsam_v4
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear/EPnPv2_gt_mesh_z_hybrid_labels
+
+preds: gigaPose_datasets/results/large_real_20260718_rear_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260718_rear_gsam_v4-test_large_real_20260718_rear_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
+
+
+  CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
+  --predictions  gigaPose_datasets/results/large_real_20260718_rear_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260718_rear_gsam_v4-test_large_real_20260718_rear_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv  \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_rear_gsam_v4 \
+  --split test \
+  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+  --association-config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_rear_rotation_gated \
+  --device cuda \
+  --top-k-gigapose 5 \
+  --beam-size 4 \
+  --max-candidates 48 \
+  --refinement-iterations 2 \
+  --global-interval 5 \
+  --broad-recovery-confidence 0.55 \
+  --normal-confidence 0.65 \
+  --lost-confidence 0.25 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --normal-max-rotation-step-deg 30 \
+  --uncertain-max-rotation-step-deg 60 \
+  --max-rank0-rotation-disagreement-deg 90 \
+  --save-overlays \
+  --overlay-every 10 \
+  --overlay-axis-length-m 1.0 \
+  --overwrite
+
+
+
+python -m tracking.select_real_label_candidates \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_rear_rotation_gated/tracked_predictions.csv \
+  --allowed-tracking-modes normal \
+    --min-tracking-confidence 0.65 \
+  --dataset-dir gigaPose_datasets/datasets/real_20260718_rear_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --frame-transform-side right \
+  --frame-transform-refine-iterations 5 \
+  --frame-transform-inlier-translation-mm 5000 \
+  --frame-transform-inlier-rotation-deg 60 \
+  --epnp-translation-unit m \
+  --min-score 0.05 \
+  --max-translation-error-mm 3000 \
+  --max-rotation-error-deg 30 \
+        --max-roll-error-deg 5 \
+    --max-pitch-error-deg 5 \
+    --max-yaw-error-deg 15 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_rear_rotation_gated/label_candidates_for_optimization
+
+
+candidates:   out of 
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_rear_rotation_gated/label_candidates_for_optimization/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v2v4_stereo_left_gsam_v4 \
+  --split test \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260718_rear_rotation_gated/label_candidates_for_optimization/visual_overlays \
+  --max-images 100 \
+  --sort-by translation_error \
+  --draw-mask-bbox \
+  --bbox-match-mode nearest_projected_center \
+  --frame-transform-side right
 
  ```
+
+
 
 
 
