@@ -12,11 +12,20 @@ That fitted ``X`` may absorb prediction bias as well as a true object-frame
 difference. In particular, it can contain metres of translation, so it must
 not be treated as a physical CAD-coordinate transform.
 
-This visualizer explicitly centers the CAD vertices and renders both comparison
-poses in the centered object convention:
+This visualizer explicitly converts the raw CAD vertices into the centered
+object convention used by the EPnP labels and renders both comparison poses:
 
     GigaPose: T_gigapose_aligned
     EPnP:     T_epnp_corrected
+
+For the race-car labels, the centered-pose origin is not the mesh AABB center.
+It is the raw-CAD point
+
+    center_raw = [-0.2411941141, 0.0009010172, 0.3329219520] metres
+
+and therefore the vertices rendered with a centered pose are
+
+    p_centered = p_raw - center_raw.
 
 The raw/aligned poses are still used to reconstruct and validate ``X`` for
 diagnostics, but ``X`` is never applied to mesh vertices or the EPnP pose.
@@ -35,6 +44,9 @@ import numpy as np
 from PIL import ImageDraw
 
 from fine_tuning import visualize_epnp_gigapose_comparison as base
+
+
+DEFAULT_RAW_OBJECT_CENTER_M = (-0.2411941141, 0.0009010172, 0.3329219520)
 
 
 def parse_args() -> argparse.Namespace:
@@ -91,6 +103,28 @@ def parse_args() -> argparse.Namespace:
             "and center-offset diagnostics. 'metadata' reads K, D, and the "
             "distortion model from each sample metadata YAML and supports the "
             "equidistant camera model."
+        ),
+    )
+    parser.add_argument(
+        "--object-center-mode",
+        choices=("epnp_raw", "mesh_aabb"),
+        default="epnp_raw",
+        help=(
+            "Coordinate origin represented by the input centered poses. "
+            "'epnp_raw' subtracts --raw-object-center-m from raw CAD vertices "
+            "(the correct convention for the EPnPv2 race-car labels). "
+            "'mesh_aabb' preserves the previous AABB-centering behavior."
+        ),
+    )
+    parser.add_argument(
+        "--raw-object-center-m",
+        type=float,
+        nargs=3,
+        metavar=("X", "Y", "Z"),
+        default=DEFAULT_RAW_OBJECT_CENTER_M,
+        help=(
+            "Raw-CAD point, in metres, used as the origin of "
+            "T_camera_object_centered. Default: %(default)s."
         ),
     )
     return parser.parse_args()
@@ -436,12 +470,28 @@ def main() -> None:
         raise ValueError(f"Could not read mesh vertices from {mesh_path}")
     mesh_min_mm = vertices_mm.min(axis=0)
     mesh_max_mm = vertices_mm.max(axis=0)
-    mesh_center_mm = 0.5 * (mesh_min_mm + mesh_max_mm)
-    centered_vertices_mm = vertices_mm - mesh_center_mm.reshape(1, 3)
+    mesh_aabb_center_mm = 0.5 * (mesh_min_mm + mesh_max_mm)
+    raw_object_center_m = np.asarray(args.raw_object_center_m, dtype=float)
+    if raw_object_center_m.shape != (3,) or not np.isfinite(
+        raw_object_center_m
+    ).all():
+        raise ValueError("--raw-object-center-m must contain three finite values")
+    if args.object_center_mode == "epnp_raw":
+        pose_center_in_raw_cad_mm = raw_object_center_m * 1000.0
+        center_source = "raw_object_center_m"
+    else:
+        pose_center_in_raw_cad_mm = mesh_aabb_center_mm
+        center_source = "mesh_aabb"
+    centered_vertices_mm = (
+        vertices_mm - pose_center_in_raw_cad_mm.reshape(1, 3)
+    )
     centered_corners_mm = base.bbox_corners_from_vertices(centered_vertices_mm)
     print(
-        "Centering CAD for EPnP/aligned-pose visualization by",
-        mesh_center_mm.tolist(),
+        "Converting raw CAD to centered-pose coordinates using",
+        center_source,
+        pose_center_in_raw_cad_mm.tolist(),
+        "mm; mesh AABB center is",
+        mesh_aabb_center_mm.tolist(),
         "mm",
     )
 
@@ -673,9 +723,13 @@ def main() -> None:
                 "frame_transform_side": args.frame_transform_side,
                 "frame_transform_translation_norm_mm": float(np.linalg.norm(X[:3, 3])),
                 "frame_transform_reconstruction_max_abs": consistency,
-                "mesh_center_x_mm": float(mesh_center_mm[0]),
-                "mesh_center_y_mm": float(mesh_center_mm[1]),
-                "mesh_center_z_mm": float(mesh_center_mm[2]),
+                "object_center_mode": args.object_center_mode,
+                "pose_center_in_raw_cad_x_mm": float(pose_center_in_raw_cad_mm[0]),
+                "pose_center_in_raw_cad_y_mm": float(pose_center_in_raw_cad_mm[1]),
+                "pose_center_in_raw_cad_z_mm": float(pose_center_in_raw_cad_mm[2]),
+                "mesh_aabb_center_x_mm": float(mesh_aabb_center_mm[0]),
+                "mesh_aabb_center_y_mm": float(mesh_aabb_center_mm[1]),
+                "mesh_aabb_center_z_mm": float(mesh_aabb_center_mm[2]),
                 "epnp_label_path": row.get("epnp_label_path", ""),
                 "metadata_path": diagnostic["metadata_path"],
                 "projection_model": args.projection_model,
@@ -704,9 +758,13 @@ def main() -> None:
         "frame_transform_side",
         "frame_transform_translation_norm_mm",
         "frame_transform_reconstruction_max_abs",
-        "mesh_center_x_mm",
-        "mesh_center_y_mm",
-        "mesh_center_z_mm",
+        "object_center_mode",
+        "pose_center_in_raw_cad_x_mm",
+        "pose_center_in_raw_cad_y_mm",
+        "pose_center_in_raw_cad_z_mm",
+        "mesh_aabb_center_x_mm",
+        "mesh_aabb_center_y_mm",
+        "mesh_aabb_center_z_mm",
         "epnp_label_path",
         "metadata_path",
         "projection_model",
@@ -790,6 +848,9 @@ def main() -> None:
     summary = {
         "candidate_csv": str(args.candidate_csv),
         "projection_model": args.projection_model,
+        "object_center_mode": args.object_center_mode,
+        "pose_center_in_raw_cad_mm": pose_center_in_raw_cad_mm.tolist(),
+        "mesh_aabb_center_mm": mesh_aabb_center_mm.tolist(),
         "sign_convention": (
             "delta = corrected_pose_center - detection_bbox_center; positive "
             "delta_v means the corrected pose is lower in the image"
@@ -820,7 +881,7 @@ def main() -> None:
     summary_path.write_text(json.dumps(summary, indent=2))
 
     print(
-        f"Wrote {len(index_rows)} centered-CAD EPnPv2/GigaPose overlays to "
+        f"Wrote {len(index_rows)} centered-convention EPnPv2/GigaPose overlays to "
         f"{args.output_dir}; wrote {len(diagnostic_rows)} center diagnostics "
         f"({len(valid_diagnostics)} valid) from {input_row_count} input rows"
     )
