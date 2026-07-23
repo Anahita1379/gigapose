@@ -3,16 +3,23 @@ from __future__ import annotations
 import io
 import json
 import tarfile
+from types import SimpleNamespace
 
 import numpy as np
 from PIL import Image
 import torch
 
-from tracking.geometry import rotate_pose, shift_projected_center
+from tracking.geometry import (
+    rotate_pose,
+    rotation_error_deg,
+    shift_projected_center,
+    so3_exp,
+)
 from tracking.rgb_self_recovery.dataset import RGBRenderRecoveryDataset
 from tracking.rgb_self_recovery.inference import (
     RGBSelfRecoveryPredictor,
     RecoveryProposal,
+    RecoveryResult,
 )
 from tracking.rgb_self_recovery.model import (
     RGBRenderRecoveryNet,
@@ -28,7 +35,12 @@ from tracking.rgb_self_recovery.render_inputs import (
     recovery_targets,
     render_candidate_channels,
 )
-from tracking.types import Detection, FrameData
+from tracking.rgb_self_recovery.run import (
+    broad_recovery_proposals,
+    select_with_orientation_gates,
+)
+from tracking.rgb_self_recovery.train import anti_flip_quality_loss
+from tracking.types import Detection, FrameData, Track, TrackMode
 
 
 class SquareRenderer:
@@ -133,6 +145,135 @@ def test_atan2_rotation_error_handles_pi():
     target = torch.zeros_like(predicted)
     error = rotation_geodesic_atan2(predicted, target)
     torch.testing.assert_close(error, torch.tensor([np.pi], dtype=torch.float64), atol=1e-7, rtol=1e-7)
+
+
+def test_anti_flip_quality_loss_enforces_explicit_margin():
+    predicted = torch.tensor([[0.40, 0.50, 0.80]], requires_grad=True)
+    target = torch.tensor([[0.0, 3.0, 1.0]])
+    rotations = torch.tensor(
+        [[[0.0, 0.0, 0.0], [0.0, 0.0, np.pi], [0.2, 0.0, 0.0]]]
+    )
+    result = anti_flip_quality_loss(
+        predicted,
+        target,
+        rotations,
+        margin=0.25,
+        minimum_angle_deg=150.0,
+    )
+    torch.testing.assert_close(result["loss"], torch.tensor(0.15))
+    torch.testing.assert_close(result["pair_accuracy"], torch.tensor(1.0))
+    torch.testing.assert_close(result["margin_accuracy"], torch.tensor(0.0))
+    result["loss"].backward()
+    assert predicted.grad is not None
+    assert predicted.grad[0, 0] > 0
+    assert predicted.grad[0, 1] < 0
+
+
+def recovery_result(pose: np.ndarray, error: float, source: str) -> RecoveryResult:
+    return RecoveryResult(
+        pose=pose,
+        source=source,
+        confidence=0.9,
+        quality=error,
+        silhouette_iou=0.9,
+        total_error=error,
+        delta_center_crop_px=np.zeros(2, dtype=np.float32),
+        delta_log_depth=0.0,
+        delta_rotation_rad=np.zeros(3, dtype=np.float32),
+        rendered_mask_crop=np.zeros((8, 8), dtype=bool),
+    )
+
+
+def orientation_gate_args() -> SimpleNamespace:
+    return SimpleNamespace(
+        orientation_gates=True,
+        normal_max_rotation_step_deg=30.0,
+        uncertain_max_rotation_step_deg=60.0,
+        max_rank0_rotation_disagreement_deg=90.0,
+    )
+
+
+def test_orientation_gate_rejects_lower_error_flip():
+    anchor = np.eye(4)
+    anchor[2, 3] = 4.0
+    flipped = anchor.copy()
+    flipped[:3, :3] = so3_exp(np.asarray([0.0, 0.0, np.pi]))
+    translated = anchor.copy()
+    translated[:3, 3] = [0.1, -0.05, 4.2]
+    track = Track(
+        track_id=0,
+        obj_id=1,
+        pose=anchor.copy(),
+        previous_pose=None,
+        bbox_xywh=np.asarray([10.0, 10.0, 20.0, 20.0]),
+        confidence=0.9,
+        mode=TrackMode.NORMAL,
+        source="previous",
+        scene_id=1,
+        im_id=1,
+    )
+    selected, eligible, diagnostics = select_with_orientation_gates(
+        [
+            recovery_result(flipped, 0.1, "flip"),
+            recovery_result(translated, 0.2, "correct"),
+        ],
+        track=track,
+        rank0_pose=anchor,
+        args=orientation_gate_args(),
+    )
+    assert selected.source == "correct"
+    assert [item.source for item in eligible] == ["correct"]
+    assert diagnostics["orientation_gate_triggered"] == 1
+    assert diagnostics["orientation_gate_fallback"] == 0
+    assert diagnostics["orientation_candidates_rejected"] == 1
+
+
+def test_orientation_gate_fallback_keeps_translation_and_anchors_rotation():
+    anchor = np.eye(4)
+    anchor[2, 3] = 4.0
+    flipped = anchor.copy()
+    flipped[:3, :3] = so3_exp(np.asarray([0.0, 0.0, np.pi]))
+    flipped[:3, 3] = [0.3, -0.2, 5.5]
+    selected, eligible, diagnostics = select_with_orientation_gates(
+        [recovery_result(flipped, 0.1, "flip")],
+        track=None,
+        rank0_pose=anchor,
+        args=orientation_gate_args(),
+    )
+    np.testing.assert_allclose(selected.pose[:3, 3], flipped[:3, 3])
+    np.testing.assert_allclose(selected.pose[:3, :3], anchor[:3, :3])
+    assert len(eligible) == 1
+    assert eligible[0] is selected
+    assert diagnostics["orientation_gate_triggered"] == 1
+    assert diagnostics["orientation_gate_fallback"] == 1
+    assert diagnostics["orientation_gate_anchor"] == "gigapose_rank0"
+
+
+def test_broad_recovery_flip_hypothesis_can_be_disabled():
+    seed_pose = np.eye(4)
+    seed_pose[2, 3] = 4.0
+    seed = RecoveryProposal(seed_pose, "seed", 0.9, 0.0)
+    detection = SimpleNamespace(center=np.asarray([32.0, 32.0]))
+    K = np.asarray(
+        [[100.0, 0.0, 32.0], [0.0, 100.0, 32.0], [0.0, 0.0, 1.0]]
+    )
+    args = SimpleNamespace(
+        rotation_offsets_deg="",
+        yaw_offsets_deg="",
+        log_depth_offsets="",
+        center_offsets_px="",
+        broad_seeds=1,
+        max_candidates=16,
+        allow_flip_hypotheses=False,
+    )
+
+    without_flip = broad_recovery_proposals([seed], detection, K, args)
+    assert len(without_flip) == 1
+
+    args.allow_flip_hypotheses = True
+    with_flip = broad_recovery_proposals([seed], detection, K, args)
+    assert len(with_flip) == 2
+    assert abs(rotation_error_deg(with_flip[0].pose, with_flip[1].pose) - 180.0) < 1e-4
 
 
 def test_batched_inference_refines_without_observed_depth():

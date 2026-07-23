@@ -44,6 +44,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--quality-weight", type=float, default=0.5)
     parser.add_argument("--ranking-weight", type=float, default=0.5)
     parser.add_argument("--ranking-margin", type=float, default=0.10)
+    parser.add_argument(
+        "--anti-flip-training",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "Enable an explicit pairwise quality-margin loss between the "
+            "correct pose and the generated near-180-degree candidate."
+        ),
+    )
+    parser.add_argument("--anti-flip-weight", type=float, default=1.0)
+    parser.add_argument("--anti-flip-margin", type=float, default=0.25)
+    parser.add_argument(
+        "--anti-flip-min-angle-deg",
+        type=float,
+        default=150.0,
+        help="Minimum correction angle considered a front/rear flip candidate.",
+    )
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--min-delta", type=float, default=1e-4)
     parser.add_argument("--gradient-clip", type=float, default=5.0)
@@ -78,6 +95,67 @@ def ranking_loss(
     return torch.relu(
         float(margin) - direction[valid] * predicted_difference[valid]
     ).mean()
+
+
+def anti_flip_quality_loss(
+    predicted_quality: torch.Tensor,
+    target_quality: torch.Tensor,
+    rotation_targets: torch.Tensor,
+    *,
+    margin: float,
+    minimum_angle_deg: float,
+) -> dict[str, torch.Tensor]:
+    """Require the correct candidate to outrank its near-180-degree pair.
+
+    Lower quality is better. The correct candidate is the minimum target-quality
+    item in each instance group. The flip item is the candidate whose target
+    correction is closest to pi among candidates above ``minimum_angle_deg``.
+    This works with existing generated shards because candidate 1 is already an
+    exact object-Z 180-degree perturbation and its SO(3) correction has norm pi.
+    """
+
+    if (
+        predicted_quality.ndim != 2
+        or target_quality.shape != predicted_quality.shape
+    ):
+        raise ValueError("Anti-flip quality tensors must both have shape (B, C).")
+    if rotation_targets.shape != (*predicted_quality.shape, 3):
+        raise ValueError("Anti-flip rotation targets must have shape (B, C, 3).")
+
+    angles = torch.linalg.vector_norm(rotation_targets, dim=-1)
+    flip_candidates = angles >= math.radians(float(minimum_angle_deg))
+    valid_groups = flip_candidates.any(dim=1)
+    zero = predicted_quality.sum() * 0.0
+    if not valid_groups.any():
+        return {
+            "loss": zero,
+            "pair_accuracy": zero,
+            "margin_accuracy": zero,
+            "quality_gap": zero,
+            "pair_fraction": zero,
+        }
+
+    correct_indices = target_quality.argmin(dim=1)
+    distance_from_pi = torch.abs(angles - math.pi)
+    masked_distance = torch.where(
+        flip_candidates,
+        distance_from_pi,
+        torch.full_like(distance_from_pi, float("inf")),
+    )
+    flip_indices = masked_distance.argmin(dim=1)
+    batch_indices = torch.arange(
+        predicted_quality.shape[0], device=predicted_quality.device
+    )
+    correct_quality = predicted_quality[batch_indices, correct_indices][valid_groups]
+    flip_quality = predicted_quality[batch_indices, flip_indices][valid_groups]
+    quality_gap = flip_quality - correct_quality
+    return {
+        "loss": torch.relu(float(margin) - quality_gap).mean(),
+        "pair_accuracy": (quality_gap > 0.0).float().mean(),
+        "margin_accuracy": (quality_gap >= float(margin)).float().mean(),
+        "quality_gap": quality_gap.mean(),
+        "pair_fraction": valid_groups.float().mean(),
+    }
 
 
 def compute_loss(
@@ -153,6 +231,18 @@ def compute_loss(
         quality_target.reshape(batch_size, candidates),
         args.ranking_margin,
     )
+    anti_flip = anti_flip_quality_loss(
+        decoded["quality"].reshape(batch_size, candidates),
+        quality_target.reshape(batch_size, candidates),
+        rotation_target.reshape(batch_size, candidates, 3),
+        margin=args.anti_flip_margin,
+        minimum_angle_deg=args.anti_flip_min_angle_deg,
+    )
+    anti_flip_term = (
+        args.anti_flip_weight * anti_flip["loss"]
+        if args.anti_flip_training
+        else anti_flip["loss"] * 0.0
+    )
     total = (
         args.center_weight * center_loss
         + args.log_depth_weight * depth_loss
@@ -160,6 +250,7 @@ def compute_loss(
         + args.confidence_weight * confidence_loss
         + args.quality_weight * quality_loss
         + args.ranking_weight * ranking
+        + anti_flip_term
     )
 
     predicted_best = decoded["quality"].reshape(batch_size, candidates).argmin(dim=1)
@@ -176,6 +267,13 @@ def compute_loss(
         "loss_confidence": float(confidence_loss.detach()),
         "loss_quality": float(quality_loss.detach()),
         "loss_ranking": float(ranking.detach()),
+        "loss_anti_flip": float(anti_flip["loss"].detach()),
+        "anti_flip_pair_accuracy": float(anti_flip["pair_accuracy"].detach()),
+        "anti_flip_margin_accuracy": float(
+            anti_flip["margin_accuracy"].detach()
+        ),
+        "anti_flip_quality_gap": float(anti_flip["quality_gap"].detach()),
+        "anti_flip_pair_fraction": float(anti_flip["pair_fraction"].detach()),
         "center_error_crop_px": float(center_error_px.detach()),
         "log_depth_abs_error": float(log_depth_error.detach()),
         "rotation_error_deg": float(rotation_error_deg.detach()),
@@ -186,6 +284,23 @@ def compute_loss(
 
 def main() -> None:
     args = parse_args()
+    if args.anti_flip_weight < 0:
+        raise ValueError("--anti-flip-weight must be non-negative.")
+    if args.anti_flip_margin < 0:
+        raise ValueError("--anti-flip-margin must be non-negative.")
+    if not 0.0 < args.anti_flip_min_angle_deg <= 180.0:
+        raise ValueError("--anti-flip-min-angle-deg must be in (0, 180].")
+    print(
+        "Anti-flip training: "
+        + (
+            "enabled "
+            f"(weight={args.anti_flip_weight:g}, "
+            f"margin={args.anti_flip_margin:g}, "
+            f"minimum_angle={args.anti_flip_min_angle_deg:g} deg)"
+            if args.anti_flip_training
+            else "disabled"
+        )
+    )
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     if args.device.startswith("cuda") and not torch.cuda.is_available():
@@ -319,6 +434,8 @@ def main() -> None:
                 f"val={val_loss:.6f} best={best_loss:.6f} "
                 f"rot={validation_metrics['rotation_error_deg']:.2f}deg "
                 f"center={validation_metrics['center_error_crop_px']:.2f}px "
+                f"flip_acc={validation_metrics['anti_flip_pair_accuracy']:.3f} "
+                f"flip_margin={validation_metrics['anti_flip_margin_accuracy']:.3f} "
                 f"stale={stale}/{args.patience}"
             )
             if stale >= args.patience:

@@ -90,11 +90,25 @@ The loss is
 \lambda_R\mathcal L_{R}+
 \lambda_p\mathcal L_{\mathrm{BCE}}+
 \lambda_q\mathcal L_{\mathrm{quality}}+
-\lambda_{\mathrm{rank}}\mathcal L_{\mathrm{rank}}.
+\lambda_{\mathrm{rank}}\mathcal L_{\mathrm{rank}}+
+\mathbf 1_{\mathrm{anti\mbox{-}flip}}\,
+\lambda_f\mathcal L_{\mathrm{anti\mbox{-}flip}}.
 \]
 
 Rotation error is evaluated with a stable `atan2` SO(3) geodesic angle, so a
 near-180-degree disagreement does not collapse to a small error.
+
+The optional anti-flip term uses the correct and generated 180-degree
+candidate in each instance group. Since lower predicted quality is better,
+
+\[
+\mathcal L_{\mathrm{anti\mbox{-}flip}}
+=
+\max(0,\;m + q_{\mathrm{correct}}-q_{\mathrm{flip}}).
+\]
+
+It is disabled by default. Existing generated shards can be reused because
+they already contain an exact object-Z flip as candidate 1.
 
 ## 1. Generate training and validation data
 
@@ -138,6 +152,10 @@ python -m tracking.rgb_self_recovery.train \
   --batch-size 8 \
   --num-workers 4 \
   --learning-rate 2e-4 \
+  --anti-flip-training \
+  --anti-flip-weight 1.0 \
+  --anti-flip-margin 0.25 \
+  --anti-flip-min-angle-deg 150 \
   --patience 20 \
   --device cuda \
   --logger wandb \
@@ -157,7 +175,17 @@ Outputs:
 - `last.ckpt`: latest completed epoch;
 - `run_report.json`: complete epoch history and configuration;
 - W&B train/validation loss components, center error, log-depth error,
-  rotation error, selected-candidate quality, and oracle quality.
+  rotation error, selected-candidate quality, oracle quality,
+  `anti_flip_pair_accuracy`, `anti_flip_margin_accuracy`, and the predicted
+  correct-to-flip quality gap.
+
+Use `--no-anti-flip-training` (also the default) to reproduce the original
+objective. The anti-flip metrics are still logged in that mode, but the
+anti-flip term contributes zero to the optimized loss.
+
+The runtime gates below work with an existing checkpoint; retraining is not
+required to test them. Anti-flip training is for producing a later checkpoint
+whose verifier learns the distinction rather than relying only on the gate.
 
 ## 3. Run RGB-only self-recovery on real sequential data
 
@@ -173,6 +201,11 @@ python -m tracking.rgb_self_recovery.run \
   --association-config tracking/configs/improved.json \
   --output-dir gigaPose_datasets/results/rgb_self_recovery_smoke \
   --device cuda \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --normal-max-rotation-step-deg 30 \
+  --uncertain-max-rotation-step-deg 60 \
+  --max-rank0-rotation-disagreement-deg 90 \
   --max-frames 100 \
   --save-overlays \
   --overlay-every 1 \
@@ -197,15 +230,64 @@ yaw offsets, center offsets, and log-depth offsets. Raising the pool or the
 iteration count improves search coverage but increases CAD rendering and neural
 inference time nearly linearly.
 
+`--orientation-gates` is optional and disabled by default for compatibility.
+When enabled, normal and uncertain candidates are checked against the previous
+accepted rotation, and all candidates are checked against the current
+GigaPose-rank-0 front/rear hemisphere. Rejected candidates are removed from the
+temporal beam. If no result survives, the best refined translation is retained
+while its rotation is replaced by the rank-0 rotation (or the previous
+rotation when rank 0 is unavailable). The frame is capped to `uncertain`
+confidence so it is checked again on the next image.
+
+`--no-allow-flip-hypotheses` removes the explicit object-Z 180-degree proposal.
+This is recommended with the gates. It does not disable ordinary small
+full-rotation correction.
+
 Outputs:
 
 - `tracked_predictions.csv`: BOP/GigaPose-compatible final poses in millimetres;
 - `candidate_diagnostics.csv`: verifier confidence, quality, silhouette IoU,
-  correction size, candidate source, and whether broad recovery was used;
+  correction size, candidate source, whether broad recovery was used,
+  rotation from the previous pose/rank 0 before and after gating, rejected
+  candidate count, and fallback state;
 - `overlays/`: red original GigaPose render, green recovered render, cyan target
-  mask edge, and yellow detection box;
+  mask edge, yellow detection box, original/tracked XYZ axes, and gate angles;
 - `run_report.json`: data/checkpoint paths, state counts, broad-recovery count,
-  elapsed time, and full arguments.
+  orientation-gate counts, the number of rank-0 comparisons,
+  `post_gate_rank0_front_back_violations`,
+  `post_gate_rank0_near_180_failures`, elapsed time, and full arguments.
+
+## Confirming that front/rear flips are removed
+
+First inspect `run_report.json`. With gates enabled,
+`post_gate_rank0_rotation_comparisons` should be nonzero, while both
+`post_gate_rank0_front_back_violations` and
+`post_gate_rank0_near_180_failures` should be zero. In
+`candidate_diagnostics.csv`, inspect:
+
+- `rotation_from_rank0_before_gate_deg`;
+- `rotation_from_rank0_after_gate_deg`;
+- `orientation_gate_triggered`;
+- `orientation_gate_fallback`;
+- `explicit_flip_in_source`.
+
+The overlay labels show `dRprev`, `dRgp0`, and the gate action. `GX/GY/GZ`
+denote original GigaPose axes and `TX/TY/TZ` denote tracked axes. The racecar
+CAD is X-longitudinal, so opposite `GX`/`TX` directions expose a front/rear
+branch change that a silhouette alone cannot show.
+
+For an EPnP comparison, do not independently estimate another frame transform
+from the tracked output. Pass the original GigaPose selection's transform:
+
+```bash
+--frame-transform-json \
+  PATH/TO/ORIGINAL_GIGAPOSE_SELECTION/frame_transform_gigapose_to_epnp.json
+```
+
+Use the same optimized-extrinsics JSON for both original and tracked
+selectors. This keeps the evaluation calibration fixed and prevents a fitted
+near-180-degree transform from hiding a tracking flip.
+
 
 ## Real-world use and limitations
 
