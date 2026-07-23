@@ -13,9 +13,10 @@ difference. In particular, it can contain metres of translation, so it must
 not be treated as a physical CAD-coordinate transform.
 
 This visualizer explicitly converts the raw CAD vertices into the centered
-object convention used by the EPnP labels and renders both comparison poses:
+object convention used by the EPnP labels and renders:
 
-    GigaPose: T_gigapose_aligned
+    GigaPose: its native prediction, converted only from raw-CAD origin to the
+              centered-CAD origin
     EPnP:     T_epnp_corrected
 
 For the race-car labels, the centered-pose origin is not the mesh AABB center.
@@ -27,8 +28,9 @@ and therefore the vertices rendered with a centered pose are
 
     p_centered = p_raw - center_raw.
 
-The raw/aligned poses are still used to reconstruct and validate ``X`` for
-diagnostics, but ``X`` is never applied to mesh vertices or the EPnP pose.
+The empirically aligned GigaPose pose is still used to reconstruct and validate
+``X`` and report candidate errors. It is not rendered: the fitted ``X`` may
+contain prediction/calibration bias and is not the original GigaPose pose.
 """
 
 from __future__ import annotations
@@ -420,11 +422,35 @@ def aligned_pose_for_row(row: dict[str, str]) -> np.ndarray:
     return base.text_to_matrix(value)
 
 
+def raw_pose_to_centered_pose(
+    T_cam_obj_raw: np.ndarray,
+    raw_object_center_mm: np.ndarray,
+) -> np.ndarray:
+    """Express a raw-CAD pose using the centered-CAD coordinate origin.
+
+    If ``p_centered = p_raw - center_raw``, then
+
+        T_cam_centered.t = T_cam_raw.t + T_cam_raw.R @ center_raw.
+
+    This changes only the coordinate representation. It preserves the exact
+    camera-space location of every CAD vertex.
+    """
+
+    T_cam_obj_raw = np.asarray(T_cam_obj_raw, dtype=float).reshape(4, 4)
+    center = np.asarray(raw_object_center_mm, dtype=float).reshape(3)
+    T_cam_obj_centered = T_cam_obj_raw.copy()
+    T_cam_obj_centered[:3, 3] = (
+        T_cam_obj_raw[:3, 3] + T_cam_obj_raw[:3, :3] @ center
+    )
+    return T_cam_obj_centered
+
+
 def centered_comparison_poses(
     row: dict[str, str],
     frame_transform_side: str,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, float]:
-    """Return aligned GigaPose, corrected EPnP, X, and consistency error."""
+    raw_object_center_mm: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
+    """Return native-centered GigaPose, aligned GigaPose, EPnP, and diagnostics."""
 
     raw_value = row.get("T_gigapose_cam_obj")
     epnp_value = row.get("T_epnp_obj")
@@ -434,6 +460,7 @@ def centered_comparison_poses(
         )
 
     T_raw = base.text_to_matrix(raw_value)
+    T_native_centered = raw_pose_to_centered_pose(T_raw, raw_object_center_mm)
     T_aligned = aligned_pose_for_row(row)
     T_epnp = base.text_to_matrix(epnp_value)
 
@@ -447,7 +474,7 @@ def centered_comparison_poses(
         raise ValueError(f"Unknown frame-transform side: {frame_transform_side!r}")
 
     consistency = float(np.max(np.abs(reconstructed - T_aligned)))
-    return T_aligned, T_epnp, X, consistency
+    return T_native_centered, T_aligned, T_epnp, X, consistency
 
 
 def keep_row(row: dict[str, str], args: argparse.Namespace) -> bool:
@@ -511,8 +538,12 @@ def main() -> None:
         scene_id = int(row["scene_id"])
         im_id = int(row["im_id"])
         frame_info = frame_map.get((scene_id, im_id), {})
-        T_gigapose, T_epnp, X, consistency = centered_comparison_poses(
-            row, args.frame_transform_side
+        T_gigapose_native, T_gigapose_aligned, T_epnp, X, consistency = (
+            centered_comparison_poses(
+                row,
+                args.frame_transform_side,
+                pose_center_in_raw_cad_mm,
+            )
         )
         if consistency > 1e-5:
             raise ValueError(
@@ -551,6 +582,10 @@ def main() -> None:
             "metadata_minus_pinhole_dv_px": "",
             "aligned_gigapose_center_u_px": "",
             "aligned_gigapose_center_v_px": "",
+            "native_gigapose_center_u_px": "",
+            "native_gigapose_center_v_px": "",
+            "native_gigapose_center_minus_detection_du_px": "",
+            "native_gigapose_center_minus_detection_dv_px": "",
             "corrected_center_depth_mm": float(T_epnp[2, 3]),
             "diagnostic_status": "",
             "diagnostic_error": "",
@@ -587,7 +622,10 @@ def main() -> None:
             else corrected_pinhole_ok
         )
         aligned_uv, aligned_ok = project_pose_center(
-            T_gigapose, K, D, distortion_model, args.projection_model
+            T_gigapose_aligned, K, D, distortion_model, args.projection_model
+        )
+        native_uv, native_ok = project_pose_center(
+            T_gigapose_native, K, D, distortion_model, args.projection_model
         )
         if corrected_metadata_ok and corrected_metadata_uv is not None:
             diagnostic["corrected_center_u_metadata_px"] = float(
@@ -614,12 +652,15 @@ def main() -> None:
         if aligned_ok and aligned_uv is not None:
             diagnostic["aligned_gigapose_center_u_px"] = float(aligned_uv[0])
             diagnostic["aligned_gigapose_center_v_px"] = float(aligned_uv[1])
+        if native_ok and native_uv is not None:
+            diagnostic["native_gigapose_center_u_px"] = float(native_uv[0])
+            diagnostic["native_gigapose_center_v_px"] = float(native_uv[1])
 
         instances = frame_info.get("instances") or []
         bbox, bbox_idx, bbox_dist = choose_detection_bbox(
             instances,
             row,
-            T_gigapose,
+            T_gigapose_native,
             T_epnp,
             K,
             D,
@@ -640,6 +681,14 @@ def main() -> None:
             active_delta = active_corrected_uv - detection_uv
             diagnostic["detection_center_u_px"] = float(detection_uv[0])
             diagnostic["detection_center_v_px"] = float(detection_uv[1])
+            if native_ok and native_uv is not None:
+                native_delta = native_uv - detection_uv
+                diagnostic["native_gigapose_center_minus_detection_du_px"] = float(
+                    native_delta[0]
+                )
+                diagnostic["native_gigapose_center_minus_detection_dv_px"] = float(
+                    native_delta[1]
+                )
             diagnostic["corrected_center_minus_detection_du_px"] = float(
                 active_delta[0]
             )
@@ -679,22 +728,33 @@ def main() -> None:
             distortion_model,
             args.projection_model,
             base.EPNP_COLOR,
-            f"EPnPv2 corrected ({distortion_model}/{args.projection_model}){delta_label}",
+            f"EPnPv2 candidate ({distortion_model}/{args.projection_model}){delta_label}",
             0,
         )
+        native_delta_label = ""
+        if (
+            diagnostic["native_gigapose_center_minus_detection_du_px"] != ""
+            and diagnostic["native_gigapose_center_minus_detection_dv_px"] != ""
+        ):
+            native_delta_label = (
+                " | native-detection "
+                f"du={float(diagnostic['native_gigapose_center_minus_detection_du_px']):+.1f}px "
+                f"dv={float(diagnostic['native_gigapose_center_minus_detection_dv_px']):+.1f}px"
+            )
         draw_projected_box(
             draw,
             centered_corners_mm,
-            T_gigapose,
+            T_gigapose_native,
             K,
             D,
             distortion_model,
             args.projection_model,
             base.GIGAPOSE_COLOR,
             (
-                f"GigaPose aligned: t={float(row['translation_error_mm']):.0f}mm "
+                f"GigaPose native | aligned comparison error: "
+                f"t={float(row['translation_error_mm']):.0f}mm "
                 f"R={float(row['rotation_error_deg']):.1f}deg "
-                f"score={float(row['score']):.3f}"
+                f"score={float(row['score']):.3f}{native_delta_label}"
             ),
             26,
         )
@@ -813,6 +873,10 @@ def main() -> None:
         "metadata_minus_pinhole_dv_px",
         "aligned_gigapose_center_u_px",
         "aligned_gigapose_center_v_px",
+        "native_gigapose_center_u_px",
+        "native_gigapose_center_v_px",
+        "native_gigapose_center_minus_detection_du_px",
+        "native_gigapose_center_minus_detection_dv_px",
         "corrected_center_depth_mm",
         "diagnostic_status",
         "diagnostic_error",
@@ -837,6 +901,8 @@ def main() -> None:
     pinhole_dv = values("pinhole_minus_detection_dv_px")
     distortion_du = values("metadata_minus_pinhole_du_px")
     distortion_dv = values("metadata_minus_pinhole_dv_px")
+    native_du = values("native_gigapose_center_minus_detection_du_px")
+    native_dv = values("native_gigapose_center_minus_detection_dv_px")
     active_dv_array = np.asarray(active_dv, dtype=float)
     active_dv_median = (
         float(np.median(active_dv_array)) if active_dv_array.size else None
@@ -869,6 +935,8 @@ def main() -> None:
         "pinhole_delta_v_px": finite_summary(pinhole_dv),
         "metadata_minus_pinhole_center_u_px": finite_summary(distortion_du),
         "metadata_minus_pinhole_center_v_px": finite_summary(distortion_dv),
+        "native_gigapose_delta_u_px": finite_summary(native_du),
+        "native_gigapose_delta_v_px": finite_summary(native_dv),
         "fraction_corrected_center_below_detection": (
             float(np.mean(active_dv_array > 0.0)) if active_dv_array.size else None
         ),

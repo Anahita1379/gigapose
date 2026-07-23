@@ -11,6 +11,7 @@ from fine_tuning.visualize_epnp_gigapose_comparison_extrinsics import (
     load_metadata_camera,
     project_points,
     project_pose_center,
+    raw_pose_to_centered_pose,
 )
 
 
@@ -87,6 +88,30 @@ camera_intrinsics:
         summary = finite_summary([1.0, 3.0, 100.0, float("nan")])
         self.assertEqual(summary["count"], 3)
         self.assertEqual(summary["median"], 3.0)
+
+    def test_raw_to_centered_pose_preserves_camera_space_vertices(self) -> None:
+        angle = np.deg2rad(31.0)
+        rotation = np.asarray(
+            [
+                [np.cos(angle), 0.0, np.sin(angle)],
+                [0.0, 1.0, 0.0],
+                [-np.sin(angle), 0.0, np.cos(angle)],
+            ]
+        )
+        raw_pose = np.eye(4)
+        raw_pose[:3, :3] = rotation
+        raw_pose[:3, 3] = [120.0, -30.0, 8000.0]
+        center_raw = np.asarray([-241.1941141, 0.9010172, 332.9219520])
+        point_raw = np.asarray([700.0, -125.0, 450.0])
+        point_centered = point_raw - center_raw
+
+        centered_pose = raw_pose_to_centered_pose(raw_pose, center_raw)
+        camera_from_raw = rotation @ point_raw + raw_pose[:3, 3]
+        camera_from_centered = (
+            centered_pose[:3, :3] @ point_centered + centered_pose[:3, 3]
+        )
+
+        np.testing.assert_allclose(camera_from_centered, camera_from_raw)
 
 
 if __name__ == "__main__":
