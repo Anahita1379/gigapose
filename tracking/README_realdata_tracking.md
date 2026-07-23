@@ -924,6 +924,98 @@ python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
     --max-yaw-error-deg 15 \
   --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_for_optimization
 
+
+
+
+
+---------------------------------------------------------------
+
+python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
+  --selected-samples gigaPose_datasets/results/rgb_self_recovery_realData_dataset/combined_front_selected_samples_for_optimization.csv \
+  --use-sample-metadata \
+  --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --gigapose-pose-source aligned \
+  --timestamp-alignment raw \
+  --target-lidar-z-mode epnp_corrected \
+  --translation-residual-components xyz \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 0 \
+  --projection-model metadata \
+  --translation-prior-weight 1000 \
+  --rotation-prior-weight 20 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_aligned_centered_z_corrected
+
+
+
+
+
+python -m tracking.select_real_label_candidates_with_centered_camera_lidar_extrinsics \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/tracked_predictions.csv \
+  --allowed-tracking-modes normal \
+  --min-tracking-confidence 0.65 \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --optimized-extrinsics gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_aligned_centered_z_corrected/optimized_extrinsics.json \
+  --frame-transform-side right \
+  --frame-transform-refine-iterations 5 \
+  --frame-transform-inlier-translation-mm 5000 \
+  --frame-transform-inlier-rotation-deg 60 \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-camera-pose-key T_camera_object_centered \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --min-score 0.05 \
+    --max-translation-error-mm 2000 \
+  --max-rotation-error-deg 30 \
+  --max-roll-error-deg 5 \
+  --max-pitch-error-deg 5 \
+  --max-yaw-error-deg 15 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_centered_calibration
+
+
+
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_centered_calibration/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_centered_calibration/visual_overlays \
+  --projection-model metadata \
+  --max-images 100 \
+  --draw-mask-bbox
+
+
+
+
+1. Original versus tracked predictions, without EPnP
+
+python -m tracking.compare_predictions_without_gt \
+  --model original=gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --model tracked=gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/tracked_predictions.csv \
+  --reference original \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --split test \
+  --confidence-thresholds 0.0 0.35 0.5 0.65 0.8 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/comparison_with_original
+
+This produces pose differences, confidence plots, distance plots, and coverage. It measures change, not accuracy.
+
+
+
+2. Accuracy against corrected EPnP targets
+Compare these files:
+<ORIGINAL_SELECTION_OUTPUT>/best_candidate_per_epnp_label.csv
+<TRACKED_SELECTION_OUTPUT>/best_candidate_per_epnp_label.csv
+
+-----------------------------------------------------------------
  python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
   --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_camera_lidar_time_aligned/selected_samples.csv \
   --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
@@ -942,3 +1034,132 @@ python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
   --frame-transform-side right \
   --draw-mask-bbox \
   --max-images 100
+
+
+
+
+
+
+
+
+For front:
+  ---------------------------------------------------------------
+
+python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
+  --selected-samples gigaPose_datasets/results/rgb_self_recovery_realData_dataset/combined_front_selected_samples_for_optimization.csv \
+  --use-sample-metadata \
+  --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --gigapose-pose-source aligned \
+  --timestamp-alignment raw \
+  --target-lidar-z-mode epnp_corrected \
+  --translation-residual-components xyz \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 0 \
+  --projection-model metadata \
+  --translation-prior-weight 1000 \
+  --rotation-prior-weight 20 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_aligned_centered_z_corrected
+
+
+gigapose/gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_aligned_centered_z_corrected/optimized_extrinsics.json
+
+
+----------------------------------------------------------------
+For rear:
+
+python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
+  --selected-samples gigaPose_datasets/results/rgb_self_recovery_realData_dataset/combined_rear_selected_samples_for_optimization.csv \
+  --use-sample-metadata \
+  --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --gigapose-pose-source aligned \
+  --timestamp-alignment raw \
+  --target-lidar-z-mode epnp_corrected \
+  --translation-residual-components xyz \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 0 \
+  --projection-model metadata \
+  --translation-prior-weight 1000 \
+  --rotation-prior-weight 20 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_rear_aligned_centered_z_corrected
+
+
+gigapose/gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_rear_aligned_centered_z_corrected/optimized_extrinsics.json
+
+
+---------------------------------------------------------
+For stereo_left:
+
+python -m fine_tuning.optimize_camera_lidar_extrinsics_centered \
+  --selected-samples gigaPose_datasets/results/rgb_self_recovery_realData_dataset/combined_stereo_left_selected_samples_for_optimization_new.csv \
+  --use-sample-metadata \
+  --epnp-label-dir-name EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-map-pose-unit m \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --gigapose-pose-source aligned \
+  --timestamp-alignment raw \
+  --target-lidar-z-mode epnp_corrected \
+  --translation-residual-components xyz \
+  --translation-sigma-mm 1000 \
+  --rotation-sigma-deg 10 \
+  --image-center-weight 0 \
+  --projection-model metadata \
+  --translation-prior-weight 1000 \
+  --rotation-prior-weight 20 \
+  --robust-loss soft_l1 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_stereo_left_aligned_centered_z_corrected
+
+
+
+gigapose/gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_stereo_left_aligned_centered_z_corrected/optimized_extrinsics.json
+
+----------------------------------------------------------------
+
+For selecting new labels and then visualization: 
+
+python -m tracking.select_real_label_candidates_with_centered_camera_lidar_extrinsics \
+  --tracked-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/tracked_predictions.csv \
+  --allowed-tracking-modes normal \
+  --min-tracking-confidence 0.65 \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --optimized-extrinsics gigaPose_datasets/results/rgb_self_recovery_realData_dataset/extrinsic_optimization_front_aligned_centered_z_corrected/optimized_extrinsics.json \
+  --frame-transform-side right \
+  --frame-transform-refine-iterations 5 \
+  --frame-transform-inlier-translation-mm 5000 \
+  --frame-transform-inlier-rotation-deg 60 \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-camera-pose-key T_camera_object_centered \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --min-score 0.05 \
+    --max-translation-error-mm 2000 \
+  --max-rotation-error-deg 30 \
+  --max-roll-error-deg 5 \
+  --max-pitch-error-deg 5 \
+  --max-yaw-error-deg 15 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_centered_calibration
+
+python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_centered_calibration/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_gsam_v4/label_candidates_centered_calibration/visual_overlays \
+  --projection-model metadata \
+  --max-images 100 \
+  --draw-mask-bbox
+
+-----------------------------------------------------------------
