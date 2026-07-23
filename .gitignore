@@ -11,6 +11,11 @@ fine_tuning/prediction_*/
 fine_tuning/debug_*/
 fine_tuning/rear_*/
 
+# for now: 
+Notes_Goga_EPNP_comp_ot2block_IST_tran.md
+tracking/README_realdata_tracking.md
+
+
 Assetto_data_prep/README.md
 slurm_logs/
 results*
