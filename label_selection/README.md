@@ -17,66 +17,83 @@ The purpose is:
 
 ## The coordinate convention
 
-All translations written by this package are in millimetres.
+All translations written by this package are in millimetres. The notation
+$T_{A\leftarrow B}$ means “the rigid transform that maps coordinates from
+frame $B$ into frame $A$.”
 
 GigaPose predicts a camera pose for the native/raw CAD frame:
 
-\[
-G_i^{r}=T_{\mathrm{camera},\mathrm{object\_raw},i}^{\mathrm{GigaPose}}.
-\]
+$$
+G_i^{r}
+=
+T_{\mathrm{camera}\leftarrow\mathrm{object\_raw},\,i}^{\mathrm{GigaPose}}.
+$$
 
 EPnP provides the centered camera pose:
 
-\[
-E_i^{c}=T_{\mathrm{camera},\mathrm{object\_centered},i}^{\mathrm{EPnP}}.
-\]
+$$
+E_i^{c}
+=
+T_{\mathrm{camera}\leftarrow\mathrm{object\_centered},\,i}^{\mathrm{EPnP}}.
+$$
 
 The known raw-CAD point used as the centered origin is
 
-\[
+$$
 c_r =
-[-0.2411941141,\ 0.0009010172,\ 0.3329219520]^\top\ {\rm m}.
-\]
+\begin{bmatrix}
+-241.1941141 &
+\phantom{-}0.9010172 &
+\phantom{-}332.9219520
+\end{bmatrix}^{\!\top}
+\mathrm{mm}.
+$$
 
 Define
 
-\[
-C=T_{\mathrm{object\_raw},\mathrm{object\_centered}}
+$$
+C
+=
+T_{\mathrm{object\_raw}\leftarrow\mathrm{object\_centered}}
 =
 \begin{bmatrix}
 I & c_r\\
-0 & 1
+\mathbf{0}^{\top} & 1
 \end{bmatrix}.
-\]
+$$
 
 The GigaPose pose in the centered convention is therefore
 
-\[
+$$
 G_i^{c}=G_i^{r}C.
-\]
+$$
 
 Equivalently,
 
-\[
+$$
 R_i^{c}=R_i^{r},\qquad
 t_i^{c}=t_i^{r}+R_i^{r}c_r.
-\]
+$$
 
 This is a known CAD-origin conversion, not a fitted alignment.
 
 Absolute errors are
 
-\[
-e_{t,i}=\|t_i^{c}-t_{E,i}^{c}\|_2
-\]
+$$
+e_{t,i}
+=
+\left\lVert t_i^{c}-t_{E,i}^{c}\right\rVert_2
+$$
 
 and
 
-\[
+$$
 e_{R,i}
 =
-\operatorname{angle}\!\left((R_{E,i}^{c})^\top R_i^{c}\right).
-\]
+\operatorname{angle}\!\left(
+\left(R_{E,i}^{c}\right)^\top R_i^{c}
+\right).
+$$
 
 No constant transform is estimated from the predictions and labels before
 these errors are measured. Consequently there are intentionally no
@@ -147,10 +164,13 @@ This writes:
 The assignment cost is only used to decide which car corresponds to which
 label when an image has multiple cars:
 
-\[
-C_{ij}=\frac{e_{t,ij}}{1000\ {\rm mm}}
-       +\frac{e_{R,ij}}{10^\circ}.
-\]
+$$
+\mathcal{C}_{ij}
+=
+\frac{e_{t,ij}}{1000\,\mathrm{mm}}
++
+\frac{e_{R,ij}}{10^\circ}.
+$$
 
 Selection thresholds are applied after the one-to-one assignment.
 
@@ -251,30 +271,36 @@ records retain the row with the lowest absolute pairing cost.
 
 For each selected sample define
 
-\[
-G_i=T_{\mathrm{camera},\mathrm{object\_centered},i}^{\mathrm{GigaPose}},
+$$
+G_i
+=
+T_{\mathrm{camera}\leftarrow\mathrm{object\_centered},\,i}^{\mathrm{GigaPose}},
 \quad
-M_i=T_{\mathrm{map},\mathrm{object\_raw},i}^{\mathrm{EPnP}},
+M_i
+=
+T_{\mathrm{map}\leftarrow\mathrm{object\_raw},\,i}^{\mathrm{EPnP}},
 \quad
-L_i=T_{\mathrm{map},\mathrm{lidar},i}^{\mathrm{metadata}}.
-\]
+L_i
+=
+T_{\mathrm{map}\leftarrow\mathrm{LiDAR},\,i}^{\mathrm{metadata}}.
+$$
 
 The centered EPnP target in LiDAR coordinates is
 
-\[
+$$
 Q_i=L_i^{-1}M_iC.
-\]
+$$
 
 The optimizer estimates one fixed
-\(X=T_{\mathrm{lidar},\mathrm{camera}}\) for the entire camera:
+$X=T_{\mathrm{LiDAR}\leftarrow\mathrm{camera}}$ for the entire camera:
 
-\[
+$$
 P_i(X)=XG_i.
-\]
+$$
 
-It robustly minimizes translation and SO(3) rotation residuals between
-\(P_i(X)\) and \(Q_i\), with a prior around the robust average of the metadata
-`t_lidar_camera_prior` values.
+It robustly minimizes translation and $\operatorname{SO}(3)$ rotation
+residuals between $P_i(X)$ and $Q_i$, with a prior around the robust average
+of the metadata `t_lidar_camera_prior` values.
 
 Front:
 
@@ -316,11 +342,11 @@ held-out performance guarantee.
 
 The corrected EPnP camera target is
 
-\[
+$$
 E_{i,\mathrm{corrected}}^{c}
 =
 X_{\mathrm{opt}}^{-1}L_i^{-1}M_iC.
-\]
+$$
 
 Front:
 
