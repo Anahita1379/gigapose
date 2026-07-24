@@ -795,7 +795,36 @@ CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
 
 still in progress
 
-candidates:    out of 
+candidates: 442   out of 3348
+
+
+run a diffrent one as well: 
+
+python -m label_selection.select_absolute \
+  --gigapose-predictions gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_rotation_gated/tracked_predictions.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_rear_gsam_v4 \
+  --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_hybrid_labels \
+  --epnp-glob "*.json" \
+  --epnp-strip-trailing-instance-id \
+  --epnp-key-prefix image_ \
+  --match-key image_stem \
+  --epnp-map-pose-key T_map_object_raw \
+  --epnp-camera-pose-key T_camera_object_centered \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --raw-object-center-m -0.2411941141 0.0009010172 0.3329219520 \
+  --prediction-translation-unit mm \
+  --min-score 0.05 \
+  --max-translation-error-mm 4000 \
+  --max-rotation-error-deg 30 \
+  --max-roll-error-deg 10 \
+  --max-pitch-error-deg 10 \
+  --max-yaw-error-deg 15 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_rotation_gated/absolute_labels \
+  --overwrite
+
+candidates: 260  out of 2857
+
 
 
 python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
@@ -808,6 +837,18 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
   --draw-mask-bbox \
   --bbox-match-mode nearest_projected_center \
   --frame-transform-side right
+
+
+
+  another vis:
+  python -m label_selection.visualize \
+  --candidate-csv gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_rotation_gated/absolute_labels/selected_samples.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_rear_gsam_v4 \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_rear_rotation_gated/absolute_labels/visual_overlays \
+  --projection-model metadata \
+  --draw-mask-bbox \
+  --max-images 100 \
+  --overwrite
 ```
 
  
