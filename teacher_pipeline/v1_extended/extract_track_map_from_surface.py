@@ -7,6 +7,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 from scipy import ndimage
+from scipy.optimize import differential_evolution, minimize
 from scipy.spatial import cKDTree
 from skimage.morphology import skeletonize
 
@@ -144,6 +145,128 @@ def _select_guided_cycle(cycles, guide_pixels, min_length_ratio):
     return cycles[chosen["candidate_index"]], diagnostics, chosen
 
 
+def _apply_planar_transform(xy, parameters):
+    theta, tx, ty = np.asarray(parameters, dtype=float)
+    cosine, sine = np.cos(theta), np.sin(theta)
+    rotation = np.asarray([[cosine, -sine], [sine, cosine]])
+    return np.asarray(xy, dtype=float) @ rotation.T + np.asarray([tx, ty])
+
+
+def _invert_planar_transform(xy, parameters):
+    theta, tx, ty = np.asarray(parameters, dtype=float)
+    cosine, sine = np.cos(theta), np.sin(theta)
+    rotation = np.asarray([[cosine, -sine], [sine, cosine]])
+    return (np.asarray(xy, dtype=float) - np.asarray([tx, ty])) @ rotation
+
+
+def _cycle_map_xy(cycle, minimum, resolution, axis_order, translation_xy):
+    ac_xz = minimum + cycle[:, ::-1] * resolution
+    if axis_order == "z-negx-y":
+        map_xy = np.column_stack([ac_xz[:, 1], -ac_xz[:, 0]])
+    else:
+        map_xy = ac_xz
+    return map_xy + np.asarray(translation_xy)
+
+
+def _fit_planar_transform(candidate_xy, guide_xy, max_yaw_deg):
+    """Robustly register a fixed loop to map-frame guide points with SE(2)."""
+    candidate_xy = np.asarray(candidate_xy, dtype=float)
+    guide_xy = np.asarray(guide_xy, dtype=float)
+    tree = cKDTree(candidate_xy)
+    center_delta = np.median(guide_xy, axis=0) - np.median(candidate_xy, axis=0)
+    span = max(
+        100.0,
+        0.65
+        * max(
+            np.linalg.norm(np.ptp(candidate_xy, axis=0)),
+            np.linalg.norm(np.ptp(guide_xy, axis=0)),
+        ),
+    )
+
+    def objective(parameters):
+        local_guide = _invert_planar_transform(guide_xy, parameters)
+        distances, _ = tree.query(local_guide)
+        # Median handles occasional bad odometry poses; p90 prevents a fit that
+        # explains only one small portion of a complete driven lap.
+        return float(np.median(distances) + 0.35 * np.percentile(distances, 90))
+
+    yaw_limit = np.deg2rad(max_yaw_deg)
+    bounds = [
+        (-yaw_limit, yaw_limit),
+        (center_delta[0] - span, center_delta[0] + span),
+        (center_delta[1] - span, center_delta[1] + span),
+    ]
+    global_result = differential_evolution(
+        objective,
+        bounds,
+        seed=0,
+        popsize=10,
+        maxiter=35,
+        tol=1e-4,
+        polish=False,
+        workers=1,
+    )
+    result = minimize(
+        objective,
+        global_result.x,
+        method="Powell",
+        bounds=bounds,
+        options={"maxiter": 300, "xtol": 1e-5, "ftol": 1e-5},
+    )
+    parameters = result.x if result.fun <= global_result.fun else global_result.x
+    local_guide = _invert_planar_transform(guide_xy, parameters)
+    distances, _ = tree.query(local_guide)
+    return parameters, distances
+
+
+def _select_aligned_guided_cycle(
+    cycles,
+    guide_map_xy,
+    minimum,
+    resolution,
+    axis_order,
+    translation_xy,
+    min_length_ratio,
+    max_yaw_deg,
+):
+    if not cycles:
+        raise ValueError("Surface skeleton contains no credible long cycle")
+    lengths = np.asarray([_cycle_length_pixels(cycle) for cycle in cycles])
+    eligible = [
+        (index, cycle)
+        for index, cycle in enumerate(cycles)
+        if lengths[index] >= min_length_ratio * lengths.max()
+    ]
+    diagnostics = []
+    transforms = {}
+    for index, cycle in eligible:
+        candidate_xy = _cycle_map_xy(
+            cycle, minimum, resolution, axis_order, translation_xy
+        )
+        parameters, distances = _fit_planar_transform(
+            candidate_xy, guide_map_xy, max_yaw_deg
+        )
+        score = float(
+            np.median(distances) + 0.35 * np.percentile(distances, 90)
+        )
+        diagnostics.append(
+            {
+                "candidate_index": int(index),
+                "pixel_count": int(len(cycle)),
+                "length_px": float(lengths[index]),
+                "guide_distance_m_median": float(np.median(distances)),
+                "guide_distance_m_p90": float(np.percentile(distances, 90)),
+                "score": score,
+                "auto_planar_yaw_deg": float(np.rad2deg(parameters[0])),
+                "auto_planar_translation_m": parameters[1:].tolist(),
+            }
+        )
+        transforms[index] = parameters
+    chosen = min(diagnostics, key=lambda row: row["score"])
+    index = chosen["candidate_index"]
+    return cycles[index], diagnostics, chosen, transforms[index]
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--surface-ply", type=Path, required=True); p.add_argument("--output", type=Path, required=True)
@@ -173,6 +296,12 @@ def main():
     )
     p.add_argument("--candidate-min-length-ratio", type=float, default=.75)
     p.add_argument("--max-guide-distance-m", type=float, default=20.0)
+    p.add_argument(
+        "--max-auto-yaw-deg",
+        type=float,
+        default=30.0,
+        help="Maximum absolute yaw used for guided automatic planar registration",
+    )
     args = p.parse_args(); vertices, faces = read_ascii_ply(args.surface_ply)
     horizontal = vertices[:, [0, 2]]; minimum = horizontal.min(axis=0) - 2.0; maximum = horizontal.max(axis=0) + 2.0
     width, height = np.ceil((maximum - minimum) / args.resolution_m).astype(int) + 1
@@ -192,6 +321,7 @@ def main():
     guide_rows = []
     candidate_diagnostics = []
     chosen_diagnostic = None
+    planar_transform = np.asarray([0.0, 0.0, 0.0])
     if args.guide_observations:
         guide_rows = sorted(
             load(args.guide_observations),
@@ -214,24 +344,19 @@ def main():
         if len(guide_map) < 3:
             raise ValueError("--guide-observations has fewer than 3 unique ego poses")
         guide_map = np.asarray(guide_map)
-        translation = np.asarray(args.translation)
-        if args.axis_order == "xzy":
-            guide_horizontal = guide_map[:, :2] - translation[:2]
-        elif args.axis_order == "z-negx-y":
-            guide_horizontal = np.column_stack(
-                [
-                    -(guide_map[:, 1] - translation[1]),
-                    guide_map[:, 0] - translation[0],
-                ]
+        ordered, candidate_diagnostics, chosen_diagnostic, planar_transform = (
+            _select_aligned_guided_cycle(
+                cycles,
+                guide_map[:, :2],
+                minimum,
+                args.resolution_m,
+                args.axis_order,
+                np.asarray(args.translation)[:2],
+                args.candidate_min_length_ratio,
+                args.max_auto_yaw_deg,
             )
-        else:
-            guide_horizontal = guide_map[:, [0, 2]] - translation[[0, 2]]
-        guide_xy = (guide_horizontal - minimum) / args.resolution_m
-        guide_pixels = guide_xy[:, ::-1]
-        ordered, candidate_diagnostics, chosen_diagnostic = _select_guided_cycle(
-            cycles, guide_pixels, args.candidate_min_length_ratio
         )
-        guide_median = chosen_diagnostic["guide_distance_px_median"] * args.resolution_m
+        guide_median = chosen_diagnostic["guide_distance_m_median"]
         if guide_median > args.max_guide_distance_m:
             raise ValueError(
                 f"Best loop is still {guide_median:.2f} m median from the ego path; "
@@ -255,6 +380,10 @@ def main():
             [world_horizontal[:, 0], vertical, world_horizontal[:, 1]]
         )
     center += np.asarray(args.translation)
+    if args.guide_observations:
+        center[:, :2] = _apply_planar_transform(
+            center[:, :2], planar_transform
+        )
     vertical_alignment = {
         "mode": args.vertical_alignment,
         "anchor_count": 0,
@@ -311,7 +440,17 @@ def main():
     diagnostic = args.diagnostic_png or args.output.with_suffix(".png")
     view = np.dstack([occupancy * 90, occupancy * 90, occupancy * 90]).astype(np.uint8)
     view[ordered[:, 0], ordered[:, 1]] = (40, 40, 255)
-    if guide_pixels is not None:
+    if args.guide_observations:
+        local_guide = _invert_planar_transform(guide_map[:, :2], planar_transform)
+        local_guide -= np.asarray(args.translation)[:2]
+        if args.axis_order == "z-negx-y":
+            guide_horizontal = np.column_stack(
+                [-local_guide[:, 1], local_guide[:, 0]]
+            )
+        else:
+            guide_horizontal = local_guide
+        guide_xy = (guide_horizontal - minimum) / args.resolution_m
+        guide_pixels = guide_xy[:, ::-1]
         guide_int = np.rint(guide_pixels[:, ::-1]).astype(np.int32)
         cv2.polylines(view, [guide_int], False, (255, 255, 0), 2)
     cv2.imwrite(str(diagnostic), view)
@@ -320,6 +459,11 @@ def main():
         "axis_order": args.axis_order,
         "translation": list(args.translation),
         "vertical_alignment": vertical_alignment,
+        "auto_planar_alignment": {
+            "yaw_deg": float(np.rad2deg(planar_transform[0])),
+            "translation_m": planar_transform[1:].tolist(),
+            "max_yaw_deg": args.max_auto_yaw_deg,
+        },
         "guided": args.guide_observations is not None,
         "guide_observations": None if args.guide_observations is None else str(args.guide_observations),
         "long_cycle_candidate_count": len(cycles),

@@ -4,7 +4,11 @@ import numpy as np
 from teacher_pipeline.geometry import centered_to_raw_pose
 from teacher_pipeline.v1_extended.prepare_track_map import prepare
 from teacher_pipeline.v1_extended.compare_versions import compare_pairs, match_rows
-from teacher_pipeline.v1_extended.extract_track_map_from_surface import _select_guided_cycle
+from teacher_pipeline.v1_extended.extract_track_map_from_surface import (
+    _apply_planar_transform,
+    _fit_planar_transform,
+    _select_guided_cycle,
+)
 from teacher_pipeline.v1_extended.refine_track_trajectories import optimize_track
 from teacher_pipeline.v1_extended.track_map import TrackMap
 
@@ -47,3 +51,14 @@ def test_recorded_path_selects_main_loop_over_parallel_pit_loop():
     guide=np.asarray([[0,2],[0,10],[0,18],[10,20],[18,20]],dtype=float)
     chosen,diagnostics,selected=_select_guided_cycle([main,pit],guide,.5)
     np.testing.assert_array_equal(chosen,main); assert len(diagnostics)==2; assert selected["candidate_index"]==0
+
+
+def test_planar_track_registration_recovers_yaw_and_translation():
+    angle=np.linspace(0.0,2.0*np.pi,500,endpoint=False)
+    candidate=np.column_stack([120.0*np.cos(angle)+15.0*np.cos(2.0*angle),70.0*np.sin(angle)])
+    expected=np.asarray([np.deg2rad(8.0),-42.0,31.0])
+    guide=_apply_planar_transform(candidate[::4],expected)
+    estimated,distances=_fit_planar_transform(candidate,guide,30.0)
+    assert np.median(distances)<0.5
+    assert abs(np.rad2deg(estimated[0]-expected[0]))<0.5
+    assert np.linalg.norm(estimated[1:]-expected[1:])<1.0
