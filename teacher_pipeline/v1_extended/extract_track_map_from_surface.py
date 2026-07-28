@@ -277,6 +277,103 @@ def _select_aligned_guided_cycle(
     return cycles[index], diagnostics, chosen, transforms[index]
 
 
+def _densify_polyline(points, spacing_px=1.0):
+    points = np.asarray(points, dtype=float)
+    if len(points) < 2:
+        return points
+    lengths = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    cumulative = np.r_[0.0, np.cumsum(lengths)]
+    if cumulative[-1] <= spacing_px:
+        return points
+    targets = np.arange(0.0, cumulative[-1], spacing_px)
+    return np.column_stack(
+        [np.interp(targets, cumulative, points[:, axis]) for axis in range(2)]
+    )
+
+
+def _correct_unsupported_route_detours(
+    ordered,
+    guide_pixels,
+    guide_sequence,
+    threshold_px,
+    max_gap_s,
+    max_frame_gap,
+):
+    """Replace local skeleton detours bracketed by a dense driven route."""
+    ordered = np.asarray(ordered, dtype=float)
+    guide_pixels = np.asarray(guide_pixels, dtype=float)
+    distances, nearest = cKDTree(ordered).query(guide_pixels)
+    unsupported = distances > threshold_px
+    runs = []
+    start = None
+    for index, value in enumerate(np.r_[unsupported, False]):
+        if value and start is None:
+            start = index
+        elif not value and start is not None:
+            if index - start >= 3:
+                runs.append((max(0, start - 1), min(len(guide_pixels) - 1, index)))
+            start = None
+    corrections = []
+    # Descending centerline indices keep earlier indices stable after splicing.
+    candidates = []
+    for guide_start, guide_end in runs:
+        sequence = guide_sequence[guide_start : guide_end + 1]
+        continuous = True
+        for previous, current in zip(sequence[:-1], sequence[1:]):
+            frame_gap = current[1] - previous[1]
+            time_gap_s = (current[2] - previous[2]) / 1e9
+            if (
+                current[0] != previous[0]
+                or frame_gap <= 0
+                or frame_gap > max_frame_gap
+                or time_gap_s <= 0
+                or time_gap_s > max_gap_s
+            ):
+                continuous = False
+                break
+        center_start = int(nearest[guide_start])
+        center_end = int(nearest[guide_end])
+        # Only replace a local, non-wrapping forward arc. Ambiguous cases are
+        # retained and remain visible in the diagnostic rather than guessed.
+        arc_count = center_end - center_start
+        if not continuous or arc_count < 8 or arc_count > len(ordered) // 3:
+            continue
+        candidates.append(
+            (center_start, center_end, guide_start, guide_end, distances)
+        )
+    for center_start, center_end, guide_start, guide_end, all_distances in sorted(
+        candidates, reverse=True
+    ):
+        replacement = guide_pixels[guide_start : guide_end + 1].copy()
+        if len(replacement) >= 5:
+            replacement[:, 0] = ndimage.gaussian_filter1d(
+                replacement[:, 0], sigma=1.0, mode="nearest"
+            )
+            replacement[:, 1] = ndimage.gaussian_filter1d(
+                replacement[:, 1], sigma=1.0, mode="nearest"
+            )
+        replacement[0] = ordered[center_start]
+        replacement[-1] = ordered[center_end]
+        replacement = _densify_polyline(replacement)
+        old_count = center_end - center_start + 1
+        ordered = np.vstack(
+            [ordered[:center_start], replacement, ordered[center_end + 1 :]]
+        )
+        corrections.append(
+            {
+                "guide_start_index": int(guide_start),
+                "guide_end_index": int(guide_end),
+                "old_centerline_point_count": int(old_count),
+                "replacement_point_count": int(len(replacement)),
+                "guide_distance_m_max_before": None,
+                "guide_distance_px_max_before": float(
+                    np.max(all_distances[guide_start : guide_end + 1])
+                ),
+            }
+        )
+    return np.rint(ordered).astype(int), corrections
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--surface-ply", type=Path, required=True); p.add_argument("--output", type=Path, required=True)
@@ -316,6 +413,12 @@ def main():
     )
     p.add_argument("--diagnostic-max-gap-s", type=float, default=2.0)
     p.add_argument("--diagnostic-max-frame-gap", type=int, default=5)
+    p.add_argument(
+        "--guide-route-correction-threshold-m",
+        type=float,
+        default=10.0,
+        help="Replace a local skeleton detour when >=3 continuous guide poses exceed this distance; <=0 disables correction",
+    )
     p.add_argument(
         "--materials-json",
         type=Path,
@@ -419,6 +522,37 @@ def main():
             )
     else:
         ordered = cycles[0] if cycles else _ordered_cycle(core)
+    route_corrections = []
+    guide_pixels_surface = None
+    if args.guide_observations:
+        local_guide = _invert_planar_transform(guide_map[:, :2], planar_transform)
+        local_guide -= np.asarray(args.translation)[:2]
+        if args.axis_order == "z-negx-y":
+            guide_horizontal = np.column_stack(
+                [-local_guide[:, 1], local_guide[:, 0]]
+            )
+        elif args.axis_order == "x-negz-y":
+            guide_horizontal = np.column_stack(
+                [local_guide[:, 0], -local_guide[:, 1]]
+            )
+        else:
+            guide_horizontal = local_guide
+        guide_xy = (guide_horizontal - minimum) / args.resolution_m
+        guide_pixels_surface = guide_xy[:, ::-1]
+        if args.guide_route_correction_threshold_m > 0:
+            ordered, route_corrections = _correct_unsupported_route_detours(
+                ordered,
+                guide_pixels_surface,
+                guide_sequence,
+                args.guide_route_correction_threshold_m / args.resolution_m,
+                args.diagnostic_max_gap_s,
+                args.diagnostic_max_frame_gap,
+            )
+            for correction in route_corrections:
+                correction["guide_distance_m_max_before"] = (
+                    correction.pop("guide_distance_px_max_before")
+                    * args.resolution_m
+                )
     world_horizontal = minimum + ordered[:, ::-1] * args.resolution_m
     tree = cKDTree(horizontal); _, nearest = tree.query(world_horizontal)
     vertical = vertices[nearest, 1]
@@ -500,20 +634,7 @@ def main():
     view = np.dstack([occupancy * 90, occupancy * 90, occupancy * 90]).astype(np.uint8)
     view[ordered[:, 0], ordered[:, 1]] = (40, 40, 255)
     if args.guide_observations:
-        local_guide = _invert_planar_transform(guide_map[:, :2], planar_transform)
-        local_guide -= np.asarray(args.translation)[:2]
-        if args.axis_order == "z-negx-y":
-            guide_horizontal = np.column_stack(
-                [-local_guide[:, 1], local_guide[:, 0]]
-            )
-        elif args.axis_order == "x-negz-y":
-            guide_horizontal = np.column_stack(
-                [local_guide[:, 0], -local_guide[:, 1]]
-            )
-        else:
-            guide_horizontal = local_guide
-        guide_xy = (guide_horizontal - minimum) / args.resolution_m
-        guide_pixels = guide_xy[:, ::-1]
+        guide_pixels = guide_pixels_surface
         guide_int = np.rint(guide_pixels[:, ::-1]).astype(np.int32)
         starts = [0]
         for index in range(1, len(guide_sequence)):
@@ -554,6 +675,8 @@ def main():
         "guided": args.guide_observations is not None,
         "guide_observations": None if args.guide_observations is None else str(args.guide_observations),
         "diagnostic_guide_segment_count": 0 if not args.guide_observations else len(segments),
+        "guide_route_correction_threshold_m": args.guide_route_correction_threshold_m,
+        "guide_route_corrections": route_corrections,
         "long_cycle_candidate_count": len(cycles),
         "long_cycle_candidates": [
             {

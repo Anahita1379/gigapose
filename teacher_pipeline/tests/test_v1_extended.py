@@ -1,11 +1,13 @@
 from __future__ import annotations
 import argparse
 import numpy as np
+from scipy.spatial import cKDTree
 from teacher_pipeline.geometry import centered_to_raw_pose
 from teacher_pipeline.v1_extended.prepare_track_map import prepare
 from teacher_pipeline.v1_extended.compare_versions import compare_pairs, match_rows
 from teacher_pipeline.v1_extended.extract_track_map_from_surface import (
     _apply_planar_transform,
+    _correct_unsupported_route_detours,
     _fit_planar_transform,
     _select_guided_cycle,
 )
@@ -62,3 +64,20 @@ def test_planar_track_registration_recovers_yaw_and_translation():
     assert np.median(distances)<0.5
     assert abs(np.rad2deg(estimated[0]-expected[0]))<0.5
     assert np.linalg.norm(estimated[1:]-expected[1:])<1.0
+
+
+def test_dense_guide_replaces_local_skeleton_detour():
+    ordered=np.asarray(
+        [[x,0] for x in range(6)]
+        + [[5,y] for y in range(1,11)]
+        + [[x,10] for x in range(6,21)]
+        + [[20,y] for y in range(9,-1,-1)]
+        + [[x,0] for x in range(21,101)],dtype=float
+    )
+    guide=np.asarray([[x,0] for x in np.linspace(0,100,201)],dtype=float)
+    sequence=[(1,index,index*100_000_000) for index in range(len(guide))]
+    corrected,corrections=_correct_unsupported_route_detours(
+        ordered,guide,sequence,threshold_px=2,max_gap_s=1,max_frame_gap=2
+    )
+    assert len(corrections)==1
+    assert np.max(cKDTree(corrected).query(guide)[0])<1.5
