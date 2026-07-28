@@ -16,7 +16,8 @@ selected_samples.csv
     prediction_row_index -> epnp_label_path + epnp_record_index
 
 EPnPv2_gt_mesh_z_hybrid_labels/*.json
-    T_map_object_raw, T_camera_object_centered, metadata_path
+    T_map_object_raw, T_camera_object_centered, metadata_path,
+    gt_xy_mesh_z_label.ego_z_compensation.corrected_z_m
 
 metadata/sample_*.yaml
     t_map_lidar, t_lidar_camera_prior, camera_intrinsics
@@ -29,11 +30,19 @@ persistent identities from a separate tracking run, also pass
 `--tracks tracked_predictions.csv`; rows are joined by
 `scene_id, im_id, instance_id`.
 
-The canonical teacher convention is `T_camera_object_centered`, in metres.
-GigaPose CSV poses are treated as raw-CAD poses by default, matching
-`label_selection/common.py`, and are converted using the known CAD-center
-offset. Use `--gigapose-object-origin centered` only if that particular CSV was
-already generated in the centered object frame.
+The canonical teacher convention is `T_camera_object_centered`, in metres. By
+default, `--gigapose-pose-source auto` follows the existing fine-tuning
+optimizer contract: if `selected_samples.csv` contains
+`T_gigapose_aligned_epnp_obj`, that already-centered pose is used; otherwise the
+original prediction row is converted with the known CAD-center offset. Use
+`--gigapose-pose-source raw` to force the latter for a controlled comparison.
+
+Mesh-Z hybrid labels and raw metadata use different map-Z conventions. The
+default `--target-lidar-z-mode epnp_corrected` replaces only the map LiDAR Z
+with the label's `corrected_z_m`, exactly as the existing extrinsic optimizer
+does. The raw metadata transform is preserved in each observation as
+`T_map_lidar_raw_metadata`. Missing corrected Z is a hard error unless the
+explicit fallback flag is supplied.
 
 ## Run one stage at a time
 
@@ -48,6 +57,8 @@ python3 -m teacher_pipeline.build_observations \
   --prediction-translation-unit mm \
   --epnp-map-pose-unit m \
   --epnp-camera-pose-unit m \
+  --gigapose-pose-source auto \
+  --target-lidar-z-mode epnp_corrected \
   --output <run>/observations.jsonl \
   --strict
 ```
@@ -62,9 +73,10 @@ boxes. The EPnP JSON and YAML paths normally come directly from
 ```
 
 Inspect `<run>/observations.report.json`. In particular,
-`instance_id_track_fallbacks` should ideally be zero. A nonzero value means no
-persistent track ID was available for those rows, so temporal grouping may be
-incorrect.
+`instance_id_track_fallbacks` should ideally be zero. Also verify
+`resolved_gigapose_pose_source`, `corrected_lidar_z_count`, and the reported Z
+replacement range. A nonzero track fallback count means no persistent track ID
+was available for those rows, so temporal grouping may be incorrect.
 
 Initialize map-frame trajectories while holding the metadata extrinsic fixed:
 
@@ -90,6 +102,11 @@ python3 -m teacher_pipeline.optimize_extrinsic \
   --trajectories <run>/refined_iteration_0.jsonl \
   --output <run>/extrinsic_iteration_1.json
 ```
+
+The optimizer rejects corrections above 2 m or 10 degrees by default and does
+not expose a reusable `T_lidar_camera_optimized` in that case. Such a result is
+usually a frame/unit mismatch, not a valid sensor calibration. The limits can
+be changed explicitly, but should not be relaxed merely to make a fit pass.
 
 Reinitialize and refine with the new fixed transform:
 

@@ -3,12 +3,16 @@ from __future__ import annotations
 import numpy as np
 
 from teacher_pipeline.evaluate import (
+    _load_extrinsic,
+    _validate_trajectory_contract,
     evaluate_rows,
     overall_summary,
     save_overlays,
     save_plots,
     summarize_distance_bins,
 )
+import json
+import pytest
 
 
 def _pose(angle_deg=0.0, translation=(0.0, 0.0, 0.0)):
@@ -117,3 +121,29 @@ def test_three_way_overlay_writes_image_with_mock_renderer(tmp_path, monkeypatch
     assert len(list(output.glob("*.jpg"))) == 1
     assert (output / "overlay_index.csv").is_file()
     assert (output / "overlay_report.json").is_file()
+
+
+def test_invalid_old_extrinsic_is_rejected(tmp_path):
+    path = tmp_path / "extrinsic.json"
+    path.write_text(
+        json.dumps(
+            {
+                "T_lidar_camera_optimized": np.eye(4).tolist(),
+                "correction_translation_m": [-6.3, -1.7, -34.2],
+            }
+        )
+    )
+    with pytest.raises(ValueError, match="implausible"):
+        _load_extrinsic(path)
+
+
+def test_stale_mesh_z_trajectory_is_rejected():
+    rows = [
+        {
+            "epnp_label_path": (
+                "/session/front/EPnPv2_gt_mesh_z_hybrid_labels/1.json"
+            )
+        }
+    ]
+    with pytest.raises(ValueError, match="old incompatible adapter"):
+        _validate_trajectory_contract(rows)

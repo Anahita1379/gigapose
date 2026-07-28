@@ -49,6 +49,9 @@ def test_selected_epnp_and_yaml_contract(tmp_path):
                 "T_map_object_raw": T_map_object_raw_m.tolist(),
                 "T_camera_object_centered": T_camera_object_centered_m.tolist(),
                 "metadata_path": str(metadata_path),
+                "gt_xy_mesh_z_label": {
+                    "ego_z_compensation": {"corrected_z_m": 3.5}
+                },
             }
         )
     )
@@ -96,6 +99,7 @@ def test_selected_epnp_and_yaml_contract(tmp_path):
                 "epnp_label_path",
                 "epnp_record_index",
                 "sample_metadata_path",
+                "T_gigapose_aligned_epnp_obj",
             ],
         )
         writer.writeheader()
@@ -107,6 +111,10 @@ def test_selected_epnp_and_yaml_contract(tmp_path):
                 "epnp_label_path": str(label_path),
                 "epnp_record_index": 0,
                 "sample_metadata_path": str(metadata_path),
+                "T_gigapose_aligned_epnp_obj": " ".join(
+                    str(value)
+                    for value in _pose([4000.0, 5000.0, 60000.0]).reshape(-1)
+                ),
             }
         )
     tracks_path = tmp_path / "tracked_predictions.csv"
@@ -153,7 +161,11 @@ def test_selected_epnp_and_yaml_contract(tmp_path):
         epnp_camera_pose_key="T_camera_object_centered",
         epnp_map_pose_unit="m",
         epnp_camera_pose_unit="m",
+        target_lidar_z_mode="epnp_corrected",
+        allow_missing_corrected_lidar_z=False,
         prediction_translation_unit="mm",
+        gigapose_pose_source="auto",
+        selected_gigapose_pose_unit="mm",
         gigapose_object_origin="raw",
         strict=True,
     )
@@ -166,14 +178,24 @@ def test_selected_epnp_and_yaml_contract(tmp_path):
     assert row["track_id_source"] == "tracks_csv.pose_association"
     assert row["bbox_xywh"] == [1, 2, 30, 40]
     assert row["distortion_model"] == "equidistant"
-    np.testing.assert_allclose(row["T_map_lidar"], T_map_lidar_m)
+    expected_map_lidar = T_map_lidar_m.copy()
+    expected_map_lidar[2, 3] = 3.5
+    np.testing.assert_allclose(row["T_map_lidar"], expected_map_lidar)
+    np.testing.assert_allclose(
+        row["T_map_lidar_raw_metadata"], T_map_lidar_m
+    )
+    assert row["corrected_lidar_map_z_m"] == 3.5
+    assert row["target_lidar_z_replacement_m"] == 2.5
+    assert report["target_lidar_z_replacement_m_median"] == 2.5
+    assert report["resolved_gigapose_pose_source"] == "aligned_csv"
     np.testing.assert_allclose(row["T_lidar_camera_initial"], T_lidar_camera_m)
     np.testing.assert_allclose(row["T_map_object_raw_epnp"], T_map_object_raw_m)
     expected_centered = T_map_object_raw_m.copy()
     expected_centered[:3, 3] += CENTER_RAW_M
     np.testing.assert_allclose(row["T_map_object_centered_epnp"], expected_centered)
-    # Raw GigaPose millimetres become metres, then receive the known center shift.
+    # The established selection contract prefers its already-centered aligned
+    # GigaPose pose over the raw prediction pose when that column exists.
     np.testing.assert_allclose(
         np.asarray(row["T_camera_object_centered_gigapose"])[:3, 3],
-        np.asarray([1.0, 2.0, 50.0]) + CENTER_RAW_M,
+        np.asarray([4.0, 5.0, 60.0]),
     )

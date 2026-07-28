@@ -15,6 +15,7 @@ from typing import Any
 import numpy as np
 
 from fine_tuning.optimize_camera_lidar_extrinsics import (
+    corrected_lidar_map_z_mm,
     load_metadata_camera,
     load_yaml,
     matrix_3x4_or_4x4_to_transform,
@@ -108,6 +109,23 @@ def _timestamp(row: dict[str, Any], label: dict[str, Any], label_path: Path):
 def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
     predictions = read_rows(args.predictions)
     selected = read_rows(args.selected_samples)
+    has_aligned_gigapose = bool(selected) and all(
+        row.get("T_gigapose_aligned_epnp_obj") not in (None, "")
+        for row in selected
+    )
+    if args.gigapose_pose_source == "auto":
+        resolved_gigapose_pose_source = (
+            "aligned_csv" if has_aligned_gigapose else "prediction_csv"
+        )
+    elif args.gigapose_pose_source == "aligned":
+        if not has_aligned_gigapose:
+            raise ValueError(
+                f"{args.selected_samples} does not provide a non-empty "
+                "T_gigapose_aligned_epnp_obj for every selected row"
+            )
+        resolved_gigapose_pose_source = "aligned_csv"
+    else:
+        resolved_gigapose_pose_source = "prediction_csv"
     tracked_rows = read_rows(args.tracks) if args.tracks is not None else []
     tracks_by_instance = {
         (
@@ -185,6 +203,30 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
             # Established metadata helpers return millimetres.
             map_lidar[:3, 3] *= 0.001
             lidar_camera[:3, 3] *= 0.001
+            map_lidar_raw_metadata = map_lidar.copy()
+
+            corrected_z_mm = corrected_lidar_map_z_mm(label)
+            corrected_z_m = (
+                float(corrected_z_mm) * 0.001
+                if corrected_z_mm is not None
+                else None
+            )
+            z_replacement_m = None
+            if args.target_lidar_z_mode == "epnp_corrected":
+                if corrected_z_m is None:
+                    if not args.allow_missing_corrected_lidar_z:
+                        raise ValueError(
+                            f"{label_path} has no "
+                            "gt_xy_mesh_z_label.ego_z_compensation."
+                            "corrected_z_m. Mesh-Z hybrid labels require this "
+                            "value; use --allow-missing-corrected-lidar-z only "
+                            "for an explicitly reported raw-Z fallback."
+                        )
+                else:
+                    z_replacement_m = float(
+                        corrected_z_m - map_lidar[2, 3]
+                    )
+                    map_lidar[2, 3] = corrected_z_m
 
             if args.epnp_map_pose_key not in label:
                 raise KeyError(args.epnp_map_pose_key)
@@ -201,12 +243,19 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
                     args.epnp_camera_pose_unit,
                 )
 
-            camera_object_gp, camera_object_gp_raw = _prediction_pose_m(
+            prediction_centered, camera_object_gp_raw = _prediction_pose_m(
                 prediction,
                 args.prediction_translation_unit,
                 args.gigapose_object_origin,
                 center_raw,
             )
+            if resolved_gigapose_pose_source == "aligned_csv":
+                camera_object_gp = _pose_m(
+                    selected_row["T_gigapose_aligned_epnp_obj"],
+                    args.selected_gigapose_pose_unit,
+                )
+            else:
+                camera_object_gp = prediction_centered
             scene_id = int(selected_row.get("scene_id", prediction["scene_id"]))
             im_id = int(selected_row.get("im_id", prediction["im_id"]))
             frame = frames.get((scene_id, im_id), {})
@@ -239,9 +288,9 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
                             center_raw,
                         )
                         residual = pose_error(
-                            camera_object_gp, candidate_centered
+                            prediction_centered, candidate_centered
                         )
-                        gp_t = camera_object_gp[:3, 3]
+                        gp_t = prediction_centered[:3, 3]
                         candidate_t = candidate_centered[:3, 3]
                         mean_range = max(
                             0.5
@@ -318,6 +367,7 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
                 "prediction_row": prediction_index,
                 "selected_sample_row": selected_index,
                 "gigapose_score": float(prediction.get("score", selected_row.get("score", 0))),
+                "gigapose_pose_source": resolved_gigapose_pose_source,
                 "T_camera_object_centered_gigapose": camera_object_gp.tolist(),
                 "T_camera_object_raw_gigapose": camera_object_gp_raw.tolist(),
                 "T_camera_object_centered_epnp": (
@@ -328,6 +378,10 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
                 "T_map_object_raw_epnp": map_object_raw.tolist(),
                 "T_map_object_centered_epnp": map_object_centered.tolist(),
                 "T_map_lidar": map_lidar.tolist(),
+                "T_map_lidar_raw_metadata": map_lidar_raw_metadata.tolist(),
+                "corrected_lidar_map_z_m": corrected_z_m,
+                "target_lidar_z_mode": args.target_lidar_z_mode,
+                "target_lidar_z_replacement_m": z_replacement_m,
                 "T_lidar_camera_initial": lidar_camera.tolist(),
                 "K": camera[0].tolist() if camera is not None else None,
                 "distortion": camera[1].tolist() if camera is not None else [],
@@ -352,6 +406,11 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
             if args.strict:
                 raise
 
+    z_replacements = [
+        float(row["target_lidar_z_replacement_m"])
+        for row in observations
+        if row.get("target_lidar_z_replacement_m") is not None
+    ]
     report = {
         "format": "teacher_observations_epnp_hybrid_v1",
         "prediction_rows": len(predictions),
@@ -360,7 +419,25 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
         "skipped_count": len(skipped),
         "skipped": skipped[:100],
         "gigapose_object_origin": args.gigapose_object_origin,
+        "requested_gigapose_pose_source": args.gigapose_pose_source,
+        "resolved_gigapose_pose_source": resolved_gigapose_pose_source,
+        "selected_csv_has_aligned_gigapose_pose": has_aligned_gigapose,
         "canonical_object_origin": "centered",
+        "target_lidar_z_mode": args.target_lidar_z_mode,
+        "corrected_lidar_z_count": len(z_replacements),
+        "missing_corrected_lidar_z_count": sum(
+            row.get("corrected_lidar_map_z_m") is None
+            for row in observations
+        ),
+        "target_lidar_z_replacement_m_median": (
+            float(np.median(z_replacements)) if z_replacements else None
+        ),
+        "target_lidar_z_replacement_m_min": (
+            float(np.min(z_replacements)) if z_replacements else None
+        ),
+        "target_lidar_z_replacement_m_max": (
+            float(np.max(z_replacements)) if z_replacements else None
+        ),
         "track_rows": len(tracked_rows),
         "instance_id_track_fallbacks": sum(
             row.get("track_id_source") == "prediction.instance_id_fallback"
@@ -442,7 +519,41 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epnp-camera-pose-key", default="T_camera_object_centered")
     parser.add_argument("--epnp-map-pose-unit", choices=("auto", "m", "mm"), default="m")
     parser.add_argument("--epnp-camera-pose-unit", choices=("auto", "m", "mm"), default="m")
+    parser.add_argument(
+        "--target-lidar-z-mode",
+        choices=("raw", "epnp_corrected"),
+        default="epnp_corrected",
+        help=(
+            "Map-frame Z convention for t_map_lidar. Mesh-Z hybrid labels "
+            "require the default epnp_corrected mode."
+        ),
+    )
+    parser.add_argument(
+        "--allow-missing-corrected-lidar-z",
+        action="store_true",
+        help=(
+            "Allow an explicitly reported raw-metadata-Z fallback when a "
+            "hybrid label has no corrected_z_m."
+        ),
+    )
     parser.add_argument("--prediction-translation-unit", choices=("auto", "m", "mm"), default="mm")
+    parser.add_argument(
+        "--gigapose-pose-source",
+        choices=("auto", "raw", "aligned"),
+        default="auto",
+        help=(
+            "GigaPose pose used by the teacher. 'auto' follows the existing "
+            "optimizer contract: use selected_samples.csv column "
+            "T_gigapose_aligned_epnp_obj when present, otherwise load the raw "
+            "prediction row."
+        ),
+    )
+    parser.add_argument(
+        "--selected-gigapose-pose-unit",
+        choices=("auto", "m", "mm"),
+        default="mm",
+        help="Translation unit of selected CSV GigaPose pose columns.",
+    )
     parser.add_argument("--gigapose-object-origin", choices=("raw", "centered"), default="raw")
     parser.add_argument("--center-raw", nargs=3, type=float, default=CENTER_RAW_M.tolist())
     parser.add_argument("--output", type=Path, required=True)
