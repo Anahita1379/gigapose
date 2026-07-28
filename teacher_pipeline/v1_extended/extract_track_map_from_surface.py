@@ -163,6 +163,8 @@ def _cycle_map_xy(cycle, minimum, resolution, axis_order, translation_xy):
     ac_xz = minimum + cycle[:, ::-1] * resolution
     if axis_order == "z-negx-y":
         map_xy = np.column_stack([ac_xz[:, 1], -ac_xz[:, 0]])
+    elif axis_order == "x-negz-y":
+        map_xy = np.column_stack([ac_xz[:, 0], -ac_xz[:, 1]])
     else:
         map_xy = ac_xz
     return map_xy + np.asarray(translation_xy)
@@ -274,10 +276,11 @@ def main():
     p.add_argument("--morphology-radius-px", type=int, default=2); p.add_argument("--resample-spacing-m", type=float, default=1.0)
     p.add_argument(
         "--axis-order",
-        choices=("xzy", "z-negx-y", "xyz"),
+        choices=("xzy", "x-negz-y", "z-negx-y", "xyz"),
         default="xzy",
         help=(
             "AC-to-map axis convention. xzy means map=(AC_X,AC_Z,AC_Y); "
+            "x-negz-y means map=(AC_X,-AC_Z,AC_Y); "
             "z-negx-y means map=(AC_Z,-AC_X,AC_Y)."
         ),
     )
@@ -302,6 +305,8 @@ def main():
         default=30.0,
         help="Maximum absolute yaw used for guided automatic planar registration",
     )
+    p.add_argument("--diagnostic-max-gap-s", type=float, default=2.0)
+    p.add_argument("--diagnostic-max-frame-gap", type=int, default=5)
     args = p.parse_args(); vertices, faces = read_ascii_ply(args.surface_ply)
     horizontal = vertices[:, [0, 2]]; minimum = horizontal.min(axis=0) - 2.0; maximum = horizontal.max(axis=0) + 2.0
     width, height = np.ceil((maximum - minimum) / args.resolution_m).astype(int) + 1
@@ -319,6 +324,7 @@ def main():
     cycles = _candidate_cycles(core)
     guide_pixels = None
     guide_rows = []
+    guide_sequence = []
     candidate_diagnostics = []
     chosen_diagnostic = None
     planar_transform = np.asarray([0.0, 0.0, 0.0])
@@ -341,6 +347,13 @@ def main():
                 continue
             seen.add(token)
             guide_map.append(as_pose(value)[:3, 3])
+            guide_sequence.append(
+                (
+                    row.get("scene_id"),
+                    int(row.get("im_id", 0)),
+                    int(row.get("timestamp_ns", 0)),
+                )
+            )
         if len(guide_map) < 3:
             raise ValueError("--guide-observations has fewer than 3 unique ego poses")
         guide_map = np.asarray(guide_map)
@@ -370,6 +383,10 @@ def main():
     if args.axis_order == "xzy":
         center = np.column_stack(
             [world_horizontal[:, 0], world_horizontal[:, 1], vertical]
+        )
+    elif args.axis_order == "x-negz-y":
+        center = np.column_stack(
+            [world_horizontal[:, 0], -world_horizontal[:, 1], vertical]
         )
     elif args.axis_order == "z-negx-y":
         center = np.column_stack(
@@ -447,12 +464,36 @@ def main():
             guide_horizontal = np.column_stack(
                 [-local_guide[:, 1], local_guide[:, 0]]
             )
+        elif args.axis_order == "x-negz-y":
+            guide_horizontal = np.column_stack(
+                [local_guide[:, 0], -local_guide[:, 1]]
+            )
         else:
             guide_horizontal = local_guide
         guide_xy = (guide_horizontal - minimum) / args.resolution_m
         guide_pixels = guide_xy[:, ::-1]
         guide_int = np.rint(guide_pixels[:, ::-1]).astype(np.int32)
-        cv2.polylines(view, [guide_int], False, (255, 255, 0), 2)
+        starts = [0]
+        for index in range(1, len(guide_sequence)):
+            previous, current = guide_sequence[index - 1], guide_sequence[index]
+            frame_gap = current[1] - previous[1]
+            time_gap_s = (current[2] - previous[2]) / 1e9
+            if (
+                current[0] != previous[0]
+                or frame_gap > args.diagnostic_max_frame_gap
+                or time_gap_s > args.diagnostic_max_gap_s
+                or frame_gap <= 0
+                or time_gap_s <= 0
+            ):
+                starts.append(index)
+        starts.append(len(guide_int))
+        segments = [
+            guide_int[start:stop]
+            for start, stop in zip(starts[:-1], starts[1:])
+            if stop - start >= 2
+        ]
+        if segments:
+            cv2.polylines(view, segments, False, (255, 255, 0), 2)
     cv2.imwrite(str(diagnostic), view)
     report = {
         "surface_ply": str(args.surface_ply),
@@ -466,6 +507,7 @@ def main():
         },
         "guided": args.guide_observations is not None,
         "guide_observations": None if args.guide_observations is None else str(args.guide_observations),
+        "diagnostic_guide_segment_count": 0 if not args.guide_observations else len(segments),
         "long_cycle_candidate_count": len(cycles),
         "long_cycle_candidates": [
             {
