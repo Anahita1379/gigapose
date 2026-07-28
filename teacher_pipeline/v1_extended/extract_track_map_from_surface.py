@@ -149,10 +149,28 @@ def main():
     p.add_argument("--surface-ply", type=Path, required=True); p.add_argument("--output", type=Path, required=True)
     p.add_argument("--diagnostic-png", type=Path); p.add_argument("--resolution-m", type=float, default=.35)
     p.add_argument("--morphology-radius-px", type=int, default=2); p.add_argument("--resample-spacing-m", type=float, default=1.0)
-    p.add_argument("--axis-order", choices=("xzy", "xyz"), default="xzy", help="AC track PLY is Y-up; xzy maps it to a Z-up map frame")
+    p.add_argument(
+        "--axis-order",
+        choices=("xzy", "z-negx-y", "xyz"),
+        default="xzy",
+        help=(
+            "AC-to-map axis convention. For the 2026-05-05 recording, "
+            "z-negx-y means map=(AC_Z,-AC_X,AC_Y)."
+        ),
+    )
     p.add_argument("--translation", nargs=3, type=float, default=(0, 0, 0))
     p.add_argument("--guide-observations", type=Path, help="Full observations containing recorded ego T_map_lidar poses. Long loop candidates are selected against this driven path, avoiding pit-lane branches.")
     p.add_argument("--guide-pose-field", default="T_map_lidar")
+    p.add_argument(
+        "--vertical-alignment",
+        choices=("epnp", "none"),
+        default="epnp",
+        help=(
+            "With guide observations, estimate the PLY-to-map vertical offset "
+            "from T_map_object_centered_epnp anchors (default), or retain only "
+            "the explicit --translation Z with 'none'."
+        ),
+    )
     p.add_argument("--candidate-min-length-ratio", type=float, default=.75)
     p.add_argument("--max-guide-distance-m", type=float, default=20.0)
     args = p.parse_args(); vertices, faces = read_ascii_ply(args.surface_ply)
@@ -171,10 +189,17 @@ def main():
     core = _cycle_core(_largest_component(skeletonize(occupancy)))
     cycles = _candidate_cycles(core)
     guide_pixels = None
+    guide_rows = []
     candidate_diagnostics = []
     chosen_diagnostic = None
     if args.guide_observations:
-        guide_rows = load(args.guide_observations)
+        guide_rows = sorted(
+            load(args.guide_observations),
+            key=lambda row: (
+                int(row.get("scene_id", 0)),
+                int(row.get("im_id", 0)),
+            ),
+        )
         guide_map = []
         seen = set()
         for row in guide_rows:
@@ -190,11 +215,17 @@ def main():
             raise ValueError("--guide-observations has fewer than 3 unique ego poses")
         guide_map = np.asarray(guide_map)
         translation = np.asarray(args.translation)
-        guide_horizontal = (
-            guide_map[:, :2] - translation[:2]
-            if args.axis_order == "xzy"
-            else guide_map[:, [0, 2]] - translation[[0, 2]]
-        )
+        if args.axis_order == "xzy":
+            guide_horizontal = guide_map[:, :2] - translation[:2]
+        elif args.axis_order == "z-negx-y":
+            guide_horizontal = np.column_stack(
+                [
+                    -(guide_map[:, 1] - translation[1]),
+                    guide_map[:, 0] - translation[0],
+                ]
+            )
+        else:
+            guide_horizontal = guide_map[:, [0, 2]] - translation[[0, 2]]
         guide_xy = (guide_horizontal - minimum) / args.resolution_m
         guide_pixels = guide_xy[:, ::-1]
         ordered, candidate_diagnostics, chosen_diagnostic = _select_guided_cycle(
@@ -211,9 +242,65 @@ def main():
     world_horizontal = minimum + ordered[:, ::-1] * args.resolution_m
     tree = cKDTree(horizontal); _, nearest = tree.query(world_horizontal)
     vertical = vertices[nearest, 1]
-    if args.axis_order == "xzy": center = np.column_stack([world_horizontal[:, 0], world_horizontal[:, 1], vertical])
-    else: center = np.column_stack([world_horizontal[:, 0], vertical, world_horizontal[:, 1]])
+    if args.axis_order == "xzy":
+        center = np.column_stack(
+            [world_horizontal[:, 0], world_horizontal[:, 1], vertical]
+        )
+    elif args.axis_order == "z-negx-y":
+        center = np.column_stack(
+            [world_horizontal[:, 1], -world_horizontal[:, 0], vertical]
+        )
+    else:
+        center = np.column_stack(
+            [world_horizontal[:, 0], vertical, world_horizontal[:, 1]]
+        )
     center += np.asarray(args.translation)
+    vertical_alignment = {
+        "mode": args.vertical_alignment,
+        "anchor_count": 0,
+        "inlier_count": 0,
+        "automatic_offset_m": 0.0,
+    }
+    if args.guide_observations and args.vertical_alignment == "epnp":
+        epnp_xyz = []
+        for row in guide_rows:
+            value = row.get("T_map_object_centered_epnp")
+            if value is not None:
+                epnp_xyz.append(as_pose(value)[:3, 3])
+        vertical_alignment["anchor_count"] = len(epnp_xyz)
+        if len(epnp_xyz) < 3:
+            raise ValueError(
+                "--vertical-alignment epnp requires at least 3 "
+                "T_map_object_centered_epnp anchors; use "
+                "--vertical-alignment none and --translation X Y Z if the "
+                "vertical offset is known manually"
+            )
+        epnp_xyz = np.asarray(epnp_xyz)
+        horizontal_distances, center_indices = cKDTree(center[:, :2]).query(
+            epnp_xyz[:, :2]
+        )
+        inliers = horizontal_distances <= args.max_guide_distance_m
+        vertical_alignment["inlier_count"] = int(inliers.sum())
+        if inliers.sum() < 3:
+            raise ValueError(
+                "Fewer than 3 EPnP anchors are horizontally close to the "
+                "selected track loop; cannot estimate its vertical map offset"
+            )
+        vertical_residuals = (
+            epnp_xyz[inliers, 2] - center[center_indices[inliers], 2]
+        )
+        automatic_offset = float(np.median(vertical_residuals))
+        center[:, 2] += automatic_offset
+        remaining = vertical_residuals - automatic_offset
+        vertical_alignment.update(
+            {
+                "automatic_offset_m": automatic_offset,
+                "residual_abs_m_median": float(np.median(np.abs(remaining))),
+                "residual_abs_m_p90": float(
+                    np.percentile(np.abs(remaining), 90)
+                ),
+            }
+        )
     segment = np.linalg.norm(np.diff(np.vstack([center, center[:1]]), axis=0), axis=1); cumulative = np.r_[0.0, np.cumsum(segment)]
     targets = np.arange(0.0, cumulative[-1], args.resample_spacing_m)
     extended = np.vstack([center, center[:1]])
@@ -230,6 +317,9 @@ def main():
     cv2.imwrite(str(diagnostic), view)
     report = {
         "surface_ply": str(args.surface_ply),
+        "axis_order": args.axis_order,
+        "translation": list(args.translation),
+        "vertical_alignment": vertical_alignment,
         "guided": args.guide_observations is not None,
         "guide_observations": None if args.guide_observations is None else str(args.guide_observations),
         "long_cycle_candidate_count": len(cycles),

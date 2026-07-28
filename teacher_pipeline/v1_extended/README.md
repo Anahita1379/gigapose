@@ -34,15 +34,17 @@ height, estimates widths, and resamples it:
 ```bash
 python3 -m teacher_pipeline.v1_extended.extract_track_map_from_surface \
   --surface-ply gigaPose_datasets/datasets/Track_info/sim_track_info/fn_lagunaseca2026_track_info/track_scene.ply \
-  --axis-order xzy \
+  --axis-order z-negx-y \
   --resolution-m 0.5 \
   --output <run>/track_map.npz
 ```
 
 This asset was tested locally and produced an approximately 3638 m closed loop.
 Always inspect `<run>/track_map.png`; automatic extraction can select a pit lane
-or branch on a different mesh. `xzy` converts the PLY's Y-up AC coordinates to
-a Z-up map. Use `--translation X Y Z` if the metadata map has an offset.
+or branch on a different mesh. For the May 5 real-world recording,
+`z-negx-y` converts the PLY coordinates as
+`map=(AC_Z,-AC_X,AC_Y)`. Use `--translation X Y Z` if the metadata map has a
+further known offset.
 
 Once full observations exist, regenerate with the recorded ego path as a guide.
 This is the recommended command where pit/main-lane alternatives exist:
@@ -51,7 +53,7 @@ This is the recommended command where pit/main-lane alternatives exist:
 python3 -m teacher_pipeline.v1_extended.extract_track_map_from_surface \
   --surface-ply gigaPose_datasets/datasets/Track_info/sim_track_info/fn_lagunaseca2026_track_info/track_scene.ply \
   --guide-observations <run>/full_observations.jsonl \
-  --axis-order xzy \
+  --axis-order z-negx-y \
   --resolution-m 0.5 \
   --output <run>/track_map.npz
 ```
@@ -59,7 +61,9 @@ python3 -m teacher_pipeline.v1_extended.extract_track_map_from_surface \
 The extractor considers every long closed skeleton loop and selects the one
 closest to recorded `T_map_lidar`. The diagnostic uses red for the chosen
 centerline and cyan for the driven ego path. Candidate scores are saved in
-`<run>/track_map.report.json`.
+`<run>/track_map.report.json`. Guided extraction also estimates the vertical
+PLY-to-map offset from the available centered EPnP anchors. Pass
+`--vertical-alignment none` only when supplying a known Z offset manually.
 
 Before refinement, prove the frames coincide:
 
