@@ -144,6 +144,10 @@ python3 -m teacher_pipeline.evaluate \
   --output-dir <run>/evaluation
 ```
 
+CAD overlays use the CPU/OpenCV silhouette backend by default, so they work on
+headless machines without EGL or `/dev/dri` access. Pass `--overlay-renderer
+egl` only when hardware EGL is configured and accessible.
+
 This writes:
 
 ```text

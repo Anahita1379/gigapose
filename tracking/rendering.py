@@ -79,3 +79,76 @@ class CADRenderer:
 
     def __exit__(self, *_args) -> None:
         self.close()
+
+
+class CPUSilhouetteRenderer:
+    """Render CAD silhouettes with OpenCV, without EGL or a GPU context.
+
+    This intentionally returns a silhouette and an empty depth image. It is
+    suitable for diagnostic overlays where only the projected CAD footprint is
+    needed.
+    """
+
+    def __init__(
+        self,
+        mesh_path: Path,
+        *,
+        mesh_scale: float = 1.0,
+        center_mesh: bool = False,
+    ):
+        try:
+            import trimesh
+        except ImportError as exc:
+            raise ImportError(
+                "CPU CAD overlays require trimesh in the GigaPose environment."
+            ) from exc
+        mesh = trimesh.load(Path(mesh_path), force="mesh")
+        if not isinstance(mesh, trimesh.Trimesh) or mesh.is_empty:
+            raise ValueError(f"Could not load a non-empty mesh from {mesh_path}")
+        vertices = np.asarray(mesh.vertices, dtype=np.float64).copy()
+        vertices *= float(mesh_scale)
+        if center_mesh:
+            vertices -= 0.5 * (vertices.min(axis=0) + vertices.max(axis=0))
+        self.vertices = vertices
+        self.faces = np.asarray(mesh.faces, dtype=np.int64)
+
+    def render(
+        self,
+        pose_m: np.ndarray,
+        K: np.ndarray,
+        image_shape: tuple[int, int],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        import cv2
+
+        height, width = (int(value) for value in image_shape)
+        pose = np.asarray(pose_m, dtype=np.float64).reshape(4, 4)
+        intrinsics = np.asarray(K, dtype=np.float64).reshape(3, 3)
+        camera_vertices = (
+            pose[:3, :3] @ self.vertices.T
+        ).T + pose[:3, 3]
+        z = camera_vertices[:, 2]
+        projected = np.zeros((len(camera_vertices), 2), dtype=np.float64)
+        positive = z > 1e-5
+        projected[positive, 0] = (
+            intrinsics[0, 0] * camera_vertices[positive, 0] / z[positive]
+            + intrinsics[0, 2]
+        )
+        projected[positive, 1] = (
+            intrinsics[1, 1] * camera_vertices[positive, 1] / z[positive]
+            + intrinsics[1, 2]
+        )
+        valid_faces = self.faces[np.all(positive[self.faces], axis=1)]
+        mask = np.zeros((height, width), dtype=np.uint8)
+        if len(valid_faces):
+            # Bounding projected coordinates avoids int32 overflow for
+            # near-camera triangles while preserving anything visible.
+            limit = 8 * max(height, width)
+            points = np.clip(
+                np.rint(projected[valid_faces]), -limit, limit
+            ).astype(np.int32)
+            for start in range(0, len(points), 10000):
+                cv2.fillPoly(mask, points[start : start + 10000], 1)
+        return mask.astype(bool), np.zeros((height, width), dtype=np.float32)
+
+    def close(self) -> None:
+        pass

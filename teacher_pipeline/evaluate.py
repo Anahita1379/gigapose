@@ -289,15 +289,19 @@ def save_overlays(
     mesh_object_origin,
     optimized_extrinsic,
     max_overlays,
+    overlay_renderer="cpu",
 ):
     import cv2
-    from tracking.rendering import CADRenderer
+    from tracking.rendering import CADRenderer, CPUSilhouetteRenderer
 
     output_dir.mkdir(parents=True, exist_ok=True)
     ranked = sorted(metrics, key=lambda row: -abs(row["translation_improvement_m"]))
     index_rows = []
     failures = []
-    renderer = CADRenderer(mesh, mesh_scale=mesh_scale, center_mesh=False)
+    renderer_class = (
+        CADRenderer if overlay_renderer == "egl" else CPUSilhouetteRenderer
+    )
+    renderer = renderer_class(mesh, mesh_scale=mesh_scale, center_mesh=False)
     try:
         for metric in ranked[:max_overlays]:
             row = rows[int(metric["row_index"])]
@@ -407,6 +411,15 @@ def parse_args():
         "--mesh-object-origin", choices=("raw", "centered"), default="raw"
     )
     parser.add_argument("--max-overlays", type=int, default=100)
+    parser.add_argument(
+        "--overlay-renderer",
+        choices=("cpu", "egl"),
+        default="cpu",
+        help=(
+            "CAD overlay backend. The default CPU renderer needs no GPU/EGL "
+            "device; use egl only on a machine with working /dev/dri access."
+        ),
+    )
     parser.add_argument("--strict", action="store_true")
     return parser.parse_args()
 
@@ -458,9 +471,11 @@ def main():
             args.mesh_object_origin,
             extrinsic,
             args.max_overlays,
+            args.overlay_renderer,
         )
         summary["overlays_written"] = written
         summary["overlay_failures"] = len(failures)
+        summary["overlay_renderer"] = args.overlay_renderer
     write_json(args.output_dir / "summary.json", summary)
     print(
         f"Evaluated {len(metrics)} rows. Median translation error: "

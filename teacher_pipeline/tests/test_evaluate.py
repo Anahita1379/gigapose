@@ -86,7 +86,9 @@ def test_three_way_overlay_writes_image_with_mock_renderer(tmp_path, monkeypatch
         def close(self):
             pass
 
-    monkeypatch.setattr(tracking.rendering, "CADRenderer", FakeRenderer)
+    monkeypatch.setattr(
+        tracking.rendering, "CPUSilhouetteRenderer", FakeRenderer
+    )
     image_path = tmp_path / "image.jpg"
     Image.new("RGB", (64, 48), (80, 80, 80)).save(image_path)
     target = _pose(0, [0, 0, 20])

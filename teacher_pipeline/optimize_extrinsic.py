@@ -10,6 +10,28 @@ from .io import write_json
 from .trajectory import load
 
 
+def _validate_trajectory_contract(rows):
+    hybrid_rows = [
+        row
+        for row in rows
+        if "mesh_z_hybrid" in str(row.get("epnp_label_path", "")).lower()
+    ]
+    stale_rows = [
+        row
+        for row in hybrid_rows
+        if row.get("target_lidar_z_mode") != "epnp_corrected"
+        or row.get("corrected_lidar_map_z_m") is None
+    ]
+    if stale_rows:
+        raise ValueError(
+            f"{len(stale_rows)} of {len(hybrid_rows)} mesh-Z hybrid rows were "
+            "created by the old incompatible observation adapter: corrected "
+            "LiDAR-map Z provenance is missing. Rebuild observations, then "
+            "regenerate initial_trajectories_iteration_0.jsonl and "
+            "refined_iteration_0.jsonl before optimizing the extrinsic."
+        )
+
+
 def _representative_prior(rows):
     priors = np.stack([as_pose(row["T_lidar_camera_initial"]) for row in rows])
     output = np.eye(4)
@@ -77,6 +99,7 @@ def main():
     )
     args = parser.parse_args()
     rows = load(args.trajectories)
+    _validate_trajectory_contract(rows)
     usable = []
     for row in rows:
         point_count = int(float(row.get("lidar_point_count", 0) or 0))

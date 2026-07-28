@@ -5,6 +5,9 @@ import subprocess
 import sys
 
 import numpy as np
+import pytest
+
+from teacher_pipeline.optimize_extrinsic import _validate_trajectory_contract
 
 
 def _pose(angle, translation):
@@ -118,3 +121,15 @@ def test_implausible_correction_is_not_exposed_for_reuse(tmp_path):
     assert result["calibration_valid_for_reuse"] is False
     assert "T_lidar_camera_optimized" not in result
     assert "T_lidar_camera_candidate" in result
+
+
+def test_stale_mesh_z_rows_are_rejected_before_optimization():
+    rows = [
+        {
+            "epnp_label_path": (
+                "/session/front/EPnPv2_gt_mesh_z_hybrid_labels/1.json"
+            )
+        }
+    ]
+    with pytest.raises(ValueError, match="old incompatible observation"):
+        _validate_trajectory_contract(rows)
