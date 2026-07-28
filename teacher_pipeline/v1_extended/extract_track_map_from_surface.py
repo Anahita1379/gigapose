@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import cv2
@@ -16,7 +17,7 @@ from teacher_pipeline.trajectory import load
 from .prepare_track_map import prepare
 
 
-def read_ascii_ply(path: Path):
+def read_ascii_ply(path: Path, return_face_mesh_ids=False):
     with path.open() as handle:
         header = []
         while True:
@@ -31,13 +32,20 @@ def read_ascii_ply(path: Path):
         face_count = int(next(line.split()[-1] for line in header if line.startswith("element face")))
         vertices = np.asarray([[float(value) for value in handle.readline().split()[:3]] for _ in range(vertex_count)])
         faces = []
+        face_mesh_ids = []
         for _ in range(face_count):
             values = handle.readline().split(); count = int(values[0])
             indices = [int(value) for value in values[1 : 1 + count]]
-            if count == 3: faces.append(indices)
+            mesh_id = int(values[1 + count]) if len(values) > 1 + count else -1
+            if count == 3:
+                faces.append(indices); face_mesh_ids.append(mesh_id)
             elif count > 3:
-                faces.extend([[indices[0], indices[i], indices[i + 1]] for i in range(1, count - 1)])
-    return vertices, np.asarray(faces, dtype=np.int64)
+                triangles = [[indices[0], indices[i], indices[i + 1]] for i in range(1, count - 1)]
+                faces.extend(triangles); face_mesh_ids.extend([mesh_id] * len(triangles))
+    output = (vertices, np.asarray(faces, dtype=np.int64))
+    if return_face_mesh_ids:
+        return output + (np.asarray(face_mesh_ids, dtype=np.int64),)
+    return output
 
 
 def _largest_component(mask):
@@ -299,6 +307,7 @@ def main():
     )
     p.add_argument("--candidate-min-length-ratio", type=float, default=.75)
     p.add_argument("--max-guide-distance-m", type=float, default=20.0)
+    p.add_argument("--max-guide-p90-distance-m", type=float, default=20.0)
     p.add_argument(
         "--max-auto-yaw-deg",
         type=float,
@@ -307,7 +316,35 @@ def main():
     )
     p.add_argument("--diagnostic-max-gap-s", type=float, default=2.0)
     p.add_argument("--diagnostic-max-frame-gap", type=int, default=5)
-    args = p.parse_args(); vertices, faces = read_ascii_ply(args.surface_ply)
+    p.add_argument(
+        "--materials-json",
+        type=Path,
+        help="Mesh material metadata (defaults to materials.json beside the PLY)",
+    )
+    p.add_argument(
+        "--include-pit-surfaces",
+        action="store_true",
+        help="Include materials containing PIT or GARAGE (excluded by default)",
+    )
+    args = p.parse_args(); vertices, faces, face_mesh_ids = read_ascii_ply(args.surface_ply, True)
+    materials_path = args.materials_json or args.surface_ply.with_name("materials.json")
+    excluded_materials = {}
+    if materials_path.exists() and not args.include_pit_surfaces:
+        material_data = json.loads(materials_path.read_text())
+        materials_by_mesh = {
+            int(row["mesh_id"]): str(row.get("material", ""))
+            for row in material_data.get("meshes", [])
+        }
+        excluded_materials = {
+            mesh_id: material
+            for mesh_id, material in materials_by_mesh.items()
+            if "PIT" in material.upper() or "GARAGE" in material.upper()
+        }
+        keep = ~np.isin(face_mesh_ids, list(excluded_materials))
+        faces = faces[keep]
+        face_mesh_ids = face_mesh_ids[keep]
+        if not len(faces):
+            raise ValueError("Material filtering removed every PLY face")
     horizontal = vertices[:, [0, 2]]; minimum = horizontal.min(axis=0) - 2.0; maximum = horizontal.max(axis=0) + 2.0
     width, height = np.ceil((maximum - minimum) / args.resolution_m).astype(int) + 1
     if width * height > 150_000_000: raise ValueError("Track raster is too large; increase --resolution-m")
@@ -370,9 +407,14 @@ def main():
             )
         )
         guide_median = chosen_diagnostic["guide_distance_m_median"]
-        if guide_median > args.max_guide_distance_m:
+        guide_p90 = chosen_diagnostic["guide_distance_m_p90"]
+        if (
+            guide_median > args.max_guide_distance_m
+            or guide_p90 > args.max_guide_p90_distance_m
+        ):
             raise ValueError(
-                f"Best loop is still {guide_median:.2f} m median from the ego path; "
+                f"Best loop is still {guide_median:.2f} m median / "
+                f"{guide_p90:.2f} m p90 from the ego path; "
                 "track and metadata map frames are likely misaligned"
             )
     else:
@@ -497,6 +539,10 @@ def main():
     cv2.imwrite(str(diagnostic), view)
     report = {
         "surface_ply": str(args.surface_ply),
+        "materials_json": str(materials_path) if materials_path.exists() else None,
+        "pit_surfaces_included": bool(args.include_pit_surfaces),
+        "excluded_materials": excluded_materials,
+        "rasterized_face_count": int(len(faces)),
         "axis_order": args.axis_order,
         "translation": list(args.translation),
         "vertical_alignment": vertical_alignment,

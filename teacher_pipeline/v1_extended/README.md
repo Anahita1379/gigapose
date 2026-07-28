@@ -39,7 +39,8 @@ python3 -m teacher_pipeline.v1_extended.extract_track_map_from_surface \
   --output <run>/track_map.npz
 ```
 
-The Putnam asset produces an approximately 3158 m closed loop.
+After excluding explicitly labeled pit/garage materials, the Putnam asset
+produces an approximately 2931 m closed racing loop.
 Always inspect `<run>/track_map.png`; automatic extraction can select a pit lane
 or branch on a different mesh. For this Putnam recording, `x-negz-y` converts
 the Y-up PLY coordinates as `map=(AC_X,-AC_Z,AC_Y)`. Use

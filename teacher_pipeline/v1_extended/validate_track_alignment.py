@@ -10,7 +10,7 @@ from .track_map import TrackMap
 
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument("--observations",type=Path,required=True); p.add_argument("--track-map",type=Path,required=True); p.add_argument("--max-median-distance-m",type=float,default=15); a=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument("--observations",type=Path,required=True); p.add_argument("--track-map",type=Path,required=True); p.add_argument("--max-median-distance-m",type=float,default=15); p.add_argument("--max-p90-distance-m",type=float,default=20); a=p.parse_args()
     track=TrackMap(a.track_map); rows=load(a.observations)
     tree=cKDTree(track.center[:,:2]); ego=[]; raw_objects=[]; seen=set()
     for row in rows:
@@ -26,7 +26,8 @@ def main():
         "raw_gigapose_object_to_track_horizontal_distance_m_median":float(np.median(raw_distances)),
         "raw_gigapose_object_to_track_horizontal_distance_m_p90":float(np.percentile(raw_distances,90)),
         "threshold_m":a.max_median_distance_m,
-        "aligned":bool(np.median(ego_distances)<=a.max_median_distance_m),
+        "p90_threshold_m":a.max_p90_distance_m,
+        "aligned":bool(np.median(ego_distances)<=a.max_median_distance_m and np.percentile(ego_distances,90)<=a.max_p90_distance_m),
         "alignment_decision_source":"unique_T_map_lidar_horizontal_positions",
     }; print(json.dumps(summary,indent=2))
     if not summary["aligned"]: raise SystemExit("Track map and metadata map frames are not aligned. Adjust surface extraction --axis-order/--translation; do not run physical refinement yet.")

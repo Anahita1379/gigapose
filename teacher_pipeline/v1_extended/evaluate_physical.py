@@ -14,7 +14,7 @@ def _error(predicted,target):
 
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument("--trajectories",type=Path,required=True); p.add_argument("--output-dir",type=Path,required=True); p.add_argument("--track-map",type=Path); p.add_argument("--held-out",action="store_true"); a=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument("--trajectories",type=Path,required=True); p.add_argument("--output-dir",type=Path,required=True); p.add_argument("--track-map",type=Path); p.add_argument("--held-out",action="store_true"); p.add_argument("--boundary-tolerance-m",type=float,default=.05); a=p.parse_args()
     rows=load(a.trajectories); track=TrackMap(a.track_map) if a.track_map else None; metrics=[]
     grouped={}
     for row in rows:
@@ -35,7 +35,7 @@ def main():
     for prefix in ("raw","aligned","final"):
         for metric in ("translation_error_m","rotation_error_deg"):
             values=np.asarray([row[f"{prefix}_{metric}"] for row in metrics]); summary[f"{prefix}_{metric}_median"]=float(np.median(values)) if len(values) else None; summary[f"{prefix}_{metric}_p90"]=float(np.percentile(values,90)) if len(values) else None
-    summary.update(track_boundary_violation_fraction=float(np.mean([row["track_boundary_violation_m"]>0 for row in metrics])) if metrics else None,absolute_acceleration_mps2_median=float(np.median(accelerations)) if accelerations else None,absolute_jerk_per_step_mps2_median=float(np.median(jerks)) if jerks else None)
+    summary.update(track_boundary_tolerance_m=a.boundary_tolerance_m,track_boundary_violation_fraction=float(np.mean([row["track_boundary_violation_m"]>a.boundary_tolerance_m for row in metrics])) if metrics else None,track_boundary_violation_m_max=float(np.max([row["track_boundary_violation_m"] for row in metrics])) if metrics else None,absolute_acceleration_mps2_median=float(np.median(accelerations)) if accelerations else None,absolute_jerk_per_step_mps2_median=float(np.median(jerks)) if jerks else None)
     a.output_dir.mkdir(parents=True,exist_ok=True); write_rows(a.output_dir/"physical_per_frame.csv",metrics); write_json(a.output_dir/"physical_summary.json",summary); print(json.dumps(summary,indent=2))
 
 if __name__ == "__main__": main()

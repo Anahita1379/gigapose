@@ -45,6 +45,29 @@ def _times(rows, fps):
     return values
 
 
+def _split_tracklet(rows, max_gap_s):
+    rows = sorted(
+        rows, key=lambda row: float(row.get("timestamp_ns", row.get("im_id", 0)))
+    )
+    if max_gap_s <= 0 or len(rows) < 2:
+        return [rows]
+    segments = [[rows[0]]]
+    for row in rows[1:]:
+        previous = segments[-1][-1]
+        current_time = float(row.get("timestamp_ns", 0) or 0)
+        previous_time = float(previous.get("timestamp_ns", 0) or 0)
+        gap = current_time - previous_time
+        if abs(gap) > 1e6:
+            gap *= 1e-9
+        elif abs(gap) > 1e3:
+            gap *= 1e-3
+        if gap <= 0 or gap > max_gap_s:
+            segments.append([row])
+        else:
+            segments[-1].append(row)
+    return segments
+
+
 def _camera_pose(row, source):
     if source == "raw":
         return raw_to_centered_pose(as_pose(row["T_camera_object_raw_gigapose"]))
@@ -110,6 +133,16 @@ def _jacobian_sparsity(rows, lidar_active):
     return pattern.tocsr()
 
 
+def _soft_l1_measurement_residual(value, scale):
+    """Encode a soft-L1 measurement cost for a linear least-squares solver."""
+    value = float(value)
+    if scale <= 0:
+        return value
+    normalized = value / scale
+    transformed = np.sqrt(2.0 * (np.sqrt(1.0 + normalized ** 2) - 1.0))
+    return float(np.copysign(scale * transformed, value))
+
+
 def optimize_track(rows, track, extrinsic, args):
     rows = sorted(rows, key=lambda row: float(row.get("timestamp_ns", row.get("im_id", 0))))
     measurements = _map_measurements(rows, extrinsic, args.pose_source)
@@ -157,10 +190,18 @@ def optimize_track(rows, track, extrinsic, args):
         values = []
         for i, row in enumerate(rows):
             sigma_s, sigma_d, sigma_yaw = sigmas[i]
-            values.extend([(state[i, 0] - s_measurement[i]) / sigma_s,
-                           (state[i, 1] - d_measurement[i]) / sigma_d,
-                           np.arctan2(np.sin(state[i, 5] - yaw_measurement[i]),
-                                      np.cos(state[i, 5] - yaw_measurement[i])) / sigma_yaw])
+            measurement_values = [
+                (state[i, 0] - s_measurement[i]) / sigma_s,
+                (state[i, 1] - d_measurement[i]) / sigma_d,
+                np.arctan2(np.sin(state[i, 5] - yaw_measurement[i]),
+                           np.cos(state[i, 5] - yaw_measurement[i])) / sigma_yaw,
+            ]
+            values.extend(
+                _soft_l1_measurement_residual(
+                    value, getattr(args, "measurement_robust_scale", 3.0)
+                )
+                for value in measurement_values
+            )
             sample = track.sample(state[i, 0])
             values.extend([
                 max(0.0, state[i, 1] - sample["right_width"]) / args.sigma_boundary_m,
@@ -186,7 +227,7 @@ def optimize_track(rows, track, extrinsic, args):
     result = least_squares(
         residual,
         initial.reshape(-1),
-        loss="soft_l1",
+        loss="linear",
         max_nfev=args.max_iterations,
         jac_sparsity=_jacobian_sparsity(rows, lidar_active),
         tr_solver="lsmr",
@@ -218,6 +259,12 @@ def parse_args():
     p.add_argument("--trajectories", type=Path, required=True); p.add_argument("--track-map", type=Path, required=True); p.add_argument("--output", type=Path, required=True); p.add_argument("--report", type=Path)
     p.add_argument("--extrinsics", type=Path); p.add_argument("--pose-source", choices=("raw", "teacher-input", "tracked"), default="raw")
     p.add_argument("--fps", type=float, default=20.0); p.add_argument("--max-iterations", type=int, default=250)
+    p.add_argument(
+        "--max-temporal-gap-s",
+        type=float,
+        default=2.0,
+        help="Split a reused/interrupted track ID across larger timestamp gaps",
+    )
     p.add_argument("--reference-bbox-height-px", type=float, default=100.0)
     p.add_argument("--sigma-s-base-m", type=float, default=.35); p.add_argument("--sigma-s-per-range", type=float, default=.025)
     p.add_argument("--sigma-d-base-m", type=float, default=.20); p.add_argument("--sigma-d-per-range", type=float, default=.008)
@@ -227,6 +274,12 @@ def parse_args():
     p.add_argument("--sigma-acceleration-mps2", type=float, default=8.0); p.add_argument("--sigma-jerk-mps3", type=float, default=12.0)
     p.add_argument("--sigma-yaw-rate-deg", type=float, default=8.0); p.add_argument("--sigma-boundary-m", type=float, default=.15)
     p.add_argument("--min-lidar-points", type=int, default=8); p.add_argument("--lidar-reliable-range-m", type=float, default=60.0); p.add_argument("--sigma-lidar-m", type=float, default=.35)
+    p.add_argument(
+        "--measurement-robust-scale",
+        type=float,
+        default=3.0,
+        help="Soft-L1 transition in normalized residual units for GigaPose terms only",
+    )
     return p.parse_args()
 
 
@@ -237,23 +290,34 @@ def main():
     grouped = {}
     for row in rows: grouped.setdefault(str(row.get("track_id")), []).append(row)
     output, reports = [], []
-    for values in grouped.values():
+    segments = [
+        (track_id, segment_index, segment)
+        for track_id, values in grouped.items()
+        for segment_index, segment in enumerate(
+            _split_tracklet(values, args.max_temporal_gap_s)
+        )
+    ]
+    for track_id, segment_index, values in segments:
         print(
-            f"Optimizing track_id={values[0].get('track_id')} "
+            f"Optimizing track_id={track_id}, segment={segment_index} "
             f"({len(values)} frames, {6 * len(values)} variables)...",
             flush=True,
         )
-        refined, report = optimize_track(values, track, extrinsic, args); output.extend(refined); reports.append(report)
+        refined, report = optimize_track(values, track, extrinsic, args)
+        for row in refined:
+            row["teacher_track_segment_index"] = segment_index
+        report["segment_index"] = segment_index
+        output.extend(refined); reports.append(report)
         print(
-            f"Finished track_id={report['track_id']}: "
+            f"Finished track_id={report['track_id']}, segment={segment_index}: "
             f"success={report['success']}, nfev={report['nfev']}, "
             f"cost={report['cost']:.3f}",
             flush=True,
         )
     output.sort(key=lambda row: (str(row.get("track_id")), float(row.get("timestamp_ns", row.get("im_id", 0)))))
     write_rows(args.output, output); report_path = args.report or args.output.with_suffix(".report.json")
-    write_json(report_path, {"format": "teacher_v1_extended_physical", "state": ["s", "d", "v_s", "v_d", "a_s", "delta_yaw"], "track_count": len(reports), "rows": len(output), "pose_source": args.pose_source, "tracks": reports})
-    print(f"Optimized {len(output)} observations across {len(reports)} tracklets -> {args.output}")
+    write_json(report_path, {"format": "teacher_v1_extended_physical", "state": ["s", "d", "v_s", "v_d", "a_s", "delta_yaw"], "track_count": len(grouped), "segment_count": len(reports), "rows": len(output), "pose_source": args.pose_source, "tracks": reports})
+    print(f"Optimized {len(output)} observations across {len(grouped)} track IDs / {len(reports)} continuous segments -> {args.output}")
 
 
 if __name__ == "__main__": main()
