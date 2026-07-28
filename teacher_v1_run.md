@@ -26,6 +26,8 @@ CAR_MESH="$DATASET/models/obj_000001.ply"
 
 RUN_v1=gigaPose_datasets/results/teacher_v1_20260505_front
 V1_ALL_RUN="$RUN_v1/v1_all_frames"
+export V1_RAW_RUN="$RUN_v1/v1_all_frames_raw_only"
+mkdir -p "$V1_RAW_RUN"
 mkdir -p "$V1_ALL_RUN"
 RUN=gigaPose_datasets/results/teacher_v1_extended_20260505_front
 
@@ -34,6 +36,13 @@ python3 -m teacher_pipeline.v1.trajectory \
   --observations "$RUN/full_observations.jsonl" \
   --output "$V1_ALL_RUN/initial_iteration_0.jsonl"
 
+
+python3 -m teacher_pipeline.v1.refine_trajectories \
+  --trajectories "$V1_ALL_RUN/initial_iteration_0.jsonl" \
+  --track-map "$RUN/track_map.npz" \
+  --iterations 4 \
+  --epnp-anchor-weight 0 \
+  --output "$V1_RAW_RUN/refined_iteration_0.jsonl"
 
 Then apply baseline smoothing:
 python3 -m teacher_pipeline.v1.refine_trajectories \
