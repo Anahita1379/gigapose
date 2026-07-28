@@ -865,7 +865,21 @@ python3 -m teacher_pipeline.build_observations   --predictions gigaPose_datasets
 
 
 
+RUN=gigaPose_datasets/results/teacher_v1_extended_20260505_front
 
+TRACKED=gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_rotation_gated/tracked_predictions.csv 
+
+DATASET=gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4
+
+EPNP=/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
+
+META=/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/metadata
+
+TRACK_SURFACE=/media/hdd2/ARCL_multicar_bags/camera_dataset/Track_info/sim_track_info/fn_lagunaseca2026_track_info/track_scene.ply
+
+CAR_MESH="$DATASET/models/obj_000001.ply"
+
+mkdir -p "$RUN"
 
 ```bash 
 stereo_left: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
