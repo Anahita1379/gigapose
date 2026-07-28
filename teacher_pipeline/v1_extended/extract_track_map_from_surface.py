@@ -10,6 +10,8 @@ from scipy import ndimage
 from scipy.spatial import cKDTree
 from skimage.morphology import skeletonize
 
+from teacher_pipeline.geometry import as_pose
+from teacher_pipeline.trajectory import load
 from .prepare_track_map import prepare
 
 
@@ -55,7 +57,7 @@ def _cycle_core(skeleton):
         if not core.any(): raise ValueError("Surface skeleton has no closed-loop core")
 
 
-def _ordered_cycle(core):
+def _candidate_cycles(core):
     import networkx as nx
 
     coordinates = {tuple(value) for value in np.argwhere(core)}
@@ -72,13 +74,26 @@ def _ordered_cycle(core):
             neighbor = (row + dr, column + dc)
             if neighbor in coordinates and neighbor > (row, column):
                 graph.add_edge((row, column), neighbor)
-    cycles = nx.cycle_basis(graph)
+    cycles = [
+        np.asarray(cycle, dtype=int)
+        for cycle in nx.cycle_basis(graph)
+        if len(cycle) >= 0.1 * len(coordinates)
+    ]
+    return sorted(cycles, key=len, reverse=True)
+
+
+def _ordered_cycle(core):
+    cycles = _candidate_cycles(core)
     if cycles:
-        # cycle_basis returns each cycle in traversal order. The drivable loop
-        # is overwhelmingly longer than pixel-scale junction cycles.
-        cycle = max(cycles, key=len)
-        if len(cycle) >= 0.1 * len(coordinates):
-            return np.asarray(cycle, dtype=int)
+        return cycles[0]
+
+    coordinates = {tuple(value) for value in np.argwhere(core)}
+    directions = [
+        (a, b)
+        for a in (-1, 0, 1)
+        for b in (-1, 0, 1)
+        if (a, b) != (0, 0)
+    ]
 
     start = min(coordinates); output = [start]; previous = None; current = start
     for _ in range(len(coordinates) * 2):
@@ -98,6 +113,37 @@ def _ordered_cycle(core):
     return np.asarray(output, dtype=int)
 
 
+def _cycle_length_pixels(cycle):
+    closed = np.vstack([cycle, cycle[:1]])
+    return float(np.linalg.norm(np.diff(closed, axis=0), axis=1).sum())
+
+
+def _select_guided_cycle(cycles, guide_pixels, min_length_ratio):
+    if not cycles:
+        raise ValueError("Surface skeleton contains no credible long cycle")
+    lengths = np.asarray([_cycle_length_pixels(cycle) for cycle in cycles])
+    eligible = [
+        (index, cycle)
+        for index, cycle in enumerate(cycles)
+        if lengths[index] >= min_length_ratio * lengths.max()
+    ]
+    diagnostics = []
+    for index, cycle in eligible:
+        distances, _ = cKDTree(cycle.astype(float)).query(guide_pixels)
+        diagnostics.append(
+            {
+                "candidate_index": int(index),
+                "pixel_count": int(len(cycle)),
+                "length_px": float(lengths[index]),
+                "guide_distance_px_median": float(np.median(distances)),
+                "guide_distance_px_p90": float(np.percentile(distances, 90)),
+                "score": float(np.median(distances) + 0.35 * np.percentile(distances, 90)),
+            }
+        )
+    chosen = min(diagnostics, key=lambda row: row["score"])
+    return cycles[chosen["candidate_index"]], diagnostics, chosen
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--surface-ply", type=Path, required=True); p.add_argument("--output", type=Path, required=True)
@@ -105,6 +151,10 @@ def main():
     p.add_argument("--morphology-radius-px", type=int, default=2); p.add_argument("--resample-spacing-m", type=float, default=1.0)
     p.add_argument("--axis-order", choices=("xzy", "xyz"), default="xzy", help="AC track PLY is Y-up; xzy maps it to a Z-up map frame")
     p.add_argument("--translation", nargs=3, type=float, default=(0, 0, 0))
+    p.add_argument("--guide-observations", type=Path, help="Full observations containing recorded ego T_map_lidar poses. Long loop candidates are selected against this driven path, avoiding pit-lane branches.")
+    p.add_argument("--guide-pose-field", default="T_map_lidar")
+    p.add_argument("--candidate-min-length-ratio", type=float, default=.75)
+    p.add_argument("--max-guide-distance-m", type=float, default=20.0)
     args = p.parse_args(); vertices, faces = read_ascii_ply(args.surface_ply)
     horizontal = vertices[:, [0, 2]]; minimum = horizontal.min(axis=0) - 2.0; maximum = horizontal.max(axis=0) + 2.0
     width, height = np.ceil((maximum - minimum) / args.resolution_m).astype(int) + 1
@@ -118,7 +168,46 @@ def main():
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1, 2 * radius + 1))
         occupancy = cv2.morphologyEx(occupancy, cv2.MORPH_CLOSE, kernel)
     occupancy = _largest_component(occupancy.astype(bool)); distance = ndimage.distance_transform_edt(occupancy)
-    core = _cycle_core(_largest_component(skeletonize(occupancy))); ordered = _ordered_cycle(core)
+    core = _cycle_core(_largest_component(skeletonize(occupancy)))
+    cycles = _candidate_cycles(core)
+    guide_pixels = None
+    candidate_diagnostics = []
+    chosen_diagnostic = None
+    if args.guide_observations:
+        guide_rows = load(args.guide_observations)
+        guide_map = []
+        seen = set()
+        for row in guide_rows:
+            value = row.get(args.guide_pose_field)
+            if value is None:
+                continue
+            token = (row.get("scene_id"), row.get("im_id"))
+            if token in seen:
+                continue
+            seen.add(token)
+            guide_map.append(as_pose(value)[:3, 3])
+        if len(guide_map) < 3:
+            raise ValueError("--guide-observations has fewer than 3 unique ego poses")
+        guide_map = np.asarray(guide_map)
+        translation = np.asarray(args.translation)
+        guide_horizontal = (
+            guide_map[:, :2] - translation[:2]
+            if args.axis_order == "xzy"
+            else guide_map[:, [0, 2]] - translation[[0, 2]]
+        )
+        guide_xy = (guide_horizontal - minimum) / args.resolution_m
+        guide_pixels = guide_xy[:, ::-1]
+        ordered, candidate_diagnostics, chosen_diagnostic = _select_guided_cycle(
+            cycles, guide_pixels, args.candidate_min_length_ratio
+        )
+        guide_median = chosen_diagnostic["guide_distance_px_median"] * args.resolution_m
+        if guide_median > args.max_guide_distance_m:
+            raise ValueError(
+                f"Best loop is still {guide_median:.2f} m median from the ego path; "
+                "track and metadata map frames are likely misaligned"
+            )
+    else:
+        ordered = cycles[0] if cycles else _ordered_cycle(core)
     world_horizontal = minimum + ordered[:, ::-1] * args.resolution_m
     tree = cKDTree(horizontal); _, nearest = tree.query(world_horizontal)
     vertical = vertices[nearest, 1]
@@ -133,7 +222,31 @@ def main():
     widths = np.interp(targets, cumulative, np.r_[widths_px, widths_px[:1]]) * args.resolution_m
     output = prepare(center, widths, widths, closed=True); args.output.parent.mkdir(parents=True, exist_ok=True); np.savez_compressed(args.output, **output)
     diagnostic = args.diagnostic_png or args.output.with_suffix(".png")
-    view = np.dstack([occupancy * 90, occupancy * 90, occupancy * 90]).astype(np.uint8); view[ordered[:, 0], ordered[:, 1]] = (40, 40, 255); cv2.imwrite(str(diagnostic), view)
+    view = np.dstack([occupancy * 90, occupancy * 90, occupancy * 90]).astype(np.uint8)
+    view[ordered[:, 0], ordered[:, 1]] = (40, 40, 255)
+    if guide_pixels is not None:
+        guide_int = np.rint(guide_pixels[:, ::-1]).astype(np.int32)
+        cv2.polylines(view, [guide_int], False, (255, 255, 0), 2)
+    cv2.imwrite(str(diagnostic), view)
+    report = {
+        "surface_ply": str(args.surface_ply),
+        "guided": args.guide_observations is not None,
+        "guide_observations": None if args.guide_observations is None else str(args.guide_observations),
+        "long_cycle_candidate_count": len(cycles),
+        "long_cycle_candidates": [
+            {
+                "candidate_index": index,
+                "pixel_count": int(len(cycle)),
+                "length_px": _cycle_length_pixels(cycle),
+            }
+            for index, cycle in enumerate(cycles)
+        ],
+        "candidate_min_length_ratio": args.candidate_min_length_ratio,
+        "chosen_candidate": chosen_diagnostic,
+        "candidate_diagnostics": candidate_diagnostics,
+        "track_length_m": float(output["track_length_m"]),
+    }
+    args.output.with_suffix(".report.json").write_text(__import__("json").dumps(report, indent=2))
     print(f"Extracted {len(center)} samples, length={float(output['track_length_m']):.1f} m -> {args.output}")
     print(f"Inspect centerline diagnostic before use: {diagnostic}")
 

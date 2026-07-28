@@ -3,6 +3,8 @@ import argparse
 import numpy as np
 from teacher_pipeline.geometry import centered_to_raw_pose
 from teacher_pipeline.v1_extended.prepare_track_map import prepare
+from teacher_pipeline.v1_extended.compare_versions import compare_pairs, match_rows
+from teacher_pipeline.v1_extended.extract_track_map_from_surface import _select_guided_cycle
 from teacher_pipeline.v1_extended.refine_track_trajectories import optimize_track
 from teacher_pipeline.v1_extended.track_map import TrackMap
 
@@ -27,3 +29,21 @@ def test_physical_optimizer_emits_full_state(tmp_path):
     output,report=optimize_track(rows,track,None,args); assert report["success"]; assert len(output)==8
     assert all(row["teacher_status"]=="physical_track_optimized" for row in output); assert all("longitudinal_velocity_mps" in row and "yaw_offset_rad" in row for row in output)
     assert np.std([row["track_d_m"] for row in output])<.15
+
+
+def test_version_comparison_matches_and_scores_common_frames():
+    target=np.eye(4); target[:3,3]=[10,0,0]
+    raw_centered=np.eye(4); raw_centered[:3,3]=[12,0,0]
+    base={"scene_id":1,"im_id":2,"track_id":"4","timestamp_ns":1000000000,"T_map_lidar":np.eye(4).tolist(),"T_lidar_camera_initial":np.eye(4).tolist(),"T_camera_object_raw_gigapose":centered_to_raw_pose(raw_centered).tolist(),"T_camera_object_centered_gigapose":raw_centered.tolist(),"T_camera_object_centered_epnp":target.tolist(),"T_map_object_centered_epnp":target.tolist()}
+    v1={**base,"T_map_object_centered_refined":np.array([[1,0,0,10.8],[0,1,0,0],[0,0,1,0],[0,0,0,1]],dtype=float).tolist()}
+    extended={**base,"track_id":4,"T_map_object_centered_refined":np.array([[1,0,0,10.2],[0,1,0,0],[0,0,1,0],[0,0,0,1]],dtype=float).tolist()}
+    pairs,missing_v1,missing_extended=match_rows([v1],[extended]); assert len(pairs)==1; assert not missing_v1; assert not missing_extended
+    metrics,skipped=compare_pairs(pairs); assert not skipped; assert np.isclose(metrics[0]["v1_translation_error_m"],.8); assert np.isclose(metrics[0]["extended_translation_error_m"],.2); assert metrics[0]["extended_minus_v1_translation_improvement_m"]>0
+
+
+def test_recorded_path_selects_main_loop_over_parallel_pit_loop():
+    main=np.asarray([[0,0],[0,20],[20,20],[20,0]])
+    pit=np.asarray([[5,0],[5,16],[15,16],[15,0]])
+    guide=np.asarray([[0,2],[0,10],[0,18],[10,20],[18,20]],dtype=float)
+    chosen,diagnostics,selected=_select_guided_cycle([main,pit],guide,.5)
+    np.testing.assert_array_equal(chosen,main); assert len(diagnostics)==2; assert selected["candidate_index"]==0

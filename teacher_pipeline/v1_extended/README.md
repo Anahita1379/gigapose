@@ -44,6 +44,23 @@ Always inspect `<run>/track_map.png`; automatic extraction can select a pit lane
 or branch on a different mesh. `xzy` converts the PLY's Y-up AC coordinates to
 a Z-up map. Use `--translation X Y Z` if the metadata map has an offset.
 
+Once full observations exist, regenerate with the recorded ego path as a guide.
+This is the recommended command where pit/main-lane alternatives exist:
+
+```bash
+python3 -m teacher_pipeline.v1_extended.extract_track_map_from_surface \
+  --surface-ply gigaPose_datasets/datasets/Track_info/sim_track_info/fn_lagunaseca2026_track_info/track_scene.ply \
+  --guide-observations <run>/full_observations.jsonl \
+  --axis-order xzy \
+  --resolution-m 0.5 \
+  --output <run>/track_map.npz
+```
+
+The extractor considers every long closed skeleton loop and selects the one
+closest to recorded `T_map_lidar`. The diagnostic uses red for the chosen
+centerline and cyan for the driven ego path. Candidate scores are saved in
+`<run>/track_map.report.json`.
+
 Before refinement, prove the frames coincide:
 
 ```bash
@@ -158,6 +175,30 @@ python3 -m teacher_pipeline.v1_extended.export_student_labels \
 Exported labels include camera/map transforms, `s,d,v_s,v_d,a_s,delta_yaw`,
 uncertainty/confidence fields, correction magnitude, source provenance, and the
 extrinsic version.
+
+## Compare baseline V1 with V1 extended
+
+The comparison matches rows by `scene_id, im_id, track_id` with a safe
+single-object frame fallback. It reports unmatched rows explicitly because the
+baseline may have only 100 EPnP-selected rows while extended V1 has every
+tracked frame.
+
+```bash
+python3 -m teacher_pipeline.v1_extended.compare_versions \
+  --v1-trajectories <v1-run>/refined_iteration_1.jsonl \
+  --extended-trajectories <extended-run>/refined_physical_iteration_1.jsonl \
+  --v1-extrinsics <v1-run>/extrinsic_iteration_1.json \
+  --extended-extrinsics <extended-run>/extrinsic_physical_iteration_1.json \
+  --mesh <dataset>/models/obj_000001.ply \
+  --mesh-object-origin raw \
+  --max-overlays 100 \
+  --output-dir <extended-run>/comparison_with_v1
+```
+
+For an iteration-0 extended run, omit `--extended-extrinsics`. Outputs include
+`summary.json`, per-frame and distance-bin CSVs, three comparison plots,
+temporal acceleration/jerk summaries for both versions, and four-way CPU
+overlays: red raw GigaPose, yellow V1, green extended V1, blue EPnP.
 
 ## Scope boundary
 
