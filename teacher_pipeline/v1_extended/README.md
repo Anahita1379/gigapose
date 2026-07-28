@@ -33,27 +33,26 @@ height, estimates widths, and resamples it:
 
 ```bash
 python3 -m teacher_pipeline.v1_extended.extract_track_map_from_surface \
-  --surface-ply gigaPose_datasets/datasets/Track_info/sim_track_info/fn_lagunaseca2026_track_info/track_scene.ply \
-  --axis-order z-negx-y \
+  --surface-ply gigaPose_datasets/datasets/Track_info/sim_track_info/putnam_park-no_chicanes_track_info/track_scene.ply \
+  --axis-order xzy \
   --resolution-m 0.5 \
   --output <run>/track_map.npz
 ```
 
-This asset was tested locally and produced an approximately 3638 m closed loop.
+The Putnam asset produces an approximately 3158 m closed loop.
 Always inspect `<run>/track_map.png`; automatic extraction can select a pit lane
-or branch on a different mesh. For the May 5 real-world recording,
-`z-negx-y` converts the PLY coordinates as
-`map=(AC_Z,-AC_X,AC_Y)`. Use `--translation X Y Z` if the metadata map has a
-further known offset.
+or branch on a different mesh. For this Putnam recording, `xzy` converts the
+Y-up PLY coordinates as `map=(AC_X,AC_Z,AC_Y)`. Use `--translation X Y Z` if
+the metadata map has a further known offset.
 
 Once full observations exist, regenerate with the recorded ego path as a guide.
 This is the recommended command where pit/main-lane alternatives exist:
 
 ```bash
 python3 -m teacher_pipeline.v1_extended.extract_track_map_from_surface \
-  --surface-ply gigaPose_datasets/datasets/Track_info/sim_track_info/fn_lagunaseca2026_track_info/track_scene.ply \
+  --surface-ply gigaPose_datasets/datasets/Track_info/sim_track_info/putnam_park-no_chicanes_track_info/track_scene.ply \
   --guide-observations <run>/full_observations.jsonl \
-  --axis-order z-negx-y \
+  --axis-order xzy \
   --resolution-m 0.5 \
   --output <run>/track_map.npz
 ```

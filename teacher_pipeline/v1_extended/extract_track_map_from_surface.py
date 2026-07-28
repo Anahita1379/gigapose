@@ -277,7 +277,7 @@ def main():
         choices=("xzy", "z-negx-y", "xyz"),
         default="xzy",
         help=(
-            "AC-to-map axis convention. For the 2026-05-05 recording, "
+            "AC-to-map axis convention. xzy means map=(AC_X,AC_Z,AC_Y); "
             "z-negx-y means map=(AC_Z,-AC_X,AC_Y)."
         ),
     )
