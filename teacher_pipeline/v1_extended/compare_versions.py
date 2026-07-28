@@ -100,12 +100,18 @@ def temporal_summary(rows):
             )
             grouped.setdefault(key,[]).append(row)
     speed=[]; acceleration=[]; jerk=[]; steps=[]
+    state_speed=[]; state_longitudinal_acceleration=[]; state_longitudinal_jerk=[]
     for values in grouped.values():
         values.sort(key=lambda row:float(row.get("timestamp_ns",row.get("im_id",0))))
         if len(values)<2: continue
         t=_time_seconds(values); dt=np.diff(t); valid=dt>1e-6
         if not np.all(valid): continue
         steps.extend(dt)
+        if len(values)>=3:
+            p=np.stack([as_pose(row["T_map_object_centered_refined"])[:3,3] for row in values]); velocity=np.diff(p,axis=0)/dt[:,None]; mid_dt=.5*(dt[:-1]+dt[1:]); acc=np.diff(velocity,axis=0)/mid_dt[:,None]
+            speed.extend(np.linalg.norm(velocity,axis=1)); acceleration.extend(np.linalg.norm(acc,axis=1))
+            if len(acc)>1:
+                jerk_dt=.5*(mid_dt[:-1]+mid_dt[1:]); jerk.extend(np.linalg.norm(np.diff(acc,axis=0)/jerk_dt[:,None],axis=1))
         has_physical_state=all(
             row.get("longitudinal_velocity_mps") is not None
             and row.get("lateral_velocity_mps") is not None
@@ -118,16 +124,11 @@ def temporal_summary(rows):
                 for row in values
             ])
             acc=np.asarray([float(row["longitudinal_acceleration_mps2"]) for row in values])
-            speed.extend(np.linalg.norm(velocity,axis=1)); acceleration.extend(np.abs(acc))
-            if len(acc)>1: jerk.extend(np.abs(np.diff(acc)/dt))
-        elif len(values)>=3:
-            p=np.stack([as_pose(row["T_map_object_centered_refined"])[:3,3] for row in values]); velocity=np.diff(p,axis=0)/dt[:,None]; mid_dt=.5*(dt[:-1]+dt[1:]); acc=np.diff(velocity,axis=0)/mid_dt[:,None]
-            speed.extend(np.linalg.norm(velocity,axis=1)); acceleration.extend(np.linalg.norm(acc,axis=1))
-            if len(acc)>1:
-                jerk_dt=.5*(mid_dt[:-1]+mid_dt[1:]); jerk.extend(np.linalg.norm(np.diff(acc,axis=0)/jerk_dt[:,None],axis=1))
+            state_speed.extend(np.linalg.norm(velocity,axis=1)); state_longitudinal_acceleration.extend(np.abs(acc))
+            if len(acc)>1: state_longitudinal_jerk.extend(np.abs(np.diff(acc)/dt))
     def stats(values,prefix):
         values=np.asarray(values); return {f"{prefix}_median":float(np.median(values)) if len(values) else None,f"{prefix}_p90":float(np.percentile(values,90)) if len(values) else None}
-    return {"track_count":len({_track_token(row.get("track_id")) for row in rows}),"segment_count":len(grouped),**stats(steps,"frame_dt_s"),**stats(speed,"speed_mps"),**stats(acceleration,"acceleration_mps2"),**stats(jerk,"jerk_mps3")}
+    return {"track_count":len({_track_token(row.get("track_id")) for row in rows}),"segment_count":len(grouped),"primary_temporal_metric_source":"finite_differences_of_refined_map_pose_within_segments",**stats(steps,"frame_dt_s"),**stats(speed,"pose_speed_mps"),**stats(acceleration,"pose_acceleration_mps2"),**stats(jerk,"pose_jerk_mps3"),**stats(state_speed,"state_speed_mps"),**stats(state_longitudinal_acceleration,"state_longitudinal_acceleration_mps2"),**stats(state_longitudinal_jerk,"state_longitudinal_jerk_mps3")}
 
 
 def _plots(metrics,bins,output):
