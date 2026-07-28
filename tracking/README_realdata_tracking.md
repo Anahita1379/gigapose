@@ -851,6 +851,22 @@ python -m fine_tuning.visualize_epnp_gigapose_comparison_extrinsics \
 
 
 
+
+
+
+
+
+
+
+
+gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_rotation_gated/tracked_predictions.csv
+
+python3 -m teacher_pipeline.build_observations   --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv   --selected-samples gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/selected_samples.csv   --tracks gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_rotation_gated/tracked_predictions.csv  --dataset-dir gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4   --epnp-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels   --metadata-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/metadata   --prediction-translation-unit mm   --epnp-map-pose-unit m   --epnp-camera-pose-unit m   --output gigaPose_datasets/results/teacher_v1_20260505_front/observations.jsonl   --strict
+
+
+
+
+
 ```bash 
 stereo_left: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 real_20260518v1v4_stereo_left_gsam_v4
