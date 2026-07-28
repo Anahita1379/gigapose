@@ -1,0 +1,436 @@
+"""Before/after evaluation and visualization for V1 teacher trajectories."""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+os.environ.setdefault("MPLCONFIGDIR", "/tmp/matplotlib")
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+from PIL import Image
+
+from .geometry import as_pose, centered_to_raw_pose, pose_error
+from .io import write_json, write_rows
+from .trajectory import load
+
+
+METRICS = (
+    "translation_error_m",
+    "rotation_error_deg",
+)
+
+
+def _error(predicted: np.ndarray, target: np.ndarray) -> tuple[float, float]:
+    residual = pose_error(target, predicted)
+    return float(np.linalg.norm(residual[:3])), float(
+        np.degrees(np.linalg.norm(residual[3:]))
+    )
+
+
+def _load_extrinsic(path: Path | None) -> np.ndarray | None:
+    if path is None:
+        return None
+    data = json.loads(path.read_text())
+    if "T_lidar_camera_optimized" not in data:
+        raise KeyError(f"{path} has no T_lidar_camera_optimized")
+    return as_pose(data["T_lidar_camera_optimized"])
+
+
+def evaluate_rows(
+    rows: list[dict[str, Any]],
+    optimized_extrinsic: np.ndarray | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    metrics: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for index, row in enumerate(rows):
+        try:
+            target = as_pose(row["T_map_object_centered_epnp"])
+            map_lidar = as_pose(row["T_map_lidar"])
+            initial_extrinsic = as_pose(row["T_lidar_camera_initial"])
+            gp_camera = as_pose(row["T_camera_object_centered_gigapose"])
+            original = map_lidar @ initial_extrinsic @ gp_camera
+            final = as_pose(row["T_map_object_centered_refined"])
+            target_camera_value = row.get("T_camera_object_centered_epnp")
+            if target_camera_value is not None:
+                target_camera = as_pose(target_camera_value)
+            else:
+                final_extrinsic = (
+                    optimized_extrinsic
+                    if optimized_extrinsic is not None
+                    else initial_extrinsic
+                )
+                target_camera = np.linalg.inv(map_lidar @ final_extrinsic) @ target
+
+            original_t, original_r = _error(original, target)
+            final_t, final_r = _error(final, target)
+            change_t, change_r = _error(final, original)
+            metrics.append(
+                {
+                    "row_index": index,
+                    "scene_id": row.get("scene_id"),
+                    "im_id": row.get("im_id"),
+                    "timestamp_ns": row.get("timestamp_ns"),
+                    "camera": row.get("camera"),
+                    "track_id": row.get("track_id"),
+                    "track_id_source": row.get("track_id_source"),
+                    "image_path": row.get("image_path"),
+                    "epnp_label_path": row.get("epnp_label_path"),
+                    "reference_distance_m": float(
+                        np.linalg.norm(target_camera[:3, 3])
+                    ),
+                    "original_translation_error_m": original_t,
+                    "final_translation_error_m": final_t,
+                    "translation_improvement_m": original_t - final_t,
+                    "translation_improved": final_t < original_t,
+                    "original_rotation_error_deg": original_r,
+                    "final_rotation_error_deg": final_r,
+                    "rotation_improvement_deg": original_r - final_r,
+                    "rotation_improved": final_r < original_r,
+                    "original_to_final_translation_change_m": change_t,
+                    "original_to_final_rotation_change_deg": change_r,
+                    "gigapose_score": row.get("gigapose_score"),
+                }
+            )
+        except Exception as exc:
+            skipped.append(
+                {
+                    "row_index": index,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+            )
+    return metrics, skipped
+
+
+def _bin_label(lower: float, upper: float) -> str:
+    return f"{lower:g}+" if np.isinf(upper) else f"{lower:g}-{upper:g}"
+
+
+def summarize_distance_bins(metrics, edges):
+    output = []
+    for lower, upper in zip(edges[:-1], edges[1:]):
+        selected = [
+            row
+            for row in metrics
+            if lower <= float(row["reference_distance_m"]) < upper
+        ]
+        if not selected:
+            continue
+        record: dict[str, Any] = {
+            "distance_bin": _bin_label(lower, upper),
+            "distance_min_m": lower,
+            "distance_max_m": upper,
+            "count": len(selected),
+        }
+        for prefix in ("original", "final"):
+            for metric in METRICS:
+                values = np.asarray(
+                    [row[f"{prefix}_{metric}"] for row in selected], dtype=float
+                )
+                record[f"{prefix}_{metric}_mean"] = float(np.mean(values))
+                record[f"{prefix}_{metric}_median"] = float(np.median(values))
+                record[f"{prefix}_{metric}_p90"] = float(np.percentile(values, 90))
+        for metric in ("translation_improvement_m", "rotation_improvement_deg"):
+            values = np.asarray([row[metric] for row in selected], dtype=float)
+            record[f"{metric}_mean"] = float(np.mean(values))
+            record[f"{metric}_median"] = float(np.median(values))
+            record[f"{metric}_positive_fraction"] = float(np.mean(values > 0))
+        output.append(record)
+    return output
+
+
+def overall_summary(metrics):
+    result: dict[str, Any] = {"count": len(metrics)}
+    for prefix in ("original", "final"):
+        for metric in METRICS:
+            values = np.asarray([row[f"{prefix}_{metric}"] for row in metrics])
+            result[f"{prefix}_{metric}_mean"] = float(np.mean(values))
+            result[f"{prefix}_{metric}_median"] = float(np.median(values))
+            result[f"{prefix}_{metric}_p90"] = float(np.percentile(values, 90))
+    for metric in ("translation_improvement_m", "rotation_improvement_deg"):
+        values = np.asarray([row[metric] for row in metrics])
+        result[f"{metric}_mean"] = float(np.mean(values))
+        result[f"{metric}_median"] = float(np.median(values))
+        result[f"{metric}_positive_fraction"] = float(np.mean(values > 0))
+    return result
+
+
+def _save_error_plot(bin_rows, metric, ylabel, path, dpi):
+    labels = [row["distance_bin"] for row in bin_rows]
+    x = np.arange(len(labels))
+    width = 0.38
+    fig, ax = plt.subplots(figsize=(max(7, len(labels) * 1.15), 4.8))
+    ax.bar(
+        x - width / 2,
+        [row[f"original_{metric}_median"] for row in bin_rows],
+        width,
+        label="Original GigaPose",
+        color="#d9534f",
+    )
+    ax.bar(
+        x + width / 2,
+        [row[f"final_{metric}_median"] for row in bin_rows],
+        width,
+        label="V1 final",
+        color="#35a853",
+    )
+    ax.set_xticks(x, labels)
+    ax.set_xlabel("EPnP reference distance (m)")
+    ax.set_ylabel(ylabel)
+    ax.grid(axis="y", alpha=0.25)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(path, dpi=dpi)
+    plt.close(fig)
+
+
+def _save_improvement_plot(metrics, path, dpi):
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4.2))
+    axes[0].hist(
+        [row["translation_improvement_m"] for row in metrics], bins=30, color="#4285f4"
+    )
+    axes[0].axvline(0, color="black", linewidth=1)
+    axes[0].set_xlabel("Translation improvement (m)")
+    axes[0].set_ylabel("Frames")
+    axes[1].hist(
+        [row["rotation_improvement_deg"] for row in metrics], bins=30, color="#a142f4"
+    )
+    axes[1].axvline(0, color="black", linewidth=1)
+    axes[1].set_xlabel("Rotation improvement (deg)")
+    for axis in axes:
+        axis.grid(alpha=0.2)
+    fig.tight_layout()
+    fig.savefig(path, dpi=dpi)
+    plt.close(fig)
+
+
+def save_plots(metrics, bin_rows, output_dir, dpi):
+    _save_error_plot(
+        bin_rows,
+        "translation_error_m",
+        "Median translation error (m)",
+        output_dir / "translation_error_by_distance.png",
+        dpi,
+    )
+    _save_error_plot(
+        bin_rows,
+        "rotation_error_deg",
+        "Median rotation error (deg)",
+        output_dir / "rotation_error_by_distance.png",
+        dpi,
+    )
+    _save_improvement_plot(metrics, output_dir / "improvement_histograms.png", dpi)
+
+
+def _blend_mask(canvas, mask, color, alpha):
+    mask = np.asarray(mask, dtype=bool)
+    if not mask.any():
+        return
+    color_array = np.asarray(color, dtype=np.float32)
+    canvas[mask] = np.clip(
+        canvas[mask].astype(np.float32) * (1 - alpha) + color_array * alpha,
+        0,
+        255,
+    ).astype(np.uint8)
+
+
+def save_overlays(
+    rows,
+    metrics,
+    output_dir,
+    mesh,
+    mesh_scale,
+    mesh_object_origin,
+    optimized_extrinsic,
+    max_overlays,
+):
+    import cv2
+    from tracking.rendering import CADRenderer
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    ranked = sorted(metrics, key=lambda row: -abs(row["translation_improvement_m"]))
+    index_rows = []
+    failures = []
+    renderer = CADRenderer(mesh, mesh_scale=mesh_scale, center_mesh=False)
+    try:
+        for metric in ranked[:max_overlays]:
+            row = rows[int(metric["row_index"])]
+            try:
+                image_path = Path(str(row["image_path"]))
+                if not image_path.is_file():
+                    raise FileNotFoundError(image_path)
+                if row.get("K") is None:
+                    raise ValueError("observation has no camera intrinsics K")
+                image = np.asarray(Image.open(image_path).convert("RGB"))
+                K = np.asarray(row["K"], dtype=float).reshape(3, 3)
+                gp_centered = as_pose(row["T_camera_object_centered_gigapose"])
+                map_lidar = as_pose(row["T_map_lidar"])
+                final_extrinsic = (
+                    optimized_extrinsic
+                    if optimized_extrinsic is not None
+                    else as_pose(row["T_lidar_camera_initial"])
+                )
+                target_camera_value = row.get("T_camera_object_centered_epnp")
+                target_centered = (
+                    as_pose(target_camera_value)
+                    if target_camera_value is not None
+                    else np.linalg.inv(map_lidar @ final_extrinsic)
+                    @ as_pose(row["T_map_object_centered_epnp"])
+                )
+                final_centered = (
+                    np.linalg.inv(map_lidar @ final_extrinsic)
+                    @ as_pose(row["T_map_object_centered_refined"])
+                )
+                poses = [gp_centered, final_centered, target_centered]
+                if mesh_object_origin == "raw":
+                    poses = [centered_to_raw_pose(pose) for pose in poses]
+                masks = [renderer.render(pose, K, image.shape[:2])[0] for pose in poses]
+                canvas = image.copy()
+                # RGB: red=original, green=V1, blue=EPnP.
+                for mask, color in zip(
+                    masks, ((235, 65, 55), (40, 210, 90), (50, 110, 240))
+                ):
+                    _blend_mask(canvas, mask, color, 0.34)
+                cv2.rectangle(canvas, (4, 4), (min(canvas.shape[1] - 1, 950), 54), (0, 0, 0), -1)
+                cv2.putText(
+                    canvas,
+                    "RED original GigaPose | GREEN V1 final | BLUE EPnP target",
+                    (10, 22),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.52,
+                    (255, 255, 255),
+                    1,
+                    cv2.LINE_AA,
+                )
+                text = (
+                    f"t {metric['original_translation_error_m']:.2f} -> "
+                    f"{metric['final_translation_error_m']:.2f} m | "
+                    f"R {metric['original_rotation_error_deg']:.1f} -> "
+                    f"{metric['final_rotation_error_deg']:.1f} deg | "
+                    f"range {metric['reference_distance_m']:.1f} m"
+                )
+                cv2.putText(
+                    canvas,
+                    text,
+                    (10, 45),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5,
+                    (255, 255, 255),
+                    1,
+                    cv2.LINE_AA,
+                )
+                scene_id = int(metric.get("scene_id") or 0)
+                im_id = int(metric.get("im_id") or metric["row_index"])
+                track_id = metric.get("track_id")
+                track_token = "unknown" if track_id in (None, "") else str(track_id)
+                name = f"{scene_id:06d}_{im_id:06d}_T{track_token}.jpg"
+                path = output_dir / name
+                Image.fromarray(canvas).save(path, quality=92)
+                index_rows.append({**metric, "overlay_path": str(path)})
+            except Exception as exc:
+                failures.append(
+                    {
+                        "row_index": metric["row_index"],
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                    }
+                )
+    finally:
+        renderer.close()
+    write_rows(output_dir / "overlay_index.csv", index_rows)
+    write_json(output_dir / "overlay_report.json", {"written": len(index_rows), "failures": failures})
+    return len(index_rows), failures
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--trajectories", type=Path, required=True)
+    parser.add_argument("--extrinsics", type=Path)
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--distance-bins",
+        nargs="+",
+        type=float,
+        default=[0, 20, 40, 60, 80, 100, float("inf")],
+    )
+    parser.add_argument("--held-out", action="store_true")
+    parser.add_argument("--dpi", type=int, default=160)
+    parser.add_argument("--mesh", type=Path)
+    parser.add_argument("--mesh-scale", type=float, default=1.0)
+    parser.add_argument(
+        "--mesh-object-origin", choices=("raw", "centered"), default="raw"
+    )
+    parser.add_argument("--max-overlays", type=int, default=100)
+    parser.add_argument("--strict", action="store_true")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    if len(args.distance_bins) < 2 or any(
+        b <= a for a, b in zip(args.distance_bins[:-1], args.distance_bins[1:])
+    ):
+        raise ValueError("--distance-bins must be strictly increasing")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    rows = load(args.trajectories)
+    extrinsic = _load_extrinsic(args.extrinsics)
+    metrics, skipped = evaluate_rows(rows, extrinsic)
+    if not metrics:
+        raise ValueError("No evaluable rows contain both EPnP target and final pose")
+    if skipped and args.strict:
+        raise ValueError(f"Failed to evaluate {len(skipped)} rows: {skipped[0]}")
+    bins = summarize_distance_bins(metrics, args.distance_bins)
+    summary = overall_summary(metrics)
+    summary.update(
+        {
+            "format": "teacher_v1_before_after_evaluation",
+            "held_out": bool(args.held_out),
+            "interpretation": (
+                "held-out estimate"
+                if args.held_out
+                else "in-sample/apparent improvement; EPnP targets may have been used by refinement"
+            ),
+            "skipped_count": len(skipped),
+            "skipped": skipped[:100],
+            "distance_bins_m": [
+                value if np.isfinite(value) else None
+                for value in args.distance_bins
+            ],
+        }
+    )
+    write_rows(args.output_dir / "per_frame_metrics.csv", metrics)
+    write_rows(args.output_dir / "distance_bin_metrics.csv", bins)
+    save_plots(metrics, bins, args.output_dir, args.dpi)
+    if args.mesh is not None:
+        written, failures = save_overlays(
+            rows,
+            metrics,
+            args.output_dir / "overlays",
+            args.mesh,
+            args.mesh_scale,
+            args.mesh_object_origin,
+            extrinsic,
+            args.max_overlays,
+        )
+        summary["overlays_written"] = written
+        summary["overlay_failures"] = len(failures)
+    write_json(args.output_dir / "summary.json", summary)
+    print(
+        f"Evaluated {len(metrics)} rows. Median translation error: "
+        f"{summary['original_translation_error_m_median']:.3f} -> "
+        f"{summary['final_translation_error_m_median']:.3f} m; rotation: "
+        f"{summary['original_rotation_error_deg_median']:.2f} -> "
+        f"{summary['final_rotation_error_deg_median']:.2f} deg"
+    )
+    if not args.held_out:
+        print("WARNING: this is in-sample apparent improvement, not held-out accuracy.")
+
+
+if __name__ == "__main__":
+    main()
