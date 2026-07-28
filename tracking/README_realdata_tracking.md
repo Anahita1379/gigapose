@@ -875,7 +875,7 @@ EPNP=/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/
 
 META=/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/metadata
 
-TRACK_SURFACE=/media/hdd2/ARCL_multicar_bags/camera_dataset/Track_info/sim_track_info/fn_lagunaseca2026_track_info/track_scene.ply
+TRACK_SURFACE=/media/hdd2/ARCL_multicar_bags/camera_dataset/Track_info/sim_track_info/putnam_park-no_chicanes_track_info/track_scene.ply
 
 CAR_MESH="$DATASET/models/obj_000001.ply"
 
