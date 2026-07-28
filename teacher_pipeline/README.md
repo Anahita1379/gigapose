@@ -1,5 +1,14 @@
 # GigaPose teacher pipeline
 
+Package layout:
+
+- `teacher_pipeline.v1`: stable namespace for the current compatible baseline.
+- `teacher_pipeline.v1_extended`: full physical first teacher using track
+  coordinates, dynamics, quality weighting, boundaries, and reliable LiDAR
+  anchors. See `teacher_pipeline/v1_extended/README.md`.
+
+Existing top-level commands remain backward compatible aliases of V1.
+
 This folder is an isolated, staged teacher pipeline. It reuses the project’s
 existing EPnP-hybrid and per-sample YAML contracts; no new metadata CSV is
 required.
