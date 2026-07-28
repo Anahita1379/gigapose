@@ -27,6 +27,7 @@ from fine_tuning.select_real_label_candidates import load_json_records
 from .geometry import (
     CENTER_RAW_M,
     centered_to_raw_pose,
+    pose_error,
     raw_to_centered_pose,
 )
 from .io import arr, read_rows, write_json, write_rows
@@ -119,6 +120,13 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
         and row.get("im_id") not in (None, "")
         and row.get("track_id") not in (None, "")
     }
+    tracks_by_frame: dict[tuple[int, int], list[dict[str, Any]]] = {}
+    for row in tracked_rows:
+        if row.get("scene_id") in (None, "") or row.get("im_id") in (None, ""):
+            continue
+        tracks_by_frame.setdefault(
+            (int(row["scene_id"]), int(row["im_id"])), []
+        ).append(row)
     frames = _load_frame_map(args.dataset_dir, args.frame_map)
     center_raw = np.asarray(args.center_raw, dtype=float)
     observations: list[dict[str, Any]] = []
@@ -211,6 +219,74 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
             if track_id in (None, "") and tracked is not None:
                 track_id = tracked["track_id"]
                 track_id_source = "tracks_csv.track_id"
+            if track_id in (None, "") and tracked is None:
+                candidates = tracks_by_frame.get((scene_id, im_id), [])
+                if prediction.get("obj_id") not in (None, ""):
+                    same_object = [
+                        candidate
+                        for candidate in candidates
+                        if str(candidate.get("obj_id", ""))
+                        == str(prediction["obj_id"])
+                    ]
+                    candidates = same_object or candidates
+                ranked_candidates = []
+                for candidate in candidates:
+                    try:
+                        candidate_centered, _ = _prediction_pose_m(
+                            candidate,
+                            args.prediction_translation_unit,
+                            args.gigapose_object_origin,
+                            center_raw,
+                        )
+                        residual = pose_error(
+                            camera_object_gp, candidate_centered
+                        )
+                        gp_t = camera_object_gp[:3, 3]
+                        candidate_t = candidate_centered[:3, 3]
+                        mean_range = max(
+                            0.5
+                            * (
+                                np.linalg.norm(gp_t)
+                                + np.linalg.norm(candidate_t)
+                            ),
+                            1e-6,
+                        )
+                        relative_translation = float(
+                            np.linalg.norm(residual[:3]) / mean_range
+                        )
+                        if gp_t[2] > 1e-6 and candidate_t[2] > 1e-6:
+                            center_distance = float(
+                                np.linalg.norm(
+                                    gp_t[:2] / gp_t[2]
+                                    - candidate_t[:2] / candidate_t[2]
+                                )
+                            )
+                        else:
+                            center_distance = float("inf")
+                        cost = center_distance + 0.25 * relative_translation
+                        ranked_candidates.append(
+                            (
+                                cost,
+                                center_distance,
+                                relative_translation,
+                                candidate,
+                            )
+                        )
+                    except Exception:
+                        continue
+                ranked_candidates.sort(key=lambda item: item[0])
+                if ranked_candidates:
+                    _, center_distance, relative_translation, candidate = (
+                        ranked_candidates[0]
+                    )
+                    if (
+                        center_distance
+                        <= args.max_track_association_center_distance
+                        and relative_translation
+                        <= args.max_track_association_relative_translation
+                    ):
+                        track_id = candidate["track_id"]
+                        track_id_source = "tracks_csv.pose_association"
             if track_id in (None, ""):
                 for source, source_name in (
                     (label, "epnp_label"),
@@ -290,6 +366,10 @@ def build_from_selected(args: argparse.Namespace) -> tuple[list[dict], dict]:
             row.get("track_id_source") == "prediction.instance_id_fallback"
             for row in observations
         ),
+        "pose_associated_track_ids": sum(
+            row.get("track_id_source") == "tracks_csv.pose_association"
+            for row in observations
+        ),
     }
     return observations, report
 
@@ -349,6 +429,12 @@ def parse_args() -> argparse.Namespace:
             "track_id by scene_id, im_id, and instance_id when the prediction "
             "CSV used for selection has no track_id column."
         ),
+    )
+    parser.add_argument(
+        "--max-track-association-center-distance", type=float, default=0.35
+    )
+    parser.add_argument(
+        "--max-track-association-relative-translation", type=float, default=0.75
     )
     parser.add_argument("--epnp-root", type=Path)
     parser.add_argument("--metadata-root", type=Path)

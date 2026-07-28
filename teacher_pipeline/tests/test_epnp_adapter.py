@@ -79,7 +79,7 @@ def test_selected_epnp_and_yaml_contract(tmp_path):
                 "scene_id": 1,
                 "im_id": 2,
                 "instance_id": 7,
-                "track_id": 42,
+                "track_id": "",
                 "score": 0.9,
                 "R": "1 0 0 0 1 0 0 0 1",
                 "t": "1000 2000 50000",
@@ -109,13 +109,43 @@ def test_selected_epnp_and_yaml_contract(tmp_path):
                 "sample_metadata_path": str(metadata_path),
             }
         )
+    tracks_path = tmp_path / "tracked_predictions.csv"
+    with tracks_path.open("w", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=[
+                "scene_id",
+                "im_id",
+                "obj_id",
+                "instance_id",
+                "track_id",
+                "score",
+                "R",
+                "t",
+            ],
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "scene_id": 1,
+                "im_id": 2,
+                "obj_id": 1,
+                "instance_id": 1,
+                "track_id": 42,
+                "score": 0.8,
+                "R": "1 0 0 0 1 0 0 0 1",
+                "t": "1000 2000 50000",
+            }
+        )
 
     args = argparse.Namespace(
         predictions=predictions_path,
         selected_samples=selected_path,
         dataset_dir=dataset,
         frame_map=None,
-        tracks=None,
+        tracks=tracks_path,
+        max_track_association_center_distance=0.35,
+        max_track_association_relative_translation=0.75,
         epnp_root=None,
         metadata_root=None,
         center_raw=CENTER_RAW_M.tolist(),
@@ -133,7 +163,7 @@ def test_selected_epnp_and_yaml_contract(tmp_path):
     assert len(observations) == 1
     row = observations[0]
     assert row["track_id"] == "42"
-    assert row["track_id_source"] == "prediction.track_id"
+    assert row["track_id_source"] == "tracks_csv.pose_association"
     assert row["bbox_xywh"] == [1, 2, 30, 40]
     assert row["distortion_model"] == "equidistant"
     np.testing.assert_allclose(row["T_map_lidar"], T_map_lidar_m)
