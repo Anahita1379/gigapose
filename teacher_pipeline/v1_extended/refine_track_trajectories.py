@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.optimize import least_squares
+from scipy.sparse import lil_matrix
 
 from teacher_pipeline.geometry import as_pose, raw_to_centered_pose, so3_log
 from teacher_pipeline.io import write_json, write_rows
@@ -85,6 +86,30 @@ def _lidar_map_centroid(row):
     return (as_pose(row["T_map_lidar"]) @ point)[:3]
 
 
+def _jacobian_sparsity(rows, lidar_active):
+    """Declare the local block structure used by finite differences.
+
+    Per-frame observation terms touch one six-value state. Motion terms touch
+    only two adjacent states. Supplying this pattern prevents SciPy from
+    perturbing every one of the O(N) variables separately for every Jacobian.
+    """
+    frame_count = len(rows)
+    residual_count = sum(5 + (3 if active else 0) for active in lidar_active)
+    residual_count += 6 * max(frame_count - 1, 0)
+    residual_count += max(frame_count - 2, 0)
+    pattern = lil_matrix((residual_count, 6 * frame_count), dtype=np.int8)
+    cursor = 0
+    for index, active in enumerate(lidar_active):
+        count = 5 + (3 if active else 0)
+        pattern[cursor : cursor + count, 6 * index : 6 * (index + 1)] = 1
+        cursor += count
+    for index in range(frame_count - 1):
+        count = 6 + (1 if index + 1 < frame_count - 1 else 0)
+        pattern[cursor : cursor + count, 6 * index : 6 * (index + 2)] = 1
+        cursor += count
+    return pattern.tocsr()
+
+
 def optimize_track(rows, track, extrinsic, args):
     rows = sorted(rows, key=lambda row: float(row.get("timestamp_ns", row.get("im_id", 0))))
     measurements = _map_measurements(rows, extrinsic, args.pose_source)
@@ -117,6 +142,15 @@ def optimize_track(rows, track, extrinsic, args):
     initial = np.column_stack([s_measurement, d_measurement, vs, vd, acceleration, yaw_measurement])
     sigmas = [_quality_sigmas(row, pose, args) for row, pose in zip(rows, measurements)]
     lidar = [_lidar_map_centroid(row) for row in rows]
+    lidar_active = []
+    for row, centroid in zip(rows, lidar):
+        count = int(float(row.get("lidar_point_count", 0) or 0))
+        range_m = float(row.get("lidar_range_m", 0) or 0)
+        lidar_active.append(
+            centroid is not None
+            and count >= args.min_lidar_points
+            and (range_m <= 0 or range_m <= args.lidar_reliable_range_m)
+        )
 
     def residual(flat):
         state = flat.reshape(-1, 6)
@@ -132,9 +166,7 @@ def optimize_track(rows, track, extrinsic, args):
                 max(0.0, state[i, 1] - sample["right_width"]) / args.sigma_boundary_m,
                 max(0.0, -sample["left_width"] - state[i, 1]) / args.sigma_boundary_m,
             ])
-            count = int(float(row.get("lidar_point_count", 0) or 0))
-            range_m = float(row.get("lidar_range_m", 0) or 0)
-            if lidar[i] is not None and count >= args.min_lidar_points and (range_m <= 0 or range_m <= args.lidar_reliable_range_m):
+            if lidar_active[i]:
                 predicted = track.pose(state[i, 0], state[i, 1], state[i, 5], alignment)[:3, 3]
                 values.extend(((predicted - lidar[i]) / args.sigma_lidar_m).tolist())
         for i, delta_t in enumerate(dt):
@@ -151,7 +183,14 @@ def optimize_track(rows, track, extrinsic, args):
                 values.append((following[4] - current[4]) / args.sigma_jerk_mps3)
         return np.asarray(values)
 
-    result = least_squares(residual, initial.reshape(-1), loss="soft_l1", max_nfev=args.max_iterations)
+    result = least_squares(
+        residual,
+        initial.reshape(-1),
+        loss="soft_l1",
+        max_nfev=args.max_iterations,
+        jac_sparsity=_jacobian_sparsity(rows, lidar_active),
+        tr_solver="lsmr",
+    )
     state = result.x.reshape(-1, 6)
     for i, row in enumerate(rows):
         pose = track.pose(state[i, 0], state[i, 1], state[i, 5], alignment)
@@ -199,7 +238,18 @@ def main():
     for row in rows: grouped.setdefault(str(row.get("track_id")), []).append(row)
     output, reports = [], []
     for values in grouped.values():
+        print(
+            f"Optimizing track_id={values[0].get('track_id')} "
+            f"({len(values)} frames, {6 * len(values)} variables)...",
+            flush=True,
+        )
         refined, report = optimize_track(values, track, extrinsic, args); output.extend(refined); reports.append(report)
+        print(
+            f"Finished track_id={report['track_id']}: "
+            f"success={report['success']}, nfev={report['nfev']}, "
+            f"cost={report['cost']:.3f}",
+            flush=True,
+        )
     output.sort(key=lambda row: (str(row.get("track_id")), float(row.get("timestamp_ns", row.get("im_id", 0)))))
     write_rows(args.output, output); report_path = args.report or args.output.with_suffix(".report.json")
     write_json(report_path, {"format": "teacher_v1_extended_physical", "state": ["s", "d", "v_s", "v_d", "a_s", "delta_yaw"], "track_count": len(reports), "rows": len(output), "pose_source": args.pose_source, "tracks": reports})
