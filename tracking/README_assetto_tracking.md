@@ -1,3 +1,178 @@
+
+
+Bench mark prediction : 
+gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv
+
+dataset: assettocorsa_benchmark_new_dataset
+
+run the new tracking: 
+
+CUDA_VISIBLE_DEVICES=0 python -m tracking.lightglue_tracking.run \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv  \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+  --association-config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_run/lightGlue_tracking_ot2block_pose_aware_ist_tran_residual_benchmark \
+  --device cuda \
+  --lightglue \
+  --lightglue-flow-policy uncertain_lost \
+  --lightglue-association-policy ambiguous \
+  --lightglue-pnp-recovery \
+  --max-frames 500 \
+  --lightglue-pnp-policy uncertain_lost \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --save-overlays \
+  --overlay-every 10 \
+  --overwrite
+
+
+
+
+another run but with no pnp:
+CUDA_VISIBLE_DEVICES=0 python -m tracking.lightglue_tracking.run \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv  \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+  --association-config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_run/lightGlue_tracking_noPnP_ot2block_pose_aware_ist_tran_residual_benchmark \
+  --device cuda \
+  --lightglue \
+  --lightglue-flow-policy uncertain_lost \
+  --lightglue-association-policy ambiguous \
+  --max-frames 500 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --save-overlays \
+  --overlay-every 10 \
+  --overwrite
+
+
+
+
+run the prev tracking: 
+
+CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
+  --predictions  gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv  \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+  --association-config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_run/rgb_tracking_ot2block_pose_aware_ist_tran_residual_benchmark \
+  --device cuda \
+  --top-k-gigapose 5 \
+  --beam-size 4 \
+  --max-candidates 48 \
+  --refinement-iterations 2 \
+  --global-interval 5 \
+  --broad-recovery-confidence 0.55 \
+  --normal-confidence 0.65 \
+  --lost-confidence 0.25 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --normal-max-rotation-step-deg 30 \
+  --uncertain-max-rotation-step-deg 60 \
+  --max-rank0-rotation-disagreement-deg 90 \
+  --save-overlays \
+  --overlay-every 10 \
+  --overlay-axis-length-m 1.0 \
+  --max-frames 500 \
+  --overwrite
+
+
+
+## Evaluation against GT
+
+Run the original RGB tracker and the new LightGlue tracker on the same
+synthetic benchmark. Then compare both:
+
+```bash
+python -m tracking.lightglue_tracking.evaluate \
+  --model rgb=gigaPose_datasets/results/tracking_run/rgb_tracking_ot2block_pose_aware_ist_tran_residual_benchmark/tracked_predictions.csv \
+  --model lightglue=gigaPose_datasets/results/tracking_run/lightGlue_tracking_ot2block_pose_aware_ist_tran_residual_benchmark/tracked_predictions.csv \
+  --model lightglue_noPnP=gigaPose_datasets/results/tracking_run/lightGlue_tracking_noPnP_ot2block_pose_aware_ist_tran_residual_benchmark/tracked_predictions.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --output-dir gigaPose_datasets/results/tracking_run/lightglue_tracking_comparison3
+```
+
+
+
+
+another ccombarision run:::::
+# New-runner baseline
+--no-lightglue \
+--no-lightglue-pnp-recovery  
+
+
+CUDA_VISIBLE_DEVICES=1 python -m tracking.lightglue_tracking.run \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv  \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+  --association-config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_run/NOlightGlue_ot2block_pose_aware_ist_tran_residual_benchmark \
+  --device cuda \
+  --max-frames 200 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --save-overlays \
+  --overlay-every 10 \
+  --no-lightglue \
+  --no-lightglue-pnp-recovery  \
+  --overwrite
+
+
+
+versus:
+
+
+# Association only
+--lightglue \
+--lightglue-association \
+--lightglue-association-policy ambiguous \
+--lightglue-flow-policy off \
+--no-lightglue-pnp-recovery
+
+
+CUDA_VISIBLE_DEVICES=0 python -m tracking.lightglue_tracking.run \
+  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv  \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
+  --association-config tracking/configs/improved.json \
+  --output-dir gigaPose_datasets/results/tracking_run/lightGlue_Association_ot2block_pose_aware_ist_tran_residual_benchmark \
+  --device cuda \
+  --max-frames 200 \
+  --orientation-gates \
+  --no-allow-flip-hypotheses \
+  --save-overlays \
+  --overlay-every 10 \
+  --lightglue \
+  --lightglue-association \
+  --lightglue-association-policy ambiguous \
+  --lightglue-flow-policy off \
+  --no-lightglue-pnp-recovery \
+  --overwrite
+
+
+```bash
+python -m tracking.lightglue_tracking.evaluate \
+  --model lightglue_association=gigaPose_datasets/results/tracking_run/lightGlue_Association_ot2block_pose_aware_ist_tran_residual_benchmark/tracked_predictions.csv \
+  --model Nolightglue=gigaPose_datasets/results/tracking_run/NOlightGlue_ot2block_pose_aware_ist_tran_residual_benchmark/tracked_predictions.csv \
+  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --split test \
+  --output-dir gigaPose_datasets/results/tracking_run/lightglue_tracking_comparison4
+```
+
+
+
+
+
+
+
 <!--
 /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-26-12-19-49/ Done
  /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/ Done
@@ -763,6 +938,10 @@ CUDA_VISIBLE_DEVICES=1 python -m tracking.rgb_self_recovery.run \
   --overlay-every 10 \
   --overlay-axis-length-m 1.0 \
   --overwrite
+
+
+
+
 
 
 

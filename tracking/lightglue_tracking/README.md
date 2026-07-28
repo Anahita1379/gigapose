@@ -157,12 +157,12 @@ on the machine:
 
 ```bash
 python -m tracking.lightglue_tracking.run \
-  --predictions gigaPose_datasets/results/large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_dataset/predictions/large-pbrreal-rgb-mmodel_assettocorsa_benchmark_new_dataset-test_large_assettocorsa_ot2block_pose_aware_ist_tran_residual_benchmark_new_datasetMultiHypothesis.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_front_gsam_v4-test_large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4 \
   --split test \
   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
   --association-config tracking/configs/improved.json \
-  --output-dir gigaPose_datasets/results/lightglue_tracking_smoke \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/real_20260518v1v4_front_rotation_gated_lightglue_tracking_smoke \
   --device cuda \
   --max-frames 100 \
   --lightglue \
@@ -193,12 +193,12 @@ After the smoke run shows reliable matches:
 
 ```bash
 python -m tracking.lightglue_tracking.run \
-  --predictions <GIGAPOSE_MULTI_HYPOTHESIS_CSV> \
-  --dataset-dir <DATASET_DIR> \
+  --predictions gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_front_gsam_v4-test_large_real_20260518v1v4_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv  \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4 \
   --split test \
   --checkpoint gigaPose_datasets/results/rgb_self_recovery_model/best.ckpt \
   --association-config tracking/configs/improved.json \
-  --output-dir <OUTPUT_DIR> \
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/light_glue_runs/real_20260518v1v4_front_rotation_gated_lightglue_tracking \
   --device cuda \
   --lightglue \
   --lightglue-flow-policy uncertain_lost \
@@ -226,11 +226,11 @@ synthetic benchmark. Then compare both:
 
 ```bash
 python -m tracking.lightglue_tracking.evaluate \
-  --model rgb=gigaPose_datasets/results/rgb_tracking/tracked_predictions.csv \
+  --model rgb=gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260518v1v4_front_rotation_gated/tracked_predictions.csv \
   --model lightglue=gigaPose_datasets/results/lightglue_tracking/tracked_predictions.csv \
-  --dataset-dir gigaPose_datasets/datasets/assettocorsa_benchmark_new_dataset \
+  --dataset-dir gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4 \
   --split test \
-  --output-dir gigaPose_datasets/results/lightglue_tracking_comparison
+  --output-dir gigaPose_datasets/results/rgb_self_recovery_realData_dataset/light_glue_runs/lightglue_tracking_comparison
 ```
 
 The evaluator saves:
