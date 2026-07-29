@@ -20,6 +20,95 @@ TRACK_SURFACE=/media/hdd2/ARCL_multicar_bags/camera_dataset/Track_info/sim_track
 CAR_MESH="$DATASET/models/obj_000001.ply"
 
 
+### V1-baseline original 100 frame run:
+RUN=gigaPose_datasets/results/teacher_v1_20260505_front
+
+PREDICTIONS=gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
+
+SELECTED=gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/selected_samples.csv
+
+TRACKS=gigaPose_datasets/results/real_20260505v1_front_gsam_v4_tracking/tracked_predictions.csv
+
+mkdir -p "$RUN"
+
+# 1.Build the 100 observations
+
+python3 -m teacher_pipeline.build_observations \
+  --predictions "$PREDICTIONS" \
+  --selected-samples "$SELECTED" \
+  --tracks "$TRACKS" \
+  --prediction-translation-unit mm \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --gigapose-pose-source auto \
+  --target-lidar-z-mode epnp_corrected \
+  --output "$RUN/observations.jsonl" \
+  --strict
+
+The report should say approximately:
+prediction_rows: 2400
+selected_rows: 100
+observations_written: 100
+resolved_gigapose_pose_source: aligned_csv
+target_lidar_z_mode: epnp_corrected
+corrected_lidar_z_count: 100
+track_rows: 480
+pose_associated_track_ids: 100
+
+Inspect it with:
+python3 -m json.tool "$RUN/observations.report.json"
+
+# 2.Initialize iteration 0
+python3 -m teacher_pipeline.trajectory \
+  --observations "$RUN/observations.jsonl" \
+  --output "$RUN/initial_trajectories_iteration_0.jsonl"
+
+# 3. Refine iteration 0
+python3 -m teacher_pipeline.refine_trajectories \
+  --trajectories "$RUN/initial_trajectories_iteration_0.jsonl" \
+  --epnp-anchor-weight 0.35 \
+  --output "$RUN/refined_iteration_0.jsonl"
+
+ # 4. Optimize the fixed extrinsic
+ python3 -m teacher_pipeline.optimize_extrinsic \
+  --trajectories "$RUN/refined_iteration_0.jsonl" \
+  --output "$RUN/extrinsic_iteration_1.json"
+
+Your successful original result had:
+translation median: 2.292 → 1.599 m
+rotation median:    2.415 → 2.315 degrees
+extrinsic correction translation: 0.743 m
+extrinsic correction rotation:    0.859 degrees
+
+Inspect it: 
+python3 -m json.tool "$RUN/extrinsic_iteration_1.json"
+
+# 5. Reinitialize using the optimized extrinsic
+python3 -m teacher_pipeline.trajectory \
+  --observations "$RUN/observations.jsonl" \
+  --extrinsics "$RUN/extrinsic_iteration_1.json" \
+  --output "$RUN/initial_trajectories_iteration_1.jsonl"
+
+# 6. Refine iteration 1
+python3 -m teacher_pipeline.refine_trajectories \
+  --trajectories "$RUN/initial_trajectories_iteration_1.jsonl" \
+  --epnp-anchor-weight 0.35 \
+  --output "$RUN/refined_iteration_1.jsonl"
+
+# 7. Evaluate and make plots
+python3 -m teacher_pipeline.evaluate \
+  --trajectories "$RUN/refined_iteration_1.jsonl" \
+  --extrinsics "$RUN/extrinsic_iteration_1.json" \
+  --output-dir "$RUN/evaluation"
+
+The original overlay command was:
+python3 -m teacher_pipeline.evaluate \
+  --trajectories "$RUN/refined_iteration_1.jsonl" \
+  --extrinsics "$RUN/extrinsic_iteration_1.json" \
+  --mesh gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4/models/obj_000001.ply \
+  --mesh-object-origin raw \
+  --max-overlays 100 \
+  --output-dir "$RUN/evaluation_with_overlays"
 
 
 ### V1-baseline:
@@ -151,3 +240,39 @@ python3 -m teacher_pipeline.v1_extended.compare_versions \
   --mesh "$CAR_MESH" \
   --mesh-object-origin raw \
   --max-overlays 100
+
+
+
+
+  ## Hybrid teacher? 
+  Original trusted V1: 100 selected frames.
+  Route-fixed Extended: remaining 380 frames.
+
+  I added the merge script. First confirm $V1_TRAJECTORIES points to the original 100-row V1 result:
+  wc -l "$V1_TRAJECTORIES"
+
+  It should print 100. 
+
+  Build the hybrid:
+  python3 -m teacher_pipeline.v1_extended.build_hybrid_teacher \
+  --selected-v1-trajectories "$V1_TRAJECTORIES" \
+  --extended-trajectories "$RUN/refined_physical_iteration_0_route_fixed.jsonl" \
+  --output "$RUN/hybrid_teacher_final.jsonl"
+
+  Inspect its report:
+  python3 -m json.tool "$RUN/hybrid_teacher_final.report.json"
+
+  Evaluate the final poses:
+ python3 -m teacher_pipeline.v1_extended.evaluate_physical \
+  --trajectories "$RUN/hybrid_teacher_final.jsonl" \
+  --track-map "$RUN/track_map.npz" \
+  --output-dir "$RUN/hybrid_teacher_evaluation" 
+
+  Then export the training labels:
+  python3 -m teacher_pipeline.v1_extended.export_student_labels \
+  --trajectories "$RUN/hybrid_teacher_final.jsonl" \
+  --extrinsics-version "epnp_hybrid_initial_fixed_v0" \
+  --output-dir "$RUN/student_labels_hybrid_final"
+
+  Use:
+  $RUN/student_labels_hybrid_final/labels.jsonl
