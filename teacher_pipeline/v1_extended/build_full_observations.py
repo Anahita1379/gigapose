@@ -10,13 +10,51 @@ from teacher_pipeline.geometry import CENTER_RAW_M, raw_to_centered_pose
 from teacher_pipeline.io import read_rows, write_json, write_rows
 
 
+def _build_track_id_lookup(rows):
+    """Index tracking rows without making their refined poses teacher inputs."""
+    by_instance = {}
+    by_frame = {}
+    for row in rows:
+        if row.get("scene_id") in (None, "") or row.get("im_id") in (None, ""):
+            continue
+        key = (int(row["scene_id"]), int(row["im_id"]))
+        by_frame.setdefault(key, []).append(row)
+        if row.get("instance_id") not in (None, ""):
+            by_instance[(key[0], key[1], str(row["instance_id"]))] = row
+    return by_instance, by_frame
+
+
+def _track_id_for_prediction(prediction, by_instance, by_frame):
+    """Return only an association ID; never copy R/t from the tracking row."""
+    if prediction.get("track_id") not in (None, ""):
+        return prediction["track_id"], "prediction.track_id"
+    key = (int(prediction["scene_id"]), int(prediction["im_id"]))
+    instance_id = prediction.get("instance_id")
+    if instance_id not in (None, ""):
+        match = by_instance.get((key[0], key[1], str(instance_id)))
+        if match is not None and match.get("track_id") not in (None, ""):
+            return match["track_id"], "track_ids_from.instance"
+    candidates = [
+        row for row in by_frame.get(key, [])
+        if row.get("track_id") not in (None, "")
+    ]
+    if len(candidates) == 1:
+        return candidates[0]["track_id"], "track_ids_from.unique_frame"
+    if instance_id not in (None, ""):
+        return instance_id, "prediction.instance_id"
+    return None, "missing"
+
+
 def main():
-    p=argparse.ArgumentParser(); p.add_argument("--predictions",type=Path,required=True,help="Prefer tracked_predictions.csv: one retained pose hypothesis per tracked object/frame")
+    p=argparse.ArgumentParser(); p.add_argument("--predictions",type=Path,required=True,help="One retained pose hypothesis per object/frame. Use the original GigaPose CSV with --track-ids-from for a raw-pose experiment.")
+    p.add_argument("--track-ids-from",type=Path,help="Optional tracking CSV used only for track_id association. R, t, and score always remain from --predictions.")
     p.add_argument("--dataset-dir",type=Path,required=True); p.add_argument("--anchor-observations",type=Path,help="Optional sparse corrected EPnP observations from V1")
     p.add_argument("--epnp-root",type=Path,help="Complete EPnP-hybrid label directory. Labels are matched directly by frame timestamp; selected_samples.csv is not needed.")
     p.add_argument("--metadata-root",type=Path); p.add_argument("--prediction-translation-unit",choices=("auto","m","mm"),default="mm"); p.add_argument("--gigapose-object-origin",choices=("raw","centered"),default="raw")
     p.add_argument("--center-raw",nargs=3,type=float,default=CENTER_RAW_M.tolist()); p.add_argument("--output",type=Path,required=True); p.add_argument("--strict",action="store_true"); a=p.parse_args()
     predictions=read_rows(a.predictions); frames=json.loads((a.dataset_dir/"frame_map.json").read_text()); frame_by_key={(int(row["scene_id"]),int(row["im_id"])):row for row in frames}
+    track_id_rows=read_rows(a.track_ids_from) if a.track_ids_from else []
+    track_ids_by_instance,track_ids_by_frame=_build_track_id_lookup(track_id_rows)
     labels_by_timestamp={}
     if a.epnp_root:
         for path in sorted(a.epnp_root.glob("*.json")):
@@ -36,6 +74,9 @@ def main():
     for index,prediction in enumerate(predictions):
         try:
             scene_id,im_id=int(prediction["scene_id"]),int(prediction["im_id"]); frame=frame_by_key[(scene_id,im_id)]
+            track_id,track_id_source=_track_id_for_prediction(prediction,track_ids_by_instance,track_ids_by_frame)
+            if a.track_ids_from and track_id is None:
+                raise ValueError(f"No unambiguous track_id for scene_id={scene_id}, im_id={im_id}")
             metadata_path=Path(frame["sample_metadata_path"])
             if a.metadata_root: metadata_path=a.metadata_root/metadata_path.name
             centered,raw=_prediction_pose_m(prediction,a.prediction_translation_unit,a.gigapose_object_origin,np.asarray(a.center_raw))
@@ -63,7 +104,7 @@ def main():
             if len(instances)==1: instance=instances[0]
             if anchor.get("T_map_lidar") is not None:
                 map_lidar=np.asarray(anchor["T_map_lidar"],dtype=float).reshape(4,4)
-            row={"scene_id":scene_id,"im_id":im_id,"session_id":frame.get("source_root"),"camera":frame.get("camera_id"),"timestamp_ns":timestamp,"track_id":prediction.get("track_id",prediction.get("instance_id")),"track_id_source":"prediction.track_id" if prediction.get("track_id") not in (None,"") else "prediction.instance_id","image_path":frame.get("image_path"),"mask_path":frame.get("mask_path"),"bbox_xywh":instance.get("bbox"),"prediction_row":index,"gigapose_score":float(prediction.get("score",0) or 0),"T_camera_object_centered_gigapose":centered.tolist(),"T_camera_object_raw_gigapose":raw.tolist(),"T_map_lidar":map_lidar.tolist(),"T_map_lidar_raw_metadata":raw_map_lidar.tolist(),"corrected_lidar_map_z_m":z,"target_lidar_z_mode":"epnp_corrected" if anchor else ("interpolated_epnp_corrected" if z is not None else "raw"),"T_lidar_camera_initial":lidar_camera.tolist(),"object_origin_convention":"centered","center_raw_m":list(a.center_raw),"sources":["gigapose","map","tracking_id"]}
+            row={"scene_id":scene_id,"im_id":im_id,"session_id":frame.get("source_root"),"camera":frame.get("camera_id"),"timestamp_ns":timestamp,"track_id":track_id,"track_id_source":track_id_source,"image_path":frame.get("image_path"),"mask_path":frame.get("mask_path"),"bbox_xywh":instance.get("bbox"),"prediction_row":index,"gigapose_score":float(prediction.get("score",0) or 0),"T_camera_object_centered_gigapose":centered.tolist(),"T_camera_object_raw_gigapose":raw.tolist(),"T_map_lidar":map_lidar.tolist(),"T_map_lidar_raw_metadata":raw_map_lidar.tolist(),"corrected_lidar_map_z_m":z,"target_lidar_z_mode":"epnp_corrected" if anchor else ("interpolated_epnp_corrected" if z is not None else "raw"),"T_lidar_camera_initial":lidar_camera.tolist(),"object_origin_convention":"centered","center_raw_m":list(a.center_raw),"sources":["gigapose","map","tracking_id"]}
             camera=load_metadata_camera(metadata); row.update(K=camera[0].tolist() if camera else None,distortion=camera[1].tolist() if camera else [],distortion_model=camera[2] if camera else "unknown",sample_metadata_path=str(metadata_path))
             for field in ("T_camera_object_centered_epnp","T_map_object_raw_epnp","T_map_object_centered_epnp","epnp_label_path","epnp_record_index"):
                 if anchor.get(field) is not None: row[field]=anchor[field]
@@ -74,7 +115,7 @@ def main():
         except Exception as exc:
             skipped.append({"prediction_row":index,"error_type":type(exc).__name__,"error":str(exc)})
             if a.strict: raise
-    write_rows(a.output,output); write_json(a.output.with_suffix(".report.json"),{"format":"teacher_v1_extended_full_observations","prediction_rows":len(predictions),"observations_written":len(output),"epnp_files_discovered":sum(len(values) for values in labels_by_timestamp.values()),"anchor_rows":sum(row.get("T_map_object_centered_epnp") is not None for row in output),"corrected_z_rows":sum(row.get("corrected_lidar_map_z_m") is not None for row in output),"skipped_count":len(skipped),"skipped":skipped[:100]})
+    write_rows(a.output,output); write_json(a.output.with_suffix(".report.json"),{"format":"teacher_v1_extended_full_observations","prediction_rows":len(predictions),"observations_written":len(output),"track_ids_from":str(a.track_ids_from) if a.track_ids_from else None,"track_id_source_counts":{source:sum(row.get("track_id_source")==source for row in output) for source in sorted({row.get("track_id_source") for row in output})},"epnp_files_discovered":sum(len(values) for values in labels_by_timestamp.values()),"anchor_rows":sum(row.get("T_map_object_centered_epnp") is not None for row in output),"corrected_z_rows":sum(row.get("corrected_lidar_map_z_m") is not None for row in output),"skipped_count":len(skipped),"skipped":skipped[:100]})
     print(f"Wrote {len(output)} full-sequence observations; attached EPnP to {sum(row.get('T_map_object_centered_epnp') is not None for row in output)} rows -> {a.output}")
 
 if __name__ == "__main__": main()

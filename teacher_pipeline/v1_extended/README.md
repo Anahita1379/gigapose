@@ -91,6 +91,18 @@ python3 -m teacher_pipeline.v1_extended.build_full_observations \
   --strict
 ```
 
+For a controlled raw-GigaPose experiment, pass the original one-hypothesis
+GigaPose CSV as `--predictions` and borrow only association IDs from tracking:
+
+```bash
+--predictions <gigapose>/predictions.csv \
+--track-ids-from <tracking-run>/tracked_predictions.csv
+```
+
+This preserves `R`, `t`, and `score` from the original GigaPose CSV. The
+tracking CSV contributes only `track_id`; its optical-flow, constant-velocity,
+and recovery-refined poses are not consumed.
+
 The builder keeps every tracked frame, matches EPnP labels by frame timestamp,
 and uses every available corrected-Z label. When only a sparse EPnP subset is
 available, `--anchor-observations <v1>/observations.jsonl` remains a fallback

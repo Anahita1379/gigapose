@@ -6,6 +6,10 @@ from teacher_pipeline.geometry import centered_to_raw_pose
 from teacher_pipeline.v1_extended.prepare_track_map import prepare
 from teacher_pipeline.v1_extended.compare_versions import compare_pairs, match_rows
 from teacher_pipeline.v1_extended.build_hybrid_teacher import merge
+from teacher_pipeline.v1_extended.build_full_observations import (
+    _build_track_id_lookup,
+    _track_id_for_prediction,
+)
 from teacher_pipeline.v1_extended.extract_track_map_from_surface import (
     _apply_planar_transform,
     _correct_unsupported_route_detours,
@@ -98,3 +102,23 @@ def test_hybrid_teacher_prefers_selected_v1_and_fills_remaining_rows():
     assert output[0]["track_s_m"] is None
     assert output[1]["T_map_object_centered_refined"]==pose_extended.tolist()
     assert output[1]["track_s_m"]==11
+
+
+def test_raw_prediction_can_borrow_only_track_id_from_refined_tracking_row():
+    tracking = [{
+        "scene_id": 1, "im_id": 4, "instance_id": 7, "track_id": 3,
+        "R": "refined rotation must not be consumed",
+        "t": "refined translation must not be consumed",
+    }]
+    by_instance, by_frame = _build_track_id_lookup(tracking)
+    raw_prediction = {
+        "scene_id": 1, "im_id": 4,
+        "R": "raw rotation", "t": "raw translation",
+    }
+    track_id, source = _track_id_for_prediction(
+        raw_prediction, by_instance, by_frame
+    )
+    assert track_id == 3
+    assert source == "track_ids_from.unique_frame"
+    assert raw_prediction["R"] == "raw rotation"
+    assert raw_prediction["t"] == "raw translation"
