@@ -276,3 +276,96 @@ python3 -m teacher_pipeline.v1_extended.compare_versions \
 
   Use:
   $RUN/student_labels_hybrid_final/labels.jsonl
+
+
+
+
+-------------------------------------------
+# Rerun the originla v1 experiment for full 480 dataset:
+
+1. Set paths
+
+ ```bash
+cd ~/gigapose
+
+V1_RAW_RUN=gigaPose_datasets/results/teacher_v1_full_raw_20260505_front_rerun
+
+RAW_GP=gigaPose_datasets/results/real_world_ot2_IST_tran/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran.csv
+
+TRACK_IDS=gigaPose_datasets/results/real_20260505v1_front_gsam_v4_tracking/tracked_predictions.csv
+
+DATASET=gigaPose_datasets/datasets/real_20260505v1_front_gsam_v4
+
+EPNP_ROOT=/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
+
+METADATA_ROOT=/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/metadata
+
+mkdir -p "$V1_RAW_RUN"
+
+ ```
+Confirm the prepared dataset path:
+ ```bash
+test -f "$DATASET/frame_map.json" && echo "Dataset found" || echo "DATASET path is wrong"
+```
+2. Build all-frame raw-GigaPose observations
+ ```bash
+python3 -m teacher_pipeline.v1_extended.build_full_observations \
+  --predictions "$RAW_GP" \
+  --track-ids-from "$TRACK_IDS" \
+  --dataset-dir "$DATASET" \
+  --epnp-root "$EPNP_ROOT" \
+  --metadata-root "$METADATA_ROOT" \
+  --prediction-translation-unit mm \
+  --gigapose-object-origin raw \
+  --output "$V1_RAW_RUN/full_raw_observations.jsonl" \
+  --strict
+
+ ```
+
+R, t, and score come from the original GigaPose CSV.
+Only track_id comes from tracked_predictions.csv.
+EPnP poses are attached for evaluation.
+EPnP poses will not influence refinement because we will use anchor weight zero.
+
+Check the report:
+
+```bash
+python3 -m json.tool "$V1_RAW_RUN/full_raw_observations.report.json"
+```
+prediction_rows: 480
+observations_written: 480
+skipped_count: 0
+track_id_source_counts:
+track_ids_from.unique_frame: 480
+
+
+3. Initialize raw V1 trajectories
+Use the metadata’s original fixed camera–LiDAR extrinsic:
+```bash
+python3 -m teacher_pipeline.v1.trajectory \
+  --observations "$V1_RAW_RUN/full_raw_observations.jsonl" \
+  --output "$V1_RAW_RUN/initial_trajectories_iteration_0.jsonl"
+```
+
+4. Run V1 temporal refinement
+The critical setting is --epnp-anchor-weight 0:
+
+```bash
+python3 -m teacher_pipeline.v1.refine_trajectories \
+  --trajectories "$V1_RAW_RUN/initial_trajectories_iteration_0.jsonl" \
+  --epnp-anchor-weight 0 \
+  --output "$V1_RAW_RUN/refined_iteration_0.jsonl"
+```
+This tests whether V1’s temporal smoothing alone improves raw GigaPose.
+
+5. Evaluate raw GigaPose versus V1
+```bash
+python3 -m teacher_pipeline.v1.evaluate \
+  --trajectories "$V1_RAW_RUN/refined_iteration_0.jsonl" \
+  --output-dir "$V1_RAW_RUN/evaluation_iteration_0"
+```
+
+Inspect:
+```bash
+python3 -m json.tool "$V1_RAW_RUN/evaluation_iteration_0/summary.json"
+```
