@@ -5,6 +5,7 @@ from scipy.spatial import cKDTree
 from teacher_pipeline.geometry import centered_to_raw_pose
 from teacher_pipeline.v1_extended.prepare_track_map import prepare
 from teacher_pipeline.v1_extended.compare_versions import compare_pairs, match_rows
+from teacher_pipeline.v1_extended.build_hybrid_teacher import merge
 from teacher_pipeline.v1_extended.extract_track_map_from_surface import (
     _apply_planar_transform,
     _correct_unsupported_route_detours,
@@ -81,3 +82,19 @@ def test_dense_guide_replaces_local_skeleton_detour():
     )
     assert len(corrections)==1
     assert np.max(cKDTree(corrected).query(guide)[0])<1.5
+
+
+def test_hybrid_teacher_prefers_selected_v1_and_fills_remaining_rows():
+    pose_v1=np.eye(4); pose_v1[0,3]=1
+    pose_extended=np.eye(4); pose_extended[0,3]=2
+    extended=[
+        {"scene_id":1,"im_id":1,"track_id":"0","T_map_object_centered_refined":pose_extended.tolist(),"track_s_m":10,"sources":["track_map"]},
+        {"scene_id":1,"im_id":2,"track_id":"0","T_map_object_centered_refined":pose_extended.tolist(),"track_s_m":11,"sources":["track_map"]},
+    ]
+    selected=[{"scene_id":1,"im_id":1,"track_id":0,"T_map_object_centered_refined":pose_v1.tolist(),"sources":["epnp_hybrid"]}]
+    output,count,fallback=merge(selected,extended,.9,.5)
+    assert count==1 and fallback==0 and len(output)==2
+    assert output[0]["T_map_object_centered_refined"]==pose_v1.tolist()
+    assert output[0]["track_s_m"] is None
+    assert output[1]["T_map_object_centered_refined"]==pose_extended.tolist()
+    assert output[1]["track_s_m"]==11
