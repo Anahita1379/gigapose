@@ -7,7 +7,7 @@ from fine_tuning.optimize_camera_lidar_extrinsics import corrected_lidar_map_z_m
 from fine_tuning.select_real_label_candidates import load_json_records
 from teacher_pipeline.build_observations import _pose_m, _prediction_pose_m
 from teacher_pipeline.geometry import CENTER_RAW_M, raw_to_centered_pose
-from teacher_pipeline.io import read_rows, write_json, write_rows
+from teacher_pipeline.io import arr, read_rows, write_json, write_rows
 
 
 def _build_track_id_lookup(rows):
@@ -24,7 +24,9 @@ def _build_track_id_lookup(rows):
     return by_instance, by_frame
 
 
-def _track_id_for_prediction(prediction, by_instance, by_frame):
+def _track_id_for_prediction(
+    prediction, by_instance, by_frame, claimed_track_frames=None
+):
     """Return only an association ID; never copy R/t from the tracking row."""
     if prediction.get("track_id") not in (None, ""):
         return prediction["track_id"], "prediction.track_id"
@@ -34,12 +36,43 @@ def _track_id_for_prediction(prediction, by_instance, by_frame):
         match = by_instance.get((key[0], key[1], str(instance_id)))
         if match is not None and match.get("track_id") not in (None, ""):
             return match["track_id"], "track_ids_from.instance"
+    claimed_track_frames = claimed_track_frames or set()
     candidates = [
         row for row in by_frame.get(key, [])
         if row.get("track_id") not in (None, "")
+        and (key[0], key[1], str(row["track_id"]))
+        not in claimed_track_frames
     ]
     if len(candidates) == 1:
         return candidates[0]["track_id"], "track_ids_from.unique_frame"
+    if len(candidates) > 1 and prediction.get("t") not in (None, ""):
+        same_object = [
+            row for row in candidates
+            if prediction.get("obj_id") in (None, "")
+            or row.get("obj_id") in (None, "")
+            or str(row["obj_id"]) == str(prediction["obj_id"])
+        ]
+        candidates = same_object or candidates
+        prediction_t = arr(prediction["t"], (3,))
+        ranked = []
+        for row in candidates:
+            try:
+                candidate_t = arr(row["t"], (3,))
+                scale = max(
+                    0.5 * (
+                        np.linalg.norm(prediction_t)
+                        + np.linalg.norm(candidate_t)
+                    ),
+                    1.0,
+                )
+                ranked.append(
+                    (float(np.linalg.norm(prediction_t-candidate_t)/scale),row)
+                )
+            except Exception:
+                continue
+        if ranked:
+            ranked.sort(key=lambda item:item[0])
+            return ranked[0][1]["track_id"], "track_ids_from.pose_association"
     if instance_id not in (None, ""):
         return instance_id, "prediction.instance_id"
     return None, "missing"
@@ -70,13 +103,21 @@ def main():
         values=z_anchors.get(scene_id,[])
         if not values: return None
         x=np.asarray([value[0] for value in values]); y=np.asarray([value[1] for value in values]); return float(np.interp(im_id,x,y))
-    output=[]; skipped=[]
+    output=[]; skipped=[]; claimed_track_frames=set()
     for index,prediction in enumerate(predictions):
         try:
             scene_id,im_id=int(prediction["scene_id"]),int(prediction["im_id"]); frame=frame_by_key[(scene_id,im_id)]
-            track_id,track_id_source=_track_id_for_prediction(prediction,track_ids_by_instance,track_ids_by_frame)
+            track_id,track_id_source=_track_id_for_prediction(prediction,track_ids_by_instance,track_ids_by_frame,claimed_track_frames)
             if a.track_ids_from and track_id is None:
                 raise ValueError(f"No unambiguous track_id for scene_id={scene_id}, im_id={im_id}")
+            track_frame_key=(scene_id,im_id,str(track_id))
+            if track_id is not None and track_frame_key in claimed_track_frames:
+                raise ValueError(
+                    "Multiple prediction hypotheses were assigned to the same "
+                    f"track/frame {track_frame_key}. --predictions must contain "
+                    "one retained pose per tracked object/frame, not a "
+                    "MultiHypothesis CSV."
+                )
             metadata_path=Path(frame["sample_metadata_path"])
             if a.metadata_root: metadata_path=a.metadata_root/metadata_path.name
             centered,raw=_prediction_pose_m(prediction,a.prediction_translation_unit,a.gigapose_object_origin,np.asarray(a.center_raw))
@@ -111,7 +152,7 @@ def main():
             row["epnp_reference_available"]=bool(anchor)
             row["independent_support"]=False
             if anchor: row["sources"].append("epnp_hybrid_anchor")
-            output.append(row)
+            output.append(row); claimed_track_frames.add(track_frame_key)
         except Exception as exc:
             skipped.append({"prediction_row":index,"error_type":type(exc).__name__,"error":str(exc)})
             if a.strict: raise

@@ -122,3 +122,29 @@ def test_raw_prediction_can_borrow_only_track_id_from_refined_tracking_row():
     assert source == "track_ids_from.unique_frame"
     assert raw_prediction["R"] == "raw rotation"
     assert raw_prediction["t"] == "raw translation"
+
+
+def test_multiple_raw_predictions_borrow_distinct_ids_by_pose_association():
+    tracking = [
+        {"scene_id": 1, "im_id": 4, "obj_id": 1, "track_id": 8,
+         "t": "0 0 10000"},
+        {"scene_id": 1, "im_id": 4, "obj_id": 1, "track_id": 9,
+         "t": "1000 0 30000"},
+    ]
+    by_instance, by_frame = _build_track_id_lookup(tracking)
+    claimed = set()
+    first = {"scene_id": 1, "im_id": 4, "obj_id": 1,
+             "R": "raw R 1", "t": "20 0 10100"}
+    first_id, first_source = _track_id_for_prediction(
+        first, by_instance, by_frame, claimed
+    )
+    claimed.add((1, 4, str(first_id)))
+    second = {"scene_id": 1, "im_id": 4, "obj_id": 1,
+              "R": "raw R 2", "t": "950 0 29900"}
+    second_id, second_source = _track_id_for_prediction(
+        second, by_instance, by_frame, claimed
+    )
+    assert (first_id, second_id) == (8, 9)
+    assert first_source == "track_ids_from.pose_association"
+    assert second_source == "track_ids_from.unique_frame"
+    assert first["R"] == "raw R 1" and second["R"] == "raw R 2"
