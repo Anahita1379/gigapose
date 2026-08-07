@@ -8,6 +8,7 @@ from teacher_pipeline.v1_extended.compare_versions import compare_pairs, match_r
 from teacher_pipeline.v1_extended.build_hybrid_teacher import merge
 from teacher_pipeline.v1_extended.build_full_observations import (
     _build_track_id_lookup,
+    _load_gigapose_frame_transform,
     _track_id_for_prediction,
 )
 from teacher_pipeline.v1_extended.extract_track_map_from_surface import (
@@ -148,3 +149,14 @@ def test_multiple_raw_predictions_borrow_distinct_ids_by_pose_association():
     assert first_source == "track_ids_from.pose_association"
     assert second_source == "track_ids_from.unique_frame"
     assert first["R"] == "raw R 1" and second["R"] == "raw R 2"
+
+
+def test_gigapose_right_frame_transform_converts_mm_to_m(tmp_path):
+    path = tmp_path / "frame_transform.json"
+    path.write_text(
+        '{"frame_transform_side":"right","translation_unit":"mm",'
+        '"T_epnp_gigapose_right":'
+        '[[1,0,0,-7000],[0,1,0,0],[0,0,1,500],[0,0,0,1]]}'
+    )
+    transform = _load_gigapose_frame_transform(path)
+    np.testing.assert_allclose(transform[:3, 3], [-7.0, 0.0, 0.5])

@@ -15,7 +15,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image
 
-from .geometry import as_pose, centered_to_raw_pose, pose_error
+from .geometry import (
+    CENTER_RAW_M,
+    as_pose,
+    centered_to_raw_pose,
+    pose_error,
+    raw_to_centered_pose,
+)
 from .io import write_json, write_rows
 from .trajectory import load
 
@@ -31,6 +37,21 @@ def _error(predicted: np.ndarray, target: np.ndarray) -> tuple[float, float]:
     return float(np.linalg.norm(residual[:3])), float(
         np.degrees(np.linalg.norm(residual[3:]))
     )
+
+
+def _original_gigapose_camera(row: dict[str, Any]) -> np.ndarray:
+    unaligned = row.get("T_camera_object_centered_gigapose_unaligned")
+    if unaligned is not None:
+        return as_pose(unaligned)
+    if (
+        row.get("gigapose_pose_source") == "aligned_csv"
+        and row.get("T_camera_object_raw_gigapose") is not None
+    ):
+        center = np.asarray(row.get("center_raw_m", CENTER_RAW_M), dtype=float)
+        return raw_to_centered_pose(
+            as_pose(row["T_camera_object_raw_gigapose"]), center
+        )
+    return as_pose(row["T_camera_object_centered_gigapose"])
 
 
 def _load_extrinsic(path: Path | None) -> np.ndarray | None:
@@ -93,7 +114,7 @@ def evaluate_rows(
             target = as_pose(row["T_map_object_centered_epnp"])
             map_lidar = as_pose(row["T_map_lidar"])
             initial_extrinsic = as_pose(row["T_lidar_camera_initial"])
-            gp_camera = as_pose(row["T_camera_object_centered_gigapose"])
+            gp_camera = _original_gigapose_camera(row)
             original = map_lidar @ initial_extrinsic @ gp_camera
             final = as_pose(row["T_map_object_centered_refined"])
             target_camera_value = row.get("T_camera_object_centered_epnp")
@@ -313,7 +334,7 @@ def save_overlays(
                     raise ValueError("observation has no camera intrinsics K")
                 image = np.asarray(Image.open(image_path).convert("RGB"))
                 K = np.asarray(row["K"], dtype=float).reshape(3, 3)
-                gp_centered = as_pose(row["T_camera_object_centered_gigapose"])
+                gp_centered = _original_gigapose_camera(row)
                 map_lidar = as_pose(row["T_map_lidar"])
                 final_extrinsic = (
                     optimized_extrinsic

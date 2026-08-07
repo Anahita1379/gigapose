@@ -1,0 +1,31 @@
+\begin{thebibliography}{1}
+
+\bibitem{nguyen2024gigapose}
+Van~Nguyen Nguyen, Thibault Groueix, Mathieu Salzmann, and Vincent Lepetit.
+\newblock Gigapose: Fast and robust novel object pose estimation via one
+  correspondence.
+\newblock {\em Proceedings of the IEEE/CVF Conference on Computer Vision and
+  Pattern Recognition}, 2024.
+
+\bibitem{oquab2023dinov2}
+Maxime Oquab, Timoth{\'e}e Darcet, Th{\'e}o Moutakanni, Huy Vo, Marc
+  Szafraniec, Vasil Khalidov, Pierre Fernandez, Daniel Haziza, Francisco Massa,
+  Alaaeldin El-Nouby, et~al.
+\newblock {DINOv2}: Learning robust visual features without supervision.
+\newblock {\em Transactions on Machine Learning Research}, 2024.
+
+\bibitem{revach2022kalmannet}
+Guy Revach, Nir Shlezinger, Xiaoyong Ni, Adria Lopez~Escoriza, Ruud J.~G. van
+  Sloun, and Yonina~C. Eldar.
+\newblock {KalmanNet}: Neural network aided kalman filtering for partially
+  known dynamics.
+\newblock {\em IEEE Transactions on Signal Processing}, 70:1532--1547, 2022.
+
+\bibitem{grutrack2025}
+Xiang-1208.
+\newblock {GRUTrack}: Neural-network-based kalman filtering for 3d multi-object
+  tracking.
+\newblock \url{https://github.com/xiang-1208/GRUTrack}, 2025.
+\newblock Accessed 2026-08-04.
+
+\end{thebibliography}
