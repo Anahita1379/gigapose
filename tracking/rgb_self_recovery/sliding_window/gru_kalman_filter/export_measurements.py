@@ -1,4 +1,4 @@
-"""Export sequence-safe raw GigaPose measurements and GT filter targets."""
+"""Export sequence-safe pose measurements, with optional GT diagnostics."""
 
 from __future__ import annotations
 
@@ -137,8 +137,8 @@ def main() -> None:
             gt_pose = regenerated_ground_truth.get(
                 (str(stamp.key[0]), str(stamp.key[1]), int(stamp.source_frame))
             )
-        if gt_pose is None or len(frame.detections) != 1:
-            skipped.append({"scene_id": key[0], "im_id": key[1], "reason": "requires one GT and detection"})
+        if len(frame.detections) != 1:
+            skipped.append({"scene_id": key[0], "im_id": key[1], "reason": "requires exactly one detection"})
             continue
         groups = predictions.groups_for_frame(*key)
         assigned = assign_prediction_groups(
@@ -191,12 +191,10 @@ def main() -> None:
             "segment_id": segment_id,
             "measurement_pose": pose,
             "baseline_pose": baseline_pose,
-            "ground_truth_pose": gt_pose,
             "context_features": context_features(frame, frame.detections[0], measurement),
             "measurement_score": float(measurement.measurement_score),
             "baseline_score": float(baseline.measurement_score),
-            "raw_translation_error_m": translation_error_m(pose, gt_pose),
-            "raw_rotation_error_deg": rotation_error_deg(pose, gt_pose),
+            "ground_truth_pose": gt_pose,
         })
         previous_saved_stamp = stamp
         previous_saved_time = stamp.time_s
@@ -205,16 +203,26 @@ def main() -> None:
     if not records:
         raise RuntimeError("No measurements were exported")
 
+    has_evaluation = all(row["ground_truth_pose"] is not None for row in records)
     scalar_names = (
         "scene_id", "im_id", "source_frame", "time_s", "delta_time_s",
-        "segment_id", "measurement_score", "baseline_score", "raw_translation_error_m",
-        "raw_rotation_error_deg",
+        "segment_id", "measurement_score", "baseline_score",
     )
     arrays = {name: np.asarray([row[name] for row in records]) for name in scalar_names}
-    for name in (
-        "measurement_pose", "baseline_pose", "ground_truth_pose", "context_features"
-    ):
+    for name in ("measurement_pose", "baseline_pose", "context_features"):
         arrays[name] = np.asarray([row[name] for row in records])
+    if has_evaluation:
+        arrays["ground_truth_pose"] = np.asarray(
+            [row["ground_truth_pose"] for row in records]
+        )
+        arrays["raw_translation_error_m"] = np.asarray([
+            translation_error_m(row["measurement_pose"], row["ground_truth_pose"])
+            for row in records
+        ])
+        arrays["raw_rotation_error_deg"] = np.asarray([
+            rotation_error_deg(row["measurement_pose"], row["ground_truth_pose"])
+            for row in records
+        ])
     arrays["source_run"] = np.asarray([row["source_run"] for row in records], dtype="<U256")
     arrays["camera_id"] = np.asarray([row["camera_id"] for row in records], dtype="<U64")
     np.savez_compressed(args.output_dir / "measurements.npz", **arrays)
@@ -231,6 +239,7 @@ def main() -> None:
         "fallback_baseline_predictions": (
             None if baseline_path is None else str(baseline_path)
         ),
+        "evaluation_available": has_evaluation,
         "frame_count": len(records),
         "run_count": len(set(arrays["source_run"].tolist())),
         "sequence_count": len(set(zip(arrays["source_run"].tolist(), arrays["camera_id"].tolist()))),

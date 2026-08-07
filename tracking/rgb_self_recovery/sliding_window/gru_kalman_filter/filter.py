@@ -63,6 +63,7 @@ def main() -> None:
     if checkpoint["context_feature_names"] != bundle.manifest["context_feature_names"]:
         raise ValueError("Checkpoint and measurement context schemas differ")
     arrays = bundle.arrays
+    has_evaluation = "ground_truth_pose" in arrays
     filtered = np.repeat(np.eye(4, dtype=np.float32)[None], len(bundle), axis=0)
     gain_values = np.zeros((len(bundle), 12), dtype=np.float32)
     trust_probabilities = np.ones((len(bundle), 2), dtype=np.float32)
@@ -151,20 +152,25 @@ def main() -> None:
         fallback_count += int(fallback)
         translation_fallback_count += int(translation_fallback)
         rotation_fallback_count += int(rotation_fallback)
-        gt = arrays["ground_truth_pose"][index]
-        rt = translation_error_m(measurement, gt)
-        rr = rotation_error_deg(measurement, gt)
-        candidate_t = translation_error_m(candidate, gt)
-        candidate_r = rotation_error_deg(candidate, gt)
-        baseline_t = translation_error_m(baseline, gt)
-        baseline_r = rotation_error_deg(baseline, gt)
-        ft = translation_error_m(pose, gt)
-        fr = rotation_error_deg(pose, gt)
-        raw_t.append(rt); raw_r.append(rr); final_t.append(ft); final_r.append(fr)
+        if has_evaluation:
+            gt = arrays["ground_truth_pose"][index]
+            rt = translation_error_m(measurement, gt)
+            rr = rotation_error_deg(measurement, gt)
+            candidate_t = translation_error_m(candidate, gt)
+            candidate_r = rotation_error_deg(candidate, gt)
+            baseline_t = translation_error_m(baseline, gt)
+            baseline_r = rotation_error_deg(baseline, gt)
+            ft = translation_error_m(pose, gt)
+            fr = rotation_error_deg(pose, gt)
+            raw_t.append(rt); raw_r.append(rr); final_t.append(ft); final_r.append(fr)
+        else:
+            rt = rr = candidate_t = candidate_r = float("nan")
+            baseline_t = baseline_r = ft = fr = float("nan")
         camera = str(arrays["camera_id"][index])
         camera_values = by_camera[camera]
-        camera_values["raw_t"].append(rt); camera_values["raw_r"].append(rr)
-        camera_values["final_t"].append(ft); camera_values["final_r"].append(fr)
+        if has_evaluation:
+            camera_values["raw_t"].append(rt); camera_values["raw_r"].append(rr)
+            camera_values["final_t"].append(ft); camera_values["final_r"].append(fr)
         output_rows.append(pose_to_csv_row(
             scene_id=int(arrays["scene_id"][index]),
             im_id=int(arrays["im_id"][index]),
@@ -242,6 +248,7 @@ def main() -> None:
         "rotation_fallback_fraction": rotation_fallback_count / len(bundle),
         "use_fallback_heads": model.use_fallback_heads,
         "preserve_measurement_rotation": model.preserve_measurement_rotation,
+        "evaluation_available": has_evaluation,
         "raw_translation_error_m": _summary(raw_t),
         "filtered_translation_error_m": _summary(final_t),
         "raw_rotation_error_deg": _summary(raw_r),

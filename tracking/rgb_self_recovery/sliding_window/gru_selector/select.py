@@ -90,6 +90,20 @@ def main() -> None:
         raise ValueError("GRU checkpoint and bundle candidate counts differ")
 
     arrays = bundle.arrays
+    evaluation_fields = {
+        "ground_truth_pose",
+        "oracle_index",
+        "translation_error_m",
+        "rotation_error_deg",
+    }
+    available_evaluation_fields = evaluation_fields.intersection(arrays)
+    if available_evaluation_fields and available_evaluation_fields != evaluation_fields:
+        missing = sorted(evaluation_fields - available_evaluation_fields)
+        raise ValueError(
+            "Candidate bundle has an incomplete evaluation schema; missing "
+            + ", ".join(missing)
+        )
+    has_evaluation = available_evaluation_fields == evaluation_fields
     orientation = None
     fixed_lag = None
     if args.temporal_orientation:
@@ -203,9 +217,10 @@ def main() -> None:
                     source=f"gru_selector|{resolved_source}",
                     elapsed_s=0.0,
                 )
-                selected_rotation[resolved_index] = rotation_error_deg(
-                    resolved_pose, payload_to_resolve["ground_truth_pose"]
-                )
+                if has_evaluation:
+                    selected_rotation[resolved_index] = rotation_error_deg(
+                        resolved_pose, payload_to_resolve["ground_truth_pose"]
+                    )
                 diagnostics[resolved_index]["output_candidate_index"] = resolved_selected
                 diagnostics[resolved_index]["temporal_orientation_fallback"] = 0
                 diagnostics[resolved_index]["fixed_lag_backfilled"] = 1
@@ -213,27 +228,30 @@ def main() -> None:
                     orientation_decision.flip_state
                 )
                 diagnostics[resolved_index]["selected_source"] = resolved_source
-                diagnostics[resolved_index]["selected_rotation_error_deg"] = (
-                    selected_rotation[resolved_index]
-                )
+                if has_evaluation:
+                    diagnostics[resolved_index]["selected_rotation_error_deg"] = (
+                        selected_rotation[resolved_index]
+                    )
                 temporal_fallbacks -= 1
                 fixed_lag_backfilled_frames += 1
-                oracle_matches += int(
-                    resolved_selected == payload_to_resolve["oracle_index"]
-                )
+                if has_evaluation:
+                    oracle_matches += int(
+                        resolved_selected == payload_to_resolve["oracle_index"]
+                    )
             recoveries += int(selected != 0)
-            oracle = int(arrays["oracle_index"][index])
-            oracle_matches += int(
-                orientation_decision is not None
-                and not orientation_decision.temporal_fallback
-                and selected == oracle
-                or orientation_decision is None and selected == oracle
-            )
-            gt_pose = arrays["ground_truth_pose"][index]
-            selected_translation.append(translation_error_m(selected_pose, gt_pose))
-            selected_rotation.append(rotation_error_deg(selected_pose, gt_pose))
-            baseline_translation.append(float(arrays["translation_error_m"][index, 0]))
-            baseline_rotation.append(float(arrays["rotation_error_deg"][index, 0]))
+            oracle = int(arrays["oracle_index"][index]) if has_evaluation else None
+            gt_pose = arrays["ground_truth_pose"][index] if has_evaluation else None
+            if has_evaluation:
+                oracle_matches += int(
+                    orientation_decision is not None
+                    and not orientation_decision.temporal_fallback
+                    and selected == oracle
+                    or orientation_decision is None and selected == oracle
+                )
+                selected_translation.append(translation_error_m(selected_pose, gt_pose))
+                selected_rotation.append(rotation_error_deg(selected_pose, gt_pose))
+                baseline_translation.append(float(arrays["translation_error_m"][index, 0]))
+                baseline_rotation.append(float(arrays["rotation_error_deg"][index, 0]))
             source = str(arrays["sources"][index, selected])
             if orientation_decision is not None:
                 source += orientation_decision.source_suffix
@@ -272,7 +290,7 @@ def main() -> None:
                         and orientation_decision.temporal_fallback
                         else selected
                     ),
-                    "oracle_index": oracle,
+                    "oracle_index": -1 if oracle is None else oracle,
                     "selected_probability": float(probabilities[selected]),
                     "gigapose_probability": float(probabilities[0]),
                     "guarded_fallback": int(probability_guarded_fallback),
@@ -323,10 +341,18 @@ def main() -> None:
                         else "|".join(orientation_decision.temporal_candidate_names)
                     ),
                     "selected_source": source,
-                    "selected_translation_error_m": selected_translation[-1],
-                    "selected_rotation_error_deg": selected_rotation[-1],
-                    "gigapose_translation_error_m": baseline_translation[-1],
-                    "gigapose_rotation_error_deg": baseline_rotation[-1],
+                    "selected_translation_error_m": (
+                        float("nan") if not has_evaluation else selected_translation[-1]
+                    ),
+                    "selected_rotation_error_deg": (
+                        float("nan") if not has_evaluation else selected_rotation[-1]
+                    ),
+                    "gigapose_translation_error_m": (
+                        float("nan") if not has_evaluation else baseline_translation[-1]
+                    ),
+                    "gigapose_rotation_error_deg": (
+                        float("nan") if not has_evaluation else baseline_rotation[-1]
+                    ),
                 }
             )
             backfill_payloads.append(
@@ -360,7 +386,8 @@ def main() -> None:
         "confirmed_flip_transition_count": confirmed_flips,
         "orientation_fixed_lag_enabled": fixed_lag is not None,
         "fixed_lag_backfilled_frame_count": fixed_lag_backfilled_frames,
-        "oracle_accuracy": oracle_matches / len(bundle),
+        "evaluation_available": has_evaluation,
+        "oracle_accuracy": oracle_matches / len(bundle) if has_evaluation else None,
         "gigapose_translation_error_m": _summary(baseline_translation),
         "selected_translation_error_m": _summary(selected_translation),
         "gigapose_rotation_error_deg": _summary(baseline_rotation),
