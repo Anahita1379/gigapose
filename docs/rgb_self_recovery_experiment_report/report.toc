@@ -1,0 +1,38 @@
+\contentsline {section}{\numberline {1}Scope, chronology, and experimental question}{3}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Benchmark and an important split caveat}{3}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Metrics}{3}{subsection.1.2}%
+\contentsline {section}{\numberline {2}Frame-local RGB self-recovery}{4}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Design}{4}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Result}{4}{subsection.2.2}%
+\contentsline {section}{\numberline {3}Visual backbone progression: CNN, DINO, and U-Net matching}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Architectures tested}{5}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}Preliminary seven-backbone development comparison}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Final benchmark: CNN versus frozen-DINO matching U-Net}{5}{subsection.3.3}%
+\contentsline {section}{\numberline {4}Temporal candidate selection with a GRU}{6}{section.4}%
+\contentsline {subsection}{\numberline {4.1}From a deterministic window to a learned selector}{6}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Orientation hysteresis and fixed lag}{6}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}Final benchmark result}{6}{subsection.4.3}%
+\contentsline {section}{\numberline {5}GRU--Kalman filtering and cascade ordering}{7}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Learned SE(3) filtering}{7}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Alone versus selector prior}{7}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Learned component fallback heads}{7}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Fixed-lag translation and orientation repair}{8}{section.6}%
+\contentsline {subsection}{\numberline {6.1}Translation repair}{8}{subsection.6.1}%
+\contentsline {paragraph}{What state replay means.}{8}{section*.8}%
+\contentsline {section}{\numberline {7}Lag-masked candidate transformers}{9}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Numeric and frozen-visual designs}{9}{subsection.7.1}%
+\contentsline {paragraph}{Why this model size was chosen.}{9}{section*.10}%
+\contentsline {subsection}{\numberline {7.2}Final benchmark performance and distance crossover}{10}{subsection.7.2}%
+\contentsline {section}{\numberline {8}Complete-sequence SciPy factor graph}{12}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Objective and modes}{12}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Prior ablation}{12}{subsection.8.2}%
+\contentsline {section}{\numberline {9}GTSAM sequence optimization}{12}{section.9}%
+\contentsline {subsection}{\numberline {9.1}Implementation differences}{12}{subsection.9.1}%
+\contentsline {subsection}{\numberline {9.2}Prior and component ablations}{13}{subsection.9.2}%
+\contentsline {section}{\numberline {10}Best completed results and qualitative examples}{13}{section.10}%
+\contentsline {section}{\numberline {11}Visual transformer as a graph prior}{15}{section.11}%
+\contentsline {section}{\numberline {12}Conclusions}{16}{section.12}%
+\contentsline {section}{\numberline {A}Result provenance}{16}{appendix.A}%
+\contentsline {section}{\numberline {B}Reproducibility status}{16}{appendix.B}%
+\contentsline {section}{\numberline {C}All-model distance-binned benchmark tables}{17}{appendix.C}%
+\contentsline {section}{\numberline {D}Focused comparison of the final seven graph-prior modes}{21}{appendix.D}%

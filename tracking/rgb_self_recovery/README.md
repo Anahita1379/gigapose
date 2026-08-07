@@ -50,26 +50,31 @@ For each candidate pose, the render branch receives five channels:
 
 The network predicts
 
-\[
+$$
 (\Delta u,\Delta v),\quad
 \Delta\log z,\quad
 \Delta\boldsymbol\omega\in\mathfrak{so}(3),\quad
 p_{\mathrm{valid}},\quad q.
-\]
+$$
 
 The translation update is parameterized by the projected center and metric
 depth:
 
-\[
+$$
 z' = z\exp(\Delta\log z),\qquad
-\mathbf t'=z'K^{-1}[u+\Delta u,v+\Delta v,1]^T.
-\]
+\mathbf t' = z'K^{-1}
+\begin{bmatrix}
+u+\Delta u & v+\Delta v & 1
+\end{bmatrix}^{\!T}.
+$$
 
 The rotation update is a left camera-frame correction:
 
-\[
-R'=\operatorname{Exp}([\Delta\boldsymbol\omega]_\times)R.
-\]
+$$
+R' = \operatorname{Exp}\!\left(
+[\Delta\boldsymbol\omega]_\times
+\right)R.
+$$
 
 The exponential is the SO(3) exponential map, not an arbitrary scalar
 exponential. It converts a three-component axis-angle tangent vector into a
@@ -83,7 +88,7 @@ the bad candidate and select a better hypothesis from the broad pool.
 
 The loss is
 
-\[
+$$
 \mathcal L =
 \lambda_c\mathcal L_{\mathrm{center}}+
 \lambda_z\mathcal L_{\log z}+
@@ -91,9 +96,9 @@ The loss is
 \lambda_p\mathcal L_{\mathrm{BCE}}+
 \lambda_q\mathcal L_{\mathrm{quality}}+
 \lambda_{\mathrm{rank}}\mathcal L_{\mathrm{rank}}+
-\mathbf 1_{\mathrm{anti\mbox{-}flip}}\,
-\lambda_f\mathcal L_{\mathrm{anti\mbox{-}flip}}.
-\]
+\mathbf 1_{\mathrm{anti\text{-}flip}}\,
+\lambda_f\mathcal L_{\mathrm{anti\text{-}flip}}.
+$$
 
 Rotation error is evaluated with a stable `atan2` SO(3) geodesic angle, so a
 near-180-degree disagreement does not collapse to a small error.
@@ -101,11 +106,11 @@ near-180-degree disagreement does not collapse to a small error.
 The optional anti-flip term uses the correct and generated 180-degree
 candidate in each instance group. Since lower predicted quality is better,
 
-\[
-\mathcal L_{\mathrm{anti\mbox{-}flip}}
+$$
+\mathcal L_{\mathrm{anti\text{-}flip}}
 =
 \max(0,\;m + q_{\mathrm{correct}}-q_{\mathrm{flip}}).
-\]
+$$
 
 It is disabled by default. Existing generated shards can be reused because
 they already contain an exact object-Z flip as candidate 1.

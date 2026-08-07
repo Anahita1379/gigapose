@@ -1,0 +1,128 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1340" viewBox="0 0 1600 1340">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#081426"/>
+      <stop offset="1" stop-color="#172554"/>
+    </linearGradient>
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 Z" fill="#a5b4fc"/>
+    </marker>
+    <style>
+      text { font-family: DejaVu Sans, sans-serif; }
+      .title { font-size: 30px; font-weight: 700; fill: #f8fafc; }
+      .subtitle { font-size: 17px; font-weight: 500; fill: #cbd5e1; }
+      .head { font-size: 18px; font-weight: 700; fill: #f8fafc; }
+      .body { font-size: 14px; font-weight: 500; fill: #e2e8f0; }
+      .small { font-size: 12px; font-weight: 500; fill: #cbd5e1; }
+      .count { font-family: DejaVu Sans Mono, monospace; font-size: 14px; font-weight: 700; fill: #fef3c7; }
+      .arrow { stroke: #a5b4fc; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .dash { stroke: #64748b; stroke-width: 2; stroke-dasharray: 8 7; fill: #0f172a; fill-opacity: .65; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="1160" rx="24" fill="url(#bg)"/>
+  <text x="800" y="48" text-anchor="middle" class="title">Gated Candidate Transformer — implemented default configuration</text>
+  <text x="800" y="78" text-anchor="middle" class="subtitle">8-frame window · fixed lag 4 · lag-aware mask · 16 candidates/frame · width 128 · 4 heads · 2 temporal layers</text>
+  <rect x="555" y="94" width="490" height="48" rx="24" fill="#7c3aed"/>
+  <text x="800" y="125" text-anchor="middle" class="head">697,169 trainable parameters · 2.66 MiB FP32 weights</text>
+
+  <!-- Upstream, not counted -->
+  <rect x="55" y="175" width="1490" height="126" rx="18" class="dash"/>
+  <text x="80" y="204" class="head">Upstream RGB/CAD candidate generation — not part of the 697,169-parameter transformer</text>
+  <rect x="90" y="224" width="235" height="53" rx="12" fill="#0369a1"/>
+  <text x="207" y="247" text-anchor="middle" class="body">RGB image + instance mask</text>
+  <text x="207" y="266" text-anchor="middle" class="small">observed visual evidence</text>
+  <rect x="365" y="224" width="235" height="53" rx="12" fill="#0f766e"/>
+  <text x="482" y="247" text-anchor="middle" class="body">CAD + GigaPose hypotheses</text>
+  <text x="482" y="266" text-anchor="middle" class="small">pose/render candidates</text>
+  <path d="M325 250 L355 250" class="arrow"/>
+  <rect x="640" y="214" width="330" height="74" rx="14" fill="#7e22ce"/>
+  <text x="805" y="241" text-anchor="middle" class="head">DINO matching U-Net + exporter</text>
+  <text x="805" y="263" text-anchor="middle" class="small">scores RGB/CAD agreement and exports numeric features</text>
+  <path d="M600 250 L630 250" class="arrow"/>
+  <rect x="1010" y="224" width="230" height="53" rx="12" fill="#b45309"/>
+  <text x="1125" y="247" text-anchor="middle" class="body">Candidate tensor</text>
+  <text x="1125" y="266" text-anchor="middle" class="count">[B, 8, 16, 23]</text>
+  <rect x="1275" y="224" width="225" height="53" rx="12" fill="#be123c"/>
+  <text x="1387" y="247" text-anchor="middle" class="body">Frame tensor</text>
+  <text x="1387" y="266" text-anchor="middle" class="count">[B, 8, 8]</text>
+  <path d="M970 250 L1000 250" class="arrow"/>
+  <path d="M970 266 C1080 310,1250 310,1270 266" class="arrow"/>
+
+  <!-- Encoders -->
+  <rect x="90" y="350" width="430" height="130" rx="18" fill="#92400e" stroke="#fbbf24" stroke-width="2"/>
+  <text x="305" y="382" text-anchor="middle" class="head">Candidate encoder + candidate positions</text>
+  <text x="305" y="407" text-anchor="middle" class="body">23 → 128 → 128, LayerNorm, GELU, dropout</text>
+  <text x="305" y="431" text-anchor="middle" class="body">16 learned candidate-position embeddings</text>
+  <text x="305" y="460" text-anchor="middle" class="count">19,840 + 2,048 = 21,888 params</text>
+  <rect x="1080" y="350" width="430" height="130" rx="18" fill="#9f1239" stroke="#fb7185" stroke-width="2"/>
+  <text x="1295" y="382" text-anchor="middle" class="head">Frame encoder + temporal positions</text>
+  <text x="1295" y="407" text-anchor="middle" class="body">8 → 128, LayerNorm, GELU</text>
+  <text x="1295" y="431" text-anchor="middle" class="body">8 learned frame-position embeddings</text>
+  <text x="1295" y="460" text-anchor="middle" class="count">1,408 + 1,024 = 2,432 params</text>
+  <path d="M1125 278 C1040 325,580 325,500 350" class="arrow"/>
+  <path d="M1387 278 L1320 340" class="arrow"/>
+
+  <!-- Local attention -->
+  <rect x="130" y="535" width="570" height="145" rx="18" fill="#075985" stroke="#38bdf8" stroke-width="2"/>
+  <text x="415" y="568" text-anchor="middle" class="head">Per-frame candidate cross-attention</text>
+  <text x="415" y="594" text-anchor="middle" class="body">1 learned local query attends to 16 candidate tokens</text>
+  <text x="415" y="618" text-anchor="middle" class="body">MultiheadAttention: d=128, 4 heads + residual LayerNorm</text>
+  <text x="415" y="646" text-anchor="middle" class="count">query 128 + MHA 66,048 + norm 256</text>
+  <text x="415" y="667" text-anchor="middle" class="count">66,432 params · output [B, 8, 128]</text>
+  <path d="M305 480 L340 525" class="arrow"/>
+  <path d="M1295 480 C1100 520,760 520,690 565" class="arrow"/>
+
+  <!-- Temporal attention -->
+  <rect x="825" y="535" width="645" height="145" rx="18" fill="#5b21b6" stroke="#c4b5fd" stroke-width="2"/>
+  <text x="1147" y="568" text-anchor="middle" class="head">Lag-aware masked temporal cross-attention × 2</text>
+  <text x="1147" y="594" text-anchor="middle" class="body">query i sees key j only when j ≤ i + 4; padding also masked</text>
+  <text x="1147" y="618" text-anchor="middle" class="body">query projection + 2× MHA + 2× FFN (128→256→128) + norms</text>
+  <text x="1147" y="646" text-anchor="middle" class="count">16,512 + 132,096 + 131,840 + 1,024</text>
+  <text x="1147" y="667" text-anchor="middle" class="count">281,472 params · output [B, 8, 128]</text>
+  <path d="M700 607 L815 607" class="arrow"/>
+
+  <!-- Fusion -->
+  <rect x="515" y="735" width="570" height="110" rx="18" fill="#0f766e" stroke="#5eead4" stroke-width="2"/>
+  <text x="800" y="769" text-anchor="middle" class="head">Sigmoid gated local/temporal fusion</text>
+  <text x="800" y="795" text-anchor="middle" class="body">gate([local 128 ; temporal 128]) → 128, weighted fusion + LayerNorm</text>
+  <text x="800" y="824" text-anchor="middle" class="count">32,896 + 256 = 33,152 params</text>
+  <path d="M415 680 C430 720,610 715,650 735" class="arrow"/>
+  <path d="M1147 680 C1125 720,990 715,955 735" class="arrow"/>
+
+  <!-- End-to-end translation fixed lag -->
+  <rect x="275" y="875" width="1050" height="125" rx="18" fill="#166534" stroke="#86efac" stroke-width="2"/>
+  <text x="800" y="907" text-anchor="middle" class="head">Learned translation fixed-lag branch × 1</text>
+  <text x="800" y="932" text-anchor="middle" class="body">frame-local soft pose + timestamps + fused evidence → lag-masked temporal attention → gated XYZ correction</text>
+  <text x="800" y="956" text-anchor="middle" class="body">trained jointly with final position, velocity, acceleration, and jerk losses</text>
+  <text x="800" y="982" text-anchor="middle" class="count">motion encoder 1,408 + temporal block 132,480 + delta/gate heads 16,772 = 150,660 params</text>
+  <path d="M800 845 L800 865" class="arrow"/>
+
+  <!-- Heads -->
+  <text x="800" y="1050" text-anchor="middle" class="head">Candidate–frame pair = [encoded candidate 128 ; fused frame 128] → 256 dimensions</text>
+  <path d="M800 1000 L800 1035" class="arrow"/>
+  <g>
+    <rect x="55" y="1085" width="200" height="82" rx="13" fill="#1d4ed8"/>
+    <text x="155" y="1113" text-anchor="middle" class="body">Candidate score</text><text x="155" y="1140" text-anchor="middle" class="count">33,025</text>
+    <rect x="270" y="1085" width="200" height="82" rx="13" fill="#4338ca"/>
+    <text x="370" y="1113" text-anchor="middle" class="body">Orientation score</text><text x="370" y="1140" text-anchor="middle" class="count">16,513</text>
+    <rect x="485" y="1085" width="200" height="82" rx="13" fill="#7e22ce"/>
+    <text x="585" y="1113" text-anchor="middle" class="body">SE(3) residual (6)</text><text x="585" y="1140" text-anchor="middle" class="count">33,670</text>
+    <rect x="700" y="1085" width="200" height="82" rx="13" fill="#a21caf"/>
+    <text x="800" y="1113" text-anchor="middle" class="body">Uncertainty (2)</text><text x="800" y="1140" text-anchor="middle" class="count">16,578</text>
+    <rect x="915" y="1085" width="200" height="82" rx="13" fill="#be123c"/>
+    <text x="1015" y="1113" text-anchor="middle" class="body">Translation trust*</text><text x="1015" y="1140" text-anchor="middle" class="count">16,513</text>
+    <rect x="1130" y="1085" width="200" height="82" rx="13" fill="#c2410c"/>
+    <text x="1230" y="1113" text-anchor="middle" class="body">Rotation trust*</text><text x="1230" y="1140" text-anchor="middle" class="count">16,513</text>
+    <rect x="1345" y="1085" width="200" height="82" rx="13" fill="#047857"/>
+    <text x="1445" y="1113" text-anchor="middle" class="body">Abstention</text><text x="1445" y="1140" text-anchor="middle" class="count">8,321</text>
+  </g>
+  <text x="1115" y="1186" text-anchor="middle" class="small">*optional fallback ablations; disabled by default</text>
+
+  <!-- Decoder -->
+  <rect x="150" y="1220" width="1300" height="85" rx="18" fill="#111827" stroke="#f8fafc" stroke-width="2"/>
+  <text x="800" y="1249" text-anchor="middle" class="head">Inference decoder</text>
+  <text x="800" y="1274" text-anchor="middle" class="body">candidate + SE(3) residual + learned fixed-lag XYZ correction → adaptive fixed-lag orientation guard → final pose</text>
+  <text x="800" y="1295" text-anchor="middle" class="small">optional component fallback and deterministic extreme-correction limits remain available</text>
+  <path d="M800 1167 L800 1210" class="arrow"/>
+</svg>
