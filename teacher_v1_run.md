@@ -370,3 +370,158 @@ Inspect:
 ```bash
 python3 -m json.tool "$V1_RAW_RUN/evaluation_iteration_0/summary.json"
 ```
+
+
+
+
+
+
+
+--------------------------------------------------------------
+---------------------------------------------------------------
+1. Set paths
+Keep the variables from the raw run, then add:
+
+```bash 
+
+cd ~/gigapose
+
+V1_RAW_RUN=gigaPose_datasets/results/teacher_v1_full_raw_20260505_front_rerun
+CAL_RUN="$V1_RAW_RUN/epnp_extrinsic_calibration"
+
+MULTI_GP=gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/large-pbrreal-rgb-mmodel_real_20260505v1_front_gsam_v4-test_large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tranMultiHypothesis.csv
+
+
+SELECTED=gigaPose_datasets/results/real_world_ot2_IST_tran_gigapose_results/large_real_20260505v1_front_gsam_v4_ot2blocks_IST_tran/predictions/label_candidates_for_optimization_new/selected_samples.csv
+
+TRACK_IDS=gigaPose_datasets/results/rgb_self_recovery_realData_dataset/rgb_self_recovery_real_20260505v1_front_rotation_gated/tracked_predictions.csv
+
+mkdir -p "$CAL_RUN"
+
+```
+
+2. Build the 100 EPnP calibration observations
+Use raw, not auto, so the aligned GigaPose column is not used:
+```bash
+
+python3 -m teacher_pipeline.v1.build_observations \
+  --predictions "$MULTI_GP" \
+  --selected-samples "$SELECTED" \
+  --tracks "$TRACK_IDS" \
+  --prediction-translation-unit mm \
+  --epnp-map-pose-unit m \
+  --epnp-camera-pose-unit m \
+  --gigapose-pose-source raw \
+  --target-lidar-z-mode epnp_corrected \
+  --output "$CAL_RUN/calibration_observations.jsonl" \
+  --strict
+
+```
+
+Check that raw poses were selected:
+```bash
+python3 -m json.tool "$CAL_RUN/calibration_observations.report.json"
+```
+
+
+Expected fields:
+selected_rows: 100
+observations_written: 100
+requested_gigapose_pose_source: raw
+resolved_gigapose_pose_source: prediction_csv
+corrected_lidar_z_count: 100
+
+
+3. Initialize the calibration trajectories
+```bash
+python3 -m teacher_pipeline.v1.trajectory \
+  --observations "$CAL_RUN/calibration_observations.jsonl" \
+  --output "$CAL_RUN/initial_calibration_iteration_0.jsonl"
+
+```
+4. Refine without EPnP pose anchoring
+```bash
+python3 -m teacher_pipeline.v1.refine_trajectories \
+  --trajectories "$CAL_RUN/initial_calibration_iteration_0.jsonl" \
+  --epnp-anchor-weight 0 \
+  --output "$CAL_RUN/refined_calibration_iteration_0.jsonl"
+
+```
+
+5. Optimize the fixed extrinsic
+```bash
+
+python3 -m teacher_pipeline.v1.optimize_extrinsic \
+  --trajectories "$CAL_RUN/refined_calibration_iteration_0.jsonl" \
+  --output "$CAL_RUN/extrinsic_epnp_iteration_1.json"
+```
+Do not use --allow-large-correction. If the correction exceeds the safety limits, treat that as a failed experiment.
+
+Inspect the result:
+```bash
+python3 -m json.tool "$CAL_RUN/extrinsic_epnp_iteration_1.json"
+```
+
+It must contain:
+calibration_valid_for_reuse: true
+T_lidar_camera_optimized
+
+
+Quick check:
+```bash
+python3 -m json.tool "$CAL_RUN/extrinsic_epnp_iteration_1.json" | \
+  grep -E 'calibration_valid_for_reuse|correction_translation_norm_m|correction_rotation_deg'
+```
+
+6. Apply it to all 480 raw GigaPose predictions
+```bash
+python3 -m teacher_pipeline.v1.trajectory \
+  --observations "$V1_RAW_RUN/full_raw_observations.jsonl" \
+  --extrinsics "$CAL_RUN/extrinsic_epnp_iteration_1.json" \
+  --output "$V1_RAW_RUN/initial_trajectories_epnp_extrinsic_iteration_1.jsonl"
+```
+
+7. Evaluate the extrinsic alone
+Before smoothing, evaluate the reinitialized poses:
+```bash
+python3 -m teacher_pipeline.v1.evaluate \
+  --trajectories "$V1_RAW_RUN/initial_trajectories_epnp_extrinsic_iteration_1.jsonl" \
+  --extrinsics "$CAL_RUN/extrinsic_epnp_iteration_1.json" \
+  --output-dir "$V1_RAW_RUN/evaluation_epnp_extrinsic_only"
+```
+This isolates the change caused by the extrinsic.
+
+8. Run V1 smoothing with the optimized extrinsic
+
+```bash
+python3 -m teacher_pipeline.v1.refine_trajectories \
+  --trajectories "$V1_RAW_RUN/initial_trajectories_epnp_extrinsic_iteration_1.jsonl" \
+  --epnp-anchor-weight 0 \
+  --output "$V1_RAW_RUN/refined_epnp_extrinsic_iteration_1.jsonl"
+```
+
+9. Evaluate the complete result
+```bash
+python3 -m teacher_pipeline.v1.evaluate \
+  --trajectories "$V1_RAW_RUN/refined_epnp_extrinsic_iteration_1.jsonl" \
+  --extrinsics "$CAL_RUN/extrinsic_epnp_iteration_1.json" \
+  --output-dir "$V1_RAW_RUN/evaluation_epnp_extrinsic_plus_smoothing"
+```
+
+
+Compare these summaries:
+```bash
+python3 -m json.tool \
+  "$V1_RAW_RUN/evaluation_iteration_0/summary.json"
+
+python3 -m json.tool \
+  "$V1_RAW_RUN/evaluation_epnp_extrinsic_only/summary.json"
+
+python3 -m json.tool \
+  "$V1_RAW_RUN/evaluation_epnp_extrinsic_plus_smoothing/summary.json"
+```
+
+
+
+CAL_RUN_ALIGNED="$V1_RAW_RUN/epnp_extrinsic_calibration_aligned"
+mkdir -p "$CAL_RUN_ALIGNED"
