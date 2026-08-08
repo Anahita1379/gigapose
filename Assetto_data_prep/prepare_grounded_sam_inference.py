@@ -82,6 +82,44 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--score", type=float, default=1.0)
     parser.add_argument("--max-shard-size", type=int, default=1000)
     parser.add_argument(
+        "--single-instance-policy",
+        choices=("all", "epnp_bbox", "closest_principal_point"),
+        default="all",
+        help=(
+            "How to handle frames containing several Grounded-SAM objects. "
+            "The default preserves all detections. epnp_bbox keeps the mask "
+            "best matching detector_bbox_xywh in a reference label and falls "
+            "back to closest_principal_point when no label exists."
+        ),
+    )
+    parser.add_argument(
+        "--reference-label-dir",
+        default="EPnPv2_gt_mesh_z_hybrid_labels",
+        help=(
+            "Directory below each --source-root containing reference JSONs "
+            "used by --single-instance-policy epnp_bbox."
+        ),
+    )
+    parser.add_argument(
+        "--reference-label-policy",
+        choices=("all", "quality_approved", "quality_approved_unique"),
+        default="all",
+        help=(
+            "Which EPnP detector boxes may identify the target. Quality "
+            "approval requires label_weight>=0.5, center_error_px<=25, and "
+            "projected_bbox_iou>=0.25. The unique mode skips ambiguous frames."
+        ),
+    )
+    parser.add_argument(
+        "--missing-reference-policy",
+        choices=("closest_principal_point", "skip", "error"),
+        default="closest_principal_point",
+        help=(
+            "Behavior for an epnp_bbox frame with no usable reference. "
+            "Use skip for calibration-target datasets."
+        ),
+    )
+    parser.add_argument(
         "--detection-file-name",
         default=None,
         help="Defaults to cnos-fastsam_<dataset-name>-test.json.",
@@ -154,6 +192,97 @@ def xyxy_to_xywh(bbox_xyxy: list[Any] | None) -> list[int] | None:
         return None
     x0, y0, x1, y1 = [int(round(float(v))) for v in bbox_xyxy]
     return [x0, y0, max(0, x1 - x0 + 1), max(0, y1 - y0 + 1)]
+
+
+def bbox_iou_xywh(a: list[Any], b: list[Any]) -> float:
+    ax, ay, aw, ah = (float(value) for value in a)
+    bx, by, bw, bh = (float(value) for value in b)
+    x0, y0 = max(ax, bx), max(ay, by)
+    x1, y1 = min(ax + aw, bx + bw), min(ay + ah, by + bh)
+    intersection = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+    union = max(0.0, aw * ah) + max(0.0, bw * bh) - intersection
+    return intersection / union if union > 0.0 else 0.0
+
+
+def bbox_center_distance_sq(a: list[Any], b: list[Any]) -> float:
+    ax, ay, aw, ah = (float(value) for value in a)
+    bx, by, bw, bh = (float(value) for value in b)
+    return ((ax + 0.5 * aw) - (bx + 0.5 * bw)) ** 2 + (
+        (ay + 0.5 * ah) - (by + 0.5 * bh)
+    ) ** 2
+
+
+def load_reference_bboxes(
+    root: Path, policy: str = "all"
+) -> dict[str, list[list[float]]]:
+    """Index detector boxes by source-image timestamp without using pose values."""
+
+    indexed: dict[str, list[list[float]]] = {}
+    if not root.is_dir():
+        return indexed
+    for path in sorted(root.rglob("*.json")):
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        records = data if isinstance(data, list) else [data]
+        for record in records:
+            if not isinstance(record, dict) or record.get("detector_bbox_xywh") is None:
+                continue
+            if policy != "all" and not (
+                float(record.get("label_weight", 1.0)) >= 0.5
+                and float(record.get("center_error_px", float("inf"))) <= 25.0
+                and float(record.get("projected_bbox_iou", 0.0)) >= 0.25
+            ):
+                continue
+            source_name = Path(str(record.get("source_image_path", ""))).name
+            timestamp = timestamp_from_frame_file(source_name)
+            if timestamp is None:
+                match = re.match(r"(\d+)(?:_\d+)?$", path.stem)
+                timestamp = match.group(1) if match else None
+            if timestamp is None:
+                continue
+            bbox = [float(value) for value in record["detector_bbox_xywh"]]
+            if len(bbox) == 4 and bbox[2] > 0.0 and bbox[3] > 0.0:
+                indexed.setdefault(timestamp, []).append(bbox)
+    return indexed
+
+
+def select_single_instance(
+    candidates: list[dict[str, Any]],
+    policy: str,
+    K: np.ndarray,
+    reference_bboxes: list[list[float]],
+) -> tuple[list[dict[str, Any]], str]:
+    if len(candidates) <= 1 or policy == "all":
+        return candidates, "all" if policy == "all" else "single_available"
+
+    if policy == "epnp_bbox" and reference_bboxes:
+        # Maximize overlap first. Center distance resolves non-overlap and ties.
+        chosen = min(
+            candidates,
+            key=lambda candidate: min(
+                (
+                    -bbox_iou_xywh(candidate["bbox"], reference),
+                    bbox_center_distance_sq(candidate["bbox"], reference),
+                )
+                for reference in reference_bboxes
+            ),
+        )
+        return [chosen], "epnp_bbox"
+
+    cx, cy = float(K[0, 2]), float(K[1, 2])
+    chosen = min(
+        candidates,
+        key=lambda candidate: (
+            (float(candidate["bbox"][0]) + 0.5 * float(candidate["bbox"][2]) - cx) ** 2
+            + (float(candidate["bbox"][1]) + 0.5 * float(candidate["bbox"][3]) - cy) ** 2
+        ),
+    )
+    reason = "closest_principal_point"
+    if policy == "epnp_bbox":
+        reason = "closest_principal_point_no_reference"
+    return [chosen], reason
 
 
 def image_bytes(path: Path) -> bytes:
@@ -248,9 +377,13 @@ def main() -> None:
     targets: list[dict[str, Any]] = []
     frame_map: list[dict[str, Any]] = []
     skipped: dict[str, int] = {}
+    instance_selection_counts: dict[str, int] = {}
 
     def skip(reason: str) -> None:
         skipped[reason] = skipped.get(reason, 0) + 1
+
+    def record_selection(reason: str) -> None:
+        instance_selection_counts[reason] = instance_selection_counts.get(reason, 0) + 1
 
     writer = wds.ShardWriter(
         pattern=str(test_dir / "shard-%06d.tar"),
@@ -262,6 +395,19 @@ def main() -> None:
             sam_rows = load_grounded_sam_metadata(
                 source_root, args.grounded_sam_dir, args.grounded_sam_metadata
             )
+            reference_bboxes = (
+                load_reference_bboxes(
+                    source_root / args.reference_label_dir,
+                    args.reference_label_policy,
+                )
+                if args.single_instance_policy == "epnp_bbox"
+                else {}
+            )
+            if args.single_instance_policy == "epnp_bbox" and not reference_bboxes:
+                raise FileNotFoundError(
+                    "No detector_bbox_xywh references were found under "
+                    f"{source_root / args.reference_label_dir}"
+                )
             sam_rows = sam_rows[:: args.frame_stride]
             if args.max_frames_per_session is not None:
                 sam_rows = sam_rows[: args.max_frames_per_session]
@@ -287,12 +433,11 @@ def main() -> None:
                     skip("missing_camera_intrinsics")
                     continue
 
-                instance_count = 0
-                instances = []
+                instance_candidates: list[dict[str, Any]] = []
                 for obj in row.get("objects", []):
                     if obj.get("bbox_xyxy") is None:
                         continue
-                    sam_object_id = int(obj.get("object_id", instance_count + 1))
+                    sam_object_id = int(obj.get("object_id", len(instance_candidates) + 1))
                     object_mask = mask_values == sam_object_id
                     if not object_mask.any() and len(row.get("objects", [])) == 1:
                         object_mask = mask_values > 0
@@ -302,29 +447,67 @@ def main() -> None:
                     if bbox == [0, 0, 0, 0]:
                         bbox = xyxy_to_xywh(obj.get("bbox_xyxy")) or bbox
                     rle = pycoco_utils.binary_mask_to_rle(object_mask.astype(np.uint8))
-                    detections.append(
-                        {
-                            "scene_id": scene_id,
-                            "image_id": int(row.get("frame_index", len(frame_map))),
-                            "category_id": args.object_id,
-                            "score": float(obj.get("score", args.score)),
-                            "bbox": bbox,
-                            "segmentation": rle,
-                            "time": 0.0,
-                            "sam_object_id": sam_object_id,
-                            "class_name": obj.get("class_name", ""),
-                            "mask_provenance": args.grounded_sam_dir,
-                        }
-                    )
-                    instances.append(
+                    instance_candidates.append(
                         {
                             "sam_object_id": sam_object_id,
                             "bbox": bbox,
                             "bbox_xyxy": obj.get("bbox_xyxy"),
                             "class_name": obj.get("class_name", ""),
+                            "score": float(obj.get("score", args.score)),
+                            "segmentation": rle,
                         }
                     )
-                    instance_count += 1
+
+                timestamp = timestamp_from_frame_file(frame_file)
+                frame_references = reference_bboxes.get(timestamp or "", [])
+                if args.single_instance_policy == "epnp_bbox":
+                    if not frame_references:
+                        if args.missing_reference_policy == "skip":
+                            skip("missing_epnp_reference")
+                            continue
+                        if args.missing_reference_policy == "error":
+                            raise ValueError(
+                                f"No usable EPnP detector reference for {frame_file}"
+                            )
+                    if (
+                        args.reference_label_policy == "quality_approved_unique"
+                        and len(frame_references) > 1
+                    ):
+                        skip("ambiguous_epnp_reference")
+                        continue
+                selected_candidates, selection_reason = select_single_instance(
+                    instance_candidates,
+                    args.single_instance_policy,
+                    K,
+                    frame_references,
+                )
+                record_selection(selection_reason)
+                instance_count = len(selected_candidates)
+                instances = []
+                for candidate in selected_candidates:
+                    detections.append(
+                        {
+                            "scene_id": scene_id,
+                            "image_id": int(row.get("frame_index", len(frame_map))),
+                            "category_id": args.object_id,
+                            "score": candidate["score"],
+                            "bbox": candidate["bbox"],
+                            "segmentation": candidate["segmentation"],
+                            "time": 0.0,
+                            "sam_object_id": candidate["sam_object_id"],
+                            "class_name": candidate["class_name"],
+                            "mask_provenance": args.grounded_sam_dir,
+                            "instance_selection": selection_reason,
+                        }
+                    )
+                    instances.append(
+                        {
+                            "sam_object_id": candidate["sam_object_id"],
+                            "bbox": candidate["bbox"],
+                            "bbox_xyxy": candidate["bbox_xyxy"],
+                            "class_name": candidate["class_name"],
+                        }
+                    )
 
                 if instance_count == 0:
                     skip("no_valid_masks")
@@ -362,6 +545,8 @@ def main() -> None:
                         "mask_path": str(mask_path),
                         "sample_metadata_path": str(yaml_path) if yaml_path else None,
                         "instances": instances,
+                        "available_grounded_sam_instances": len(instance_candidates),
+                        "instance_selection": selection_reason,
                     }
                 )
     finally:
@@ -387,6 +572,11 @@ def main() -> None:
                 "detection_file": str(detection_path),
                 "prepared_frames": len(targets),
                 "detections": len(detections),
+                "single_instance_policy": args.single_instance_policy,
+                "reference_label_dir": args.reference_label_dir,
+                "reference_label_policy": args.reference_label_policy,
+                "missing_reference_policy": args.missing_reference_policy,
+                "instance_selection_counts": instance_selection_counts,
                 "skipped": skipped,
             },
             indent=2,
@@ -395,6 +585,7 @@ def main() -> None:
     print(f"Prepared {len(targets)} frames and {len(detections)} detections.")
     print(f"Dataset: {dataset_dir}")
     print(f"Detections: {detection_path}")
+    print(f"Instance selection: {instance_selection_counts}")
     print(f"Skipped: {skipped}")
 
 
