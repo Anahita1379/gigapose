@@ -22,15 +22,88 @@ The output roots above make the two experiments independent and comparable.
 
 Run from the repository root:
 
+
+<!-- 
+20260526  None
+----------------------------------------------
+20260518v1v4  front, rear, stereo_left => Done
+# 20260518v1v4  
+# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/front/EPnPv2_gt_mesh_z_hybrid_labels
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_hybrid_labels
+# stereo_left: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
+-----------------------------------------------------
+20260518v0  front, stereo_left
+# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/front/EPnPv2_gt_mesh_z_hybrid_labels (No need to rerun)
+# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels 
+
+----------------------------------------------------
+20260505v2  
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2/rear/EPnPv2_gt_mesh_z_hybrid_labels
+--------------------------------------------------------
+20260505v1   front, rear, stereo_left
+# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/rear/EPnPv2_gt_mesh_z_hybrid_labels
+# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
+-----------------------------------------------------
+20260518v2v4  front and stereo left: 
+# front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnPv2_gt_mesh_z_hybrid_labels
+# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
+------------------------------------------------------
+# 20260718 front, rear
+# front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/front/EPnPv2_gt_mesh_z_hybrid_labels
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear/EPnPv2_gt_mesh_z_hybrid_labels
+  
+model_ckpt: gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_ot2block_pose_aware_ist_translation_residual/checkpoints/best-residual-step010000.ckpt
+
+  --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear \
+  --cad-path gigaPose_datasets/datasets/racecar/models/obj_000001.ply \
+  --dataset-name real_20260718_rear_gsam_v4 \
+  --grounded-sam-dir Grounded_Sam_v4 \
+
+   -->
+cd /home/anahita/gigapose
+
+unset RECORDING_ID CAMERA RAW_RECORDING RAW_CAMERA EPNP_ROOT
+unset DATASET_NAME DATASET MESH
+
+export RECORDING_ID="20260518v0"
+export CAMERA="stereo_left"
+
+export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0"
+export RAW_CAMERA="${RAW_RECORDING}/${CAMERA}"
+export EPNP_ROOT="${RAW_CAMERA}/EPnPv2_gt_mesh_z_hybrid_labels"
+
+export DATASET_NAME="real_${RECORDING_ID}_${CAMERA}_gsam_v4"
+export DATASET="$PWD/gigaPose_datasets/datasets/$DATASET_NAME"
+export MESH="$DATASET/models/obj_000001.ply"
+
 ```bash
 cd /home/anahita/gigapose
 conda activate gigapose
 
-export RECORDING_ID="20260518v1v4"
-# export CAMERA="rear"
-export CAMERA="stereo_left"
 
-export RAW_RECORDING="$PWD/gigaPose_datasets/datasets/2026-05-18-v1-v4"
+# 20260518v0  front, stereo_left
+# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/front/EPnPv2_gt_mesh_z_hybrid_labels (No need to rerun)
+# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels 
+
+# export RECORDING_ID="20260518v1v4"
+export RECORDING_ID="20260518v0"
+# export RECORDING_ID="20260518v1v4"
+# export RECORDING_ID="20260518v1v4"
+# export RECORDING_ID="20260518v1v4"
+
+export CAMERA="front"
+# export CAMERA="rear"
+# export CAMERA="stereo_left"
+
+
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
+export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
+
 export RAW_CAMERA="$RAW_RECORDING/$CAMERA"
 export EPNP_ROOT="$RAW_CAMERA/EPnPv2_gt_mesh_z_hybrid_labels"
 
@@ -38,7 +111,7 @@ export DATASET_NAME="real_${RECORDING_ID}_${CAMERA}_gsam_v4"
 export DATASET="$PWD/gigaPose_datasets/datasets/$DATASET_NAME"
 export MESH="$DATASET/models/obj_000001.ply"
 
-export GIGAPOSE_CKPT="$PWD/gigaPose_datasets/results/assettocorsa_ot2block_pose_aware_ist_translation_residual/checkpoints/best-residual-step010000.ckpt"
+export GIGAPOSE_CKPT="$PWD/gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_ot2block_pose_aware_ist_translation_residual/checkpoints/best-residual-step010000.ckpt"
 export GIGAPOSE_RUN="gigapose_real_${RECORDING_ID}_${CAMERA}_translation_residual_rerun"
 export GIGAPOSE_RESULT="$PWD/gigaPose_datasets/results/$GIGAPOSE_RUN"
 export GP_CSV="$GIGAPOSE_RESULT/predictions/large-pbrreal-rgb-mmodel_${DATASET_NAME}-test_${GIGAPOSE_RUN}MultiHypothesis.csv"
