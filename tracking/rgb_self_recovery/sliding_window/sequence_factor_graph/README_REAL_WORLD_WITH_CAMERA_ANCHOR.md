@@ -196,11 +196,11 @@ done
 
 ```bash
 mkdir -p "$BRANCH_RUN/overlays"
+# "gigapose=$GP_CSV" \
+#   "selector=$BRANCH_RUN/selector/tracked_predictions.csv" \
+#   "translation_cascade=$BRANCH_RUN/translation_cascade/tracked_predictions.csv" \
 
 for item in \
-  "gigapose=$GP_CSV" \
-  "selector=$BRANCH_RUN/selector/tracked_predictions.csv" \
-  "translation_cascade=$BRANCH_RUN/translation_cascade/tracked_predictions.csv" \
   "scipy_graph=$OPTIMIZED_POSES"
 do
   name="${item%%=*}"
@@ -215,7 +215,10 @@ do
     --output-dir "$BRANCH_RUN/overlays/$name"
 done
 ```
-
+---------------------------------------------
+------------------------------------------
+New decison, going to not run the lable selection yet, just the data generation and predition 
+---------------------------------------------
 for the camera 
 ```bash
 cd /home/anahita/gigapose

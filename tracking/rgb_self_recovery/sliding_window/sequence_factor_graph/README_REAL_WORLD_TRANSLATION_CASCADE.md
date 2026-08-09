@@ -23,36 +23,50 @@ The output roots above make the two experiments independent and comparable.
 Run from the repository root:
 
 
+<!-- REARS NEED TO BE REDONE
+# 20260518v1v4  
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_hybrid_labels  Might need to rerun
+
+20260505v2  
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2/rear/EPnPv2_gt_mesh_z_hybrid_labels Might need to rerun
+
+20260505v1 
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/rear/EPnPv2_gt_mesh_z_hybrid_labels
+
+20260718 
+# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear/EPnPv2_gt_mesh_z_hybrid_labels
+ -->
+
 <!-- 
 20260526  None
 ----------------------------------------------
 20260518v1v4  front, rear, stereo_left => Done
 # 20260518v1v4  
 # front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/front/EPnPv2_gt_mesh_z_hybrid_labels
-# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_hybrid_labels
 # stereo_left: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 -----------------------------------------------------
-20260518v0  front, stereo_left
-# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/front/EPnPv2_gt_mesh_z_hybrid_labels (No need to rerun)
+20260518v0  front, stereo_left => Done
+# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/front/EPnPv2_gt_mesh_z_hybrid_labels 
 # stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels 
-
-----------------------------------------------------
-20260505v2  
-# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2/rear/EPnPv2_gt_mesh_z_hybrid_labels
---------------------------------------------------------
-20260505v1   front, rear, stereo_left
-# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
-# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/rear/EPnPv2_gt_mesh_z_hybrid_labels
-# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 -----------------------------------------------------
-20260518v2v4  front and stereo left: 
+20260518v2v4  front and stereo left: => almost Done (lable selection pending)
 # front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/front/EPnPv2_gt_mesh_z_hybrid_labels
 # stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
+--------------------------------------------------------
+
+
+
+20260505v1   front, rear, stereo_left
+# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
+# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
+
 ------------------------------------------------------
 # 20260718 front, rear
 # front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/front/EPnPv2_gt_mesh_z_hybrid_labels
-# rear:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear/EPnPv2_gt_mesh_z_hybrid_labels
+
   
+
+
 model_ckpt: gigaPose_datasets/results/new_dataset_ckeckpoints/assettocorsa_ot2block_pose_aware_ist_translation_residual/checkpoints/best-residual-step010000.ckpt
 
   --source-root /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/rear \
@@ -82,26 +96,28 @@ cd /home/anahita/gigapose
 conda activate gigapose
 
 
-# 20260518v0  front, stereo_left
-# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/front/EPnPv2_gt_mesh_z_hybrid_labels (No need to rerun)
-# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels 
+
+
+20260505v1   front, rear, stereo_left
+# front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
+# stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 
 # export RECORDING_ID="20260518v1v4"
-export RECORDING_ID="20260518v0"
-# export RECORDING_ID="20260518v1v4"
-# export RECORDING_ID="20260518v1v4"
-# export RECORDING_ID="20260518v1v4"
+# export RECORDING_ID="20260518v0"
+# export RECORDING_ID="20260505v2"
+# export RECORDING_ID="20260518v2v4"
+export RECORDING_ID="20260505v1"
 
 export CAMERA="front"
 # export CAMERA="rear"
-# export CAMERA="stereo_left"
+export CAMERA="stereo_left"
 
 
 # export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
-export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0"
-# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
-# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
-# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4"
+export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1"
 # export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
 
 export RAW_CAMERA="$RAW_RECORDING/$CAMERA"
