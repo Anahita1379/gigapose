@@ -237,11 +237,11 @@ python3 -m fine_tuning.select_real_label_candidates \
   --frame-transform-inlier-rotation-deg 60 \
   --epnp-translation-unit m \
   --min-score 0.05 \
-  --max-translation-error-mm 3000 \
+  --max-translation-error-mm 5000 \
   --max-rotation-error-deg 30 \
-  --max-roll-error-deg 5 \
-  --max-pitch-error-deg 5 \
-  --max-yaw-error-deg 15 \
+  --max-roll-error-deg 7.5 \
+  --max-pitch-error-deg 7.5 \
+  --max-yaw-error-deg 20 \
   --output-dir "$EPNP_SELECTION"
 
 python3 -m json.tool "$EPNP_SELECTION/selection_report.json"
