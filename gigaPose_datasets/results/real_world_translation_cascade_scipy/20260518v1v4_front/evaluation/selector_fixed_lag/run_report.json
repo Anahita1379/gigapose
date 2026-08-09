@@ -1,0 +1,63 @@
+{
+  "format": "rgb_self_recovery_gru_selection_v1",
+  "candidate_data": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/candidates",
+  "checkpoint": "/home/anahita/gigapose/gigaPose_datasets/results/rgb_self_recovery_gru_dino_matching/models/dino_matching_gru/best.ckpt",
+  "frame_count": 214,
+  "segment_count": 2,
+  "selected_recovery_fraction": 0.9766355140186916,
+  "guarded_fallback_count": 0,
+  "temporal_orientation_rerank_count": 11,
+  "temporal_orientation_fallback_count": 37,
+  "confirmed_flip_transition_count": 0,
+  "orientation_fixed_lag_enabled": true,
+  "fixed_lag_backfilled_frame_count": 0,
+  "evaluation_available": false,
+  "oracle_accuracy": null,
+  "gigapose_translation_error_m": {
+    "count": 0,
+    "mean": null,
+    "median": null,
+    "p90": null
+  },
+  "selected_translation_error_m": {
+    "count": 0,
+    "mean": null,
+    "median": null,
+    "p90": null
+  },
+  "gigapose_rotation_error_deg": {
+    "count": 0,
+    "mean": null,
+    "median": null,
+    "p90": null
+  },
+  "selected_rotation_error_deg": {
+    "count": 0,
+    "mean": null,
+    "median": null,
+    "p90": null
+  },
+  "arguments": {
+    "data": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/candidates",
+    "checkpoint": "/home/anahita/gigapose/gigaPose_datasets/results/rgb_self_recovery_gru_dino_matching/models/dino_matching_gru/best.ckpt",
+    "output_dir": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/selector_fixed_lag",
+    "device": "cuda",
+    "minimum_recovery_probability": 0.0,
+    "minimum_recovery_margin_over_gigapose": 0.0,
+    "temporal_orientation": true,
+    "orientation_soft_start_deg": 45.0,
+    "orientation_hard_limit_deg": 90.0,
+    "flip_min_angle_deg": 135.0,
+    "rotation_penalty_weight": 1.0,
+    "flip_confirmation_frames": 2,
+    "stable_orientation_frames": 4,
+    "stable_flip_confirmation_frames": 5,
+    "flip_min_probability": 0.15,
+    "flip_min_margin": 0.03,
+    "flip_consistency_deg": 45.0,
+    "maximum_angular_prediction_deg": 30.0,
+    "orientation_velocity_window": 5,
+    "orientation_fixed_lag": true,
+    "overwrite": true
+  }
+}

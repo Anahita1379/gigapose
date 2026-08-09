@@ -1,0 +1,60 @@
+{
+  "format": "rgb_self_recovery_orientation_bootstrap_v1",
+  "predictions": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/scipy_graph/tracked_predictions.csv",
+  "candidates": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/candidates",
+  "dataset_dir": "/home/anahita/gigapose/gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4",
+  "epnp_root": "/home/anahita/gigapose/gigaPose_datasets/datasets/2026-05-18-v1-v4/front/EPnPv2_gt_mesh_z_hybrid_labels",
+  "track_map": null,
+  "frame_count": 214,
+  "segment_count": 2,
+  "window_length": 5,
+  "changed_orientation_count": 150,
+  "changed_orientation_fraction": 0.7009345794392523,
+  "translation_preservation_max_error_m": 0.0,
+  "epnp_rotation_error_before_deg": {
+    "count": 120,
+    "mean": 164.20843247615977,
+    "median": 176.81323870788617,
+    "p90": 179.2994896762375
+  },
+  "epnp_rotation_error_after_deg": {
+    "count": 120,
+    "mean": 8.43326185182258,
+    "median": 5.802349604290415,
+    "p90": 17.331061119818546
+  },
+  "map_heading_source_counts": {
+    "epnp_raceline": 214
+  },
+  "arguments": {
+    "predictions": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/scipy_graph/tracked_predictions.csv",
+    "candidates": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/candidates",
+    "dataset_dir": "/home/anahita/gigapose/gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4",
+    "epnp_root": "/home/anahita/gigapose/gigaPose_datasets/datasets/2026-05-18-v1-v4/front/EPnPv2_gt_mesh_z_hybrid_labels",
+    "gigapose_predictions": "/home/anahita/gigapose/gigaPose_datasets/results/gigapose_real_20260518v1v4_front_translation_residual_rerun/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_front_gsam_v4-test_gigapose_real_20260518v1v4_front_translation_residual_rerunMultiHypothesis.csv",
+    "track_map": null,
+    "output_dir": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/scipy_graph_orientation_bootstrapped",
+    "translation_unit": "mm",
+    "window_length": 5,
+    "flip_axis": "z",
+    "object_forward_axis": "x",
+    "epnp_weight": 4.0,
+    "map_heading_weight": 2.0,
+    "gigapose_weight": 1.0,
+    "gigapose_weight_with_epnp": 0.25,
+    "visual_weight": 0.25,
+    "motion_weight": 1.0,
+    "switch_penalty": 2.0,
+    "anchor_scale_deg": 30.0,
+    "motion_scale_deg": 20.0,
+    "visual_rotation_scale_deg": 30.0,
+    "visual_translation_scale_m": 2.0,
+    "gigapose_consensus_top_k": 5,
+    "gigapose_consensus_bandwidth_deg": 35.0,
+    "minimum_epnp_label_weight": 0.5,
+    "maximum_epnp_center_error_px": 25.0,
+    "minimum_epnp_bbox_iou": 0.25,
+    "maximum_track_distance_m": 20.0,
+    "overwrite": true
+  }
+}

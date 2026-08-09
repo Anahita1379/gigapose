@@ -1,0 +1,4 @@
+matched_predictions,model,model_matched_fraction,model_predictions,reference_matched_fraction,reference_model,reference_predictions,unmatched_model_predictions,unmatched_reference_predictions
+212,selector_camera_anchored,0.9906542056074766,214,0.9906542056074766,gigapose,214,2,2
+213,translation_cascade_camera_anchored,0.9953271028037384,214,0.9953271028037384,gigapose,214,1,1
+212,scipy_graph_camera_anchored,0.9906542056074766,214,0.9906542056074766,gigapose,214,2,2

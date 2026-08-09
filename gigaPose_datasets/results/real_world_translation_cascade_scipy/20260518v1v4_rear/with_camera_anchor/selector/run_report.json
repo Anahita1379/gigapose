@@ -1,0 +1,88 @@
+{
+  "format": "rgb_self_recovery_anchored_selector_v1",
+  "frame_count": 2523,
+  "segment_count": 57,
+  "candidate_count": 16,
+  "state_count": 32,
+  "window_length": 5,
+  "mesh_center_raw_m": [
+    -0.24119631465532373,
+    0.000906576744527485,
+    0.33292663625244895
+  ],
+  "changed_candidate_count": 1916,
+  "changed_candidate_fraction": 0.7594133967499009,
+  "synthetic_center_preserving_flip_count": 1353,
+  "quality_approved_epnp_count": 2483,
+  "epnp_pose_cost_enabled": false,
+  "map_heading_cost_enabled": false,
+  "camera_facing_cost_enabled": true,
+  "camera_facing_rule_evaluated_count": 2523,
+  "camera_facing_rule_violation_count": 1,
+  "map_heading_source_counts": {
+    "epnp_raceline": 2523
+  },
+  "epnp_rotation_before_deg": {
+    "count": 2483,
+    "mean": 58.20520710427742,
+    "median": 33.68955150057579,
+    "p90": 130.12325349076684
+  },
+  "epnp_rotation_after_deg": {
+    "count": 2483,
+    "mean": 30.727150513128592,
+    "median": 23.126408139431575,
+    "p90": 64.82893693732682
+  },
+  "epnp_translation_before_m": {
+    "count": 2483,
+    "mean": 10.13239349305415,
+    "median": 5.717669454803701,
+    "p90": 22.353884883529098
+  },
+  "epnp_translation_after_m": {
+    "count": 2483,
+    "mean": 7.972571781651409,
+    "median": 3.7040280369714806,
+    "p90": 15.633545488128211
+  },
+  "elapsed_s": 155.08369140094146,
+  "score_semantics": "GRU probability of the selected source candidate; not pose accuracy",
+  "arguments": {
+    "data": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/candidates",
+    "checkpoint": "/home/anahita/gigapose/gigaPose_datasets/results/rgb_self_recovery_gru_dino_matching/models/dino_matching_gru/best.ckpt",
+    "dataset_dir": "/home/anahita/gigapose/gigaPose_datasets/datasets/real_20260518v1v4_rear_gsam_v4",
+    "mesh": "/home/anahita/gigapose/gigaPose_datasets/datasets/real_20260518v1v4_rear_gsam_v4/models/obj_000001.ply",
+    "epnp_root": "/home/anahita/gigapose/gigaPose_datasets/datasets/2026-05-18-v1-v4/rear/EPnPv2_gt_mesh_z_hybrid_labels",
+    "gigapose_predictions": "/home/anahita/gigapose/gigaPose_datasets/results/gigapose_real_20260518v1v4_rear_translation_residual_rerun/predictions/large-pbrreal-rgb-mmodel_real_20260518v1v4_rear_gsam_v4-test_gigapose_real_20260518v1v4_rear_translation_residual_rerunMultiHypothesis.csv",
+    "track_map": null,
+    "output_dir": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/selector",
+    "device": "cuda",
+    "window_length": 5,
+    "flip_axis": "z",
+    "object_forward_axis": "x",
+    "include_synthetic_flips": true,
+    "selector_weight": 1.0,
+    "visual_weight": 0.25,
+    "epnp_rotation_weight": 0.0,
+    "epnp_translation_weight": 0.0,
+    "map_heading_weight": 0.0,
+    "camera_facing_weight": 50.0,
+    "camera_facing_rules": "front:away,stereo_left:away,rear:toward",
+    "gigapose_weight": 1.0,
+    "gigapose_weight_with_epnp": 0.25,
+    "motion_weight": 1.0,
+    "switch_penalty": 2.0,
+    "synthetic_flip_penalty": 0.5,
+    "anchor_scale_deg": 30.0,
+    "epnp_translation_scale_m": 2.0,
+    "motion_scale_deg": 20.0,
+    "gigapose_consensus_top_k": 5,
+    "gigapose_consensus_bandwidth_deg": 35.0,
+    "minimum_epnp_label_weight": 0.5,
+    "maximum_epnp_center_error_px": 25.0,
+    "minimum_epnp_bbox_iou": 0.25,
+    "maximum_track_distance_m": 20.0,
+    "overwrite": true
+  }
+}

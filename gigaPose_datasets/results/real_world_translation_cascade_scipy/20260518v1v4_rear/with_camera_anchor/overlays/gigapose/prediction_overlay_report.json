@@ -1,0 +1,2602 @@
+[
+  {
+    "scene_id": 1,
+    "im_id": 358,
+    "prediction_count": 1,
+    "scores": [
+      0.078125
+    ],
+    "rendered_pixel_counts": [
+      45126
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000358_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 380,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      7974
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000380_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 381,
+    "prediction_count": 1,
+    "scores": [
+      0.1171875
+    ],
+    "rendered_pixel_counts": [
+      7894
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000381_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 382,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      7059
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000382_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 384,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      6640
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000384_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 385,
+    "prediction_count": 1,
+    "scores": [
+      0.11328125
+    ],
+    "rendered_pixel_counts": [
+      3914
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000385_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 387,
+    "prediction_count": 1,
+    "scores": [
+      0.12109375
+    ],
+    "rendered_pixel_counts": [
+      4353
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000387_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 388,
+    "prediction_count": 1,
+    "scores": [
+      0.109375
+    ],
+    "rendered_pixel_counts": [
+      3955
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000388_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 389,
+    "prediction_count": 1,
+    "scores": [
+      0.12109375
+    ],
+    "rendered_pixel_counts": [
+      3797
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000389_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 390,
+    "prediction_count": 1,
+    "scores": [
+      0.1171875
+    ],
+    "rendered_pixel_counts": [
+      4005
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000390_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 391,
+    "prediction_count": 1,
+    "scores": [
+      0.11328125
+    ],
+    "rendered_pixel_counts": [
+      3349
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000391_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 392,
+    "prediction_count": 1,
+    "scores": [
+      0.11328125
+    ],
+    "rendered_pixel_counts": [
+      4600
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000392_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 393,
+    "prediction_count": 1,
+    "scores": [
+      0.11328125
+    ],
+    "rendered_pixel_counts": [
+      4662
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000393_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 394,
+    "prediction_count": 1,
+    "scores": [
+      0.10546875
+    ],
+    "rendered_pixel_counts": [
+      4352
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000394_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 395,
+    "prediction_count": 1,
+    "scores": [
+      0.109375
+    ],
+    "rendered_pixel_counts": [
+      4030
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000395_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 396,
+    "prediction_count": 1,
+    "scores": [
+      0.13671875
+    ],
+    "rendered_pixel_counts": [
+      3549
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000396_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 397,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      2474
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000397_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 398,
+    "prediction_count": 1,
+    "scores": [
+      0.1328125
+    ],
+    "rendered_pixel_counts": [
+      3308
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000398_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 399,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      3140
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000399_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 400,
+    "prediction_count": 1,
+    "scores": [
+      0.13671875
+    ],
+    "rendered_pixel_counts": [
+      3057
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000400_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 401,
+    "prediction_count": 1,
+    "scores": [
+      0.1328125
+    ],
+    "rendered_pixel_counts": [
+      3357
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000401_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 402,
+    "prediction_count": 1,
+    "scores": [
+      0.140625
+    ],
+    "rendered_pixel_counts": [
+      3218
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000402_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 403,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      3151
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000403_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 404,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      3125
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000404_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 405,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      2918
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000405_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 406,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      2356
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000406_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 407,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      2710
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000407_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 408,
+    "prediction_count": 1,
+    "scores": [
+      0.16015625
+    ],
+    "rendered_pixel_counts": [
+      2465
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000408_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 409,
+    "prediction_count": 1,
+    "scores": [
+      0.17578125
+    ],
+    "rendered_pixel_counts": [
+      2299
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000409_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 410,
+    "prediction_count": 1,
+    "scores": [
+      0.15625
+    ],
+    "rendered_pixel_counts": [
+      2244
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000410_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 411,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      2811
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000411_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 412,
+    "prediction_count": 1,
+    "scores": [
+      0.13671875
+    ],
+    "rendered_pixel_counts": [
+      2753
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000412_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 413,
+    "prediction_count": 1,
+    "scores": [
+      0.1640625
+    ],
+    "rendered_pixel_counts": [
+      2343
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000413_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 414,
+    "prediction_count": 1,
+    "scores": [
+      0.16796875
+    ],
+    "rendered_pixel_counts": [
+      2414
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000414_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 415,
+    "prediction_count": 1,
+    "scores": [
+      0.15234375
+    ],
+    "rendered_pixel_counts": [
+      1903
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000415_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 416,
+    "prediction_count": 1,
+    "scores": [
+      0.16015625
+    ],
+    "rendered_pixel_counts": [
+      1990
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000416_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 417,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      2259
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000417_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 418,
+    "prediction_count": 1,
+    "scores": [
+      0.16015625
+    ],
+    "rendered_pixel_counts": [
+      2326
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000418_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 419,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      2553
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000419_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 420,
+    "prediction_count": 1,
+    "scores": [
+      0.16796875
+    ],
+    "rendered_pixel_counts": [
+      2213
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000420_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 421,
+    "prediction_count": 1,
+    "scores": [
+      0.1875
+    ],
+    "rendered_pixel_counts": [
+      1925
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000421_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 422,
+    "prediction_count": 1,
+    "scores": [
+      0.16015625
+    ],
+    "rendered_pixel_counts": [
+      1776
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000422_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 423,
+    "prediction_count": 1,
+    "scores": [
+      0.1640625
+    ],
+    "rendered_pixel_counts": [
+      2298
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000423_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 424,
+    "prediction_count": 1,
+    "scores": [
+      0.1640625
+    ],
+    "rendered_pixel_counts": [
+      2295
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000424_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 425,
+    "prediction_count": 1,
+    "scores": [
+      0.13671875
+    ],
+    "rendered_pixel_counts": [
+      2273
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000425_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 426,
+    "prediction_count": 1,
+    "scores": [
+      0.15234375
+    ],
+    "rendered_pixel_counts": [
+      2072
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000426_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 427,
+    "prediction_count": 1,
+    "scores": [
+      0.140625
+    ],
+    "rendered_pixel_counts": [
+      2069
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000427_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 428,
+    "prediction_count": 1,
+    "scores": [
+      0.15234375
+    ],
+    "rendered_pixel_counts": [
+      1970
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000428_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 429,
+    "prediction_count": 1,
+    "scores": [
+      0.16015625
+    ],
+    "rendered_pixel_counts": [
+      2201
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000429_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 430,
+    "prediction_count": 1,
+    "scores": [
+      0.1640625
+    ],
+    "rendered_pixel_counts": [
+      1932
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000430_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 431,
+    "prediction_count": 1,
+    "scores": [
+      0.15234375
+    ],
+    "rendered_pixel_counts": [
+      1798
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000431_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 432,
+    "prediction_count": 1,
+    "scores": [
+      0.16796875
+    ],
+    "rendered_pixel_counts": [
+      1776
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000432_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 433,
+    "prediction_count": 1,
+    "scores": [
+      0.15234375
+    ],
+    "rendered_pixel_counts": [
+      2042
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000433_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 434,
+    "prediction_count": 1,
+    "scores": [
+      0.1875
+    ],
+    "rendered_pixel_counts": [
+      2138
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000434_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 435,
+    "prediction_count": 1,
+    "scores": [
+      0.17578125
+    ],
+    "rendered_pixel_counts": [
+      1639
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000435_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 436,
+    "prediction_count": 1,
+    "scores": [
+      0.16015625
+    ],
+    "rendered_pixel_counts": [
+      1908
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000436_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 437,
+    "prediction_count": 1,
+    "scores": [
+      0.17578125
+    ],
+    "rendered_pixel_counts": [
+      1626
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000437_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 438,
+    "prediction_count": 1,
+    "scores": [
+      0.1796875
+    ],
+    "rendered_pixel_counts": [
+      1946
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000438_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 439,
+    "prediction_count": 1,
+    "scores": [
+      0.16796875
+    ],
+    "rendered_pixel_counts": [
+      1931
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000439_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 440,
+    "prediction_count": 1,
+    "scores": [
+      0.140625
+    ],
+    "rendered_pixel_counts": [
+      1844
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000440_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 441,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      1436
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000441_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 442,
+    "prediction_count": 1,
+    "scores": [
+      0.15625
+    ],
+    "rendered_pixel_counts": [
+      1651
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000442_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 443,
+    "prediction_count": 1,
+    "scores": [
+      0.18359375
+    ],
+    "rendered_pixel_counts": [
+      1591
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000443_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 444,
+    "prediction_count": 1,
+    "scores": [
+      0.1484375
+    ],
+    "rendered_pixel_counts": [
+      1528
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000444_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 445,
+    "prediction_count": 1,
+    "scores": [
+      0.16796875
+    ],
+    "rendered_pixel_counts": [
+      1348
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000445_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 446,
+    "prediction_count": 1,
+    "scores": [
+      0.15234375
+    ],
+    "rendered_pixel_counts": [
+      1521
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000446_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 447,
+    "prediction_count": 1,
+    "scores": [
+      0.171875
+    ],
+    "rendered_pixel_counts": [
+      1204
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000447_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 448,
+    "prediction_count": 1,
+    "scores": [
+      0.171875
+    ],
+    "rendered_pixel_counts": [
+      1694
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000448_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 449,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      1111
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000449_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 450,
+    "prediction_count": 1,
+    "scores": [
+      0.17578125
+    ],
+    "rendered_pixel_counts": [
+      1298
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000450_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 451,
+    "prediction_count": 1,
+    "scores": [
+      0.19140625
+    ],
+    "rendered_pixel_counts": [
+      1561
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000451_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 452,
+    "prediction_count": 1,
+    "scores": [
+      0.1953125
+    ],
+    "rendered_pixel_counts": [
+      1517
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000452_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 453,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      1444
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000453_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 454,
+    "prediction_count": 1,
+    "scores": [
+      0.15234375
+    ],
+    "rendered_pixel_counts": [
+      1234
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000454_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 455,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      1105
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000455_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 456,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      1031
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000456_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 457,
+    "prediction_count": 1,
+    "scores": [
+      0.1171875
+    ],
+    "rendered_pixel_counts": [
+      1076
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000457_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 458,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      1013
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000458_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 459,
+    "prediction_count": 1,
+    "scores": [
+      0.109375
+    ],
+    "rendered_pixel_counts": [
+      932
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000459_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 460,
+    "prediction_count": 1,
+    "scores": [
+      0.15234375
+    ],
+    "rendered_pixel_counts": [
+      1360
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000460_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 461,
+    "prediction_count": 1,
+    "scores": [
+      0.17578125
+    ],
+    "rendered_pixel_counts": [
+      1260
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000461_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 462,
+    "prediction_count": 1,
+    "scores": [
+      0.1484375
+    ],
+    "rendered_pixel_counts": [
+      1310
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000462_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 463,
+    "prediction_count": 1,
+    "scores": [
+      0.15625
+    ],
+    "rendered_pixel_counts": [
+      1166
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000463_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 464,
+    "prediction_count": 1,
+    "scores": [
+      0.12109375
+    ],
+    "rendered_pixel_counts": [
+      1246
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000464_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 465,
+    "prediction_count": 1,
+    "scores": [
+      0.140625
+    ],
+    "rendered_pixel_counts": [
+      1147
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000465_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 466,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      986
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000466_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 467,
+    "prediction_count": 1,
+    "scores": [
+      0.1171875
+    ],
+    "rendered_pixel_counts": [
+      947
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000467_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 468,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      1388
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000468_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 469,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      627
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000469_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 470,
+    "prediction_count": 1,
+    "scores": [
+      0.0625
+    ],
+    "rendered_pixel_counts": [
+      857
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000470_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 471,
+    "prediction_count": 1,
+    "scores": [
+      0.0703125
+    ],
+    "rendered_pixel_counts": [
+      854
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000471_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 472,
+    "prediction_count": 1,
+    "scores": [
+      0.0625
+    ],
+    "rendered_pixel_counts": [
+      907
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000472_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 473,
+    "prediction_count": 1,
+    "scores": [
+      0.0703125
+    ],
+    "rendered_pixel_counts": [
+      961
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000473_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 474,
+    "prediction_count": 1,
+    "scores": [
+      0.08984375
+    ],
+    "rendered_pixel_counts": [
+      966
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000474_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 475,
+    "prediction_count": 1,
+    "scores": [
+      0.05859375
+    ],
+    "rendered_pixel_counts": [
+      1246
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000475_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 476,
+    "prediction_count": 1,
+    "scores": [
+      0.0625
+    ],
+    "rendered_pixel_counts": [
+      1437
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000476_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 477,
+    "prediction_count": 1,
+    "scores": [
+      0.0703125
+    ],
+    "rendered_pixel_counts": [
+      1278
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000477_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 478,
+    "prediction_count": 1,
+    "scores": [
+      0.0625
+    ],
+    "rendered_pixel_counts": [
+      1121
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000478_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 479,
+    "prediction_count": 1,
+    "scores": [
+      0.078125
+    ],
+    "rendered_pixel_counts": [
+      1039
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000479_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 480,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      690
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000480_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 481,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      820
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000481_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 482,
+    "prediction_count": 1,
+    "scores": [
+      0.09375
+    ],
+    "rendered_pixel_counts": [
+      994
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000482_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 483,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      1238
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000483_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 484,
+    "prediction_count": 1,
+    "scores": [
+      0.11328125
+    ],
+    "rendered_pixel_counts": [
+      779
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000484_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 485,
+    "prediction_count": 1,
+    "scores": [
+      0.12109375
+    ],
+    "rendered_pixel_counts": [
+      811
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000485_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 486,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      838
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000486_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 487,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      845
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000487_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 488,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      834
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000488_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 489,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      616
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000489_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 490,
+    "prediction_count": 1,
+    "scores": [
+      0.09375
+    ],
+    "rendered_pixel_counts": [
+      906
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000490_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 491,
+    "prediction_count": 1,
+    "scores": [
+      0.08984375
+    ],
+    "rendered_pixel_counts": [
+      659
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000491_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 492,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      791
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000492_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 493,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      538
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000493_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 494,
+    "prediction_count": 1,
+    "scores": [
+      0.109375
+    ],
+    "rendered_pixel_counts": [
+      709
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000494_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 495,
+    "prediction_count": 1,
+    "scores": [
+      0.1171875
+    ],
+    "rendered_pixel_counts": [
+      755
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000495_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 496,
+    "prediction_count": 1,
+    "scores": [
+      0.109375
+    ],
+    "rendered_pixel_counts": [
+      687
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000496_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 497,
+    "prediction_count": 1,
+    "scores": [
+      0.06640625
+    ],
+    "rendered_pixel_counts": [
+      863
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000497_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 498,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      760
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000498_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 499,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      609
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000499_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 500,
+    "prediction_count": 1,
+    "scores": [
+      0.0859375
+    ],
+    "rendered_pixel_counts": [
+      484
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000500_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 501,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      588
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000501_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 502,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      1169
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000502_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 503,
+    "prediction_count": 1,
+    "scores": [
+      0.109375
+    ],
+    "rendered_pixel_counts": [
+      659
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000503_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 504,
+    "prediction_count": 1,
+    "scores": [
+      0.0859375
+    ],
+    "rendered_pixel_counts": [
+      480
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000504_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 505,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      602
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000505_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 506,
+    "prediction_count": 1,
+    "scores": [
+      0.09375
+    ],
+    "rendered_pixel_counts": [
+      694
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000506_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 507,
+    "prediction_count": 1,
+    "scores": [
+      0.078125
+    ],
+    "rendered_pixel_counts": [
+      475
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000507_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 508,
+    "prediction_count": 1,
+    "scores": [
+      0.07421875
+    ],
+    "rendered_pixel_counts": [
+      631
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000508_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 509,
+    "prediction_count": 1,
+    "scores": [
+      0.07421875
+    ],
+    "rendered_pixel_counts": [
+      633
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000509_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 510,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      799
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000510_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 511,
+    "prediction_count": 1,
+    "scores": [
+      0.0703125
+    ],
+    "rendered_pixel_counts": [
+      370
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000511_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 512,
+    "prediction_count": 1,
+    "scores": [
+      0.11328125
+    ],
+    "rendered_pixel_counts": [
+      870
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000512_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 513,
+    "prediction_count": 1,
+    "scores": [
+      0.078125
+    ],
+    "rendered_pixel_counts": [
+      648
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000513_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 514,
+    "prediction_count": 1,
+    "scores": [
+      0.08984375
+    ],
+    "rendered_pixel_counts": [
+      633
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000514_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 515,
+    "prediction_count": 1,
+    "scores": [
+      0.12109375
+    ],
+    "rendered_pixel_counts": [
+      638
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000515_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 516,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      640
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000516_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 517,
+    "prediction_count": 1,
+    "scores": [
+      0.1171875
+    ],
+    "rendered_pixel_counts": [
+      608
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000517_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 518,
+    "prediction_count": 1,
+    "scores": [
+      0.078125
+    ],
+    "rendered_pixel_counts": [
+      467
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000518_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 519,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      804
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000519_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 520,
+    "prediction_count": 1,
+    "scores": [
+      0.03125
+    ],
+    "rendered_pixel_counts": [
+      624
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000520_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 521,
+    "prediction_count": 1,
+    "scores": [
+      0.09375
+    ],
+    "rendered_pixel_counts": [
+      642
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000521_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 522,
+    "prediction_count": 1,
+    "scores": [
+      0.06640625
+    ],
+    "rendered_pixel_counts": [
+      561
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000522_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 523,
+    "prediction_count": 1,
+    "scores": [
+      0.078125
+    ],
+    "rendered_pixel_counts": [
+      387
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000523_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 524,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      328
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000524_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 525,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      596
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000525_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 526,
+    "prediction_count": 1,
+    "scores": [
+      0.10546875
+    ],
+    "rendered_pixel_counts": [
+      488
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000526_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 527,
+    "prediction_count": 1,
+    "scores": [
+      0.06640625
+    ],
+    "rendered_pixel_counts": [
+      601
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000527_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 528,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      607
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000528_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 529,
+    "prediction_count": 1,
+    "scores": [
+      0.06640625
+    ],
+    "rendered_pixel_counts": [
+      487
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000529_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 530,
+    "prediction_count": 1,
+    "scores": [
+      0.12109375
+    ],
+    "rendered_pixel_counts": [
+      602
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000530_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 531,
+    "prediction_count": 1,
+    "scores": [
+      0.13671875
+    ],
+    "rendered_pixel_counts": [
+      766
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000531_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 532,
+    "prediction_count": 1,
+    "scores": [
+      0.1328125
+    ],
+    "rendered_pixel_counts": [
+      692
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000532_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 533,
+    "prediction_count": 1,
+    "scores": [
+      0.16015625
+    ],
+    "rendered_pixel_counts": [
+      581
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000533_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 534,
+    "prediction_count": 1,
+    "scores": [
+      0.0859375
+    ],
+    "rendered_pixel_counts": [
+      394
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000534_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 535,
+    "prediction_count": 1,
+    "scores": [
+      0.16015625
+    ],
+    "rendered_pixel_counts": [
+      491
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000535_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 536,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      286
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000536_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 537,
+    "prediction_count": 1,
+    "scores": [
+      0.16796875
+    ],
+    "rendered_pixel_counts": [
+      550
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000537_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 538,
+    "prediction_count": 1,
+    "scores": [
+      0.07421875
+    ],
+    "rendered_pixel_counts": [
+      500
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000538_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 539,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      465
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000539_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 540,
+    "prediction_count": 1,
+    "scores": [
+      0.1171875
+    ],
+    "rendered_pixel_counts": [
+      363
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000540_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 541,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      396
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000541_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 542,
+    "prediction_count": 1,
+    "scores": [
+      0.09375
+    ],
+    "rendered_pixel_counts": [
+      382
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000542_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 543,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      355
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000543_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 544,
+    "prediction_count": 1,
+    "scores": [
+      0.07421875
+    ],
+    "rendered_pixel_counts": [
+      437
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000544_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 545,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      391
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000545_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 546,
+    "prediction_count": 1,
+    "scores": [
+      0.109375
+    ],
+    "rendered_pixel_counts": [
+      428
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000546_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 547,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      282
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000547_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 548,
+    "prediction_count": 1,
+    "scores": [
+      0.078125
+    ],
+    "rendered_pixel_counts": [
+      451
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000548_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 549,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      404
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000549_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 550,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      294
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000550_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 551,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      269
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000551_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 553,
+    "prediction_count": 1,
+    "scores": [
+      0.078125
+    ],
+    "rendered_pixel_counts": [
+      428
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000553_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 554,
+    "prediction_count": 1,
+    "scores": [
+      0.06640625
+    ],
+    "rendered_pixel_counts": [
+      391
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000554_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 555,
+    "prediction_count": 1,
+    "scores": [
+      0.13671875
+    ],
+    "rendered_pixel_counts": [
+      610
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000555_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 556,
+    "prediction_count": 1,
+    "scores": [
+      0.109375
+    ],
+    "rendered_pixel_counts": [
+      484
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000556_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 557,
+    "prediction_count": 1,
+    "scores": [
+      0.1796875
+    ],
+    "rendered_pixel_counts": [
+      507
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000557_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 558,
+    "prediction_count": 1,
+    "scores": [
+      0.06640625
+    ],
+    "rendered_pixel_counts": [
+      339
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000558_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 559,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      454
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000559_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 560,
+    "prediction_count": 1,
+    "scores": [
+      0.14453125
+    ],
+    "rendered_pixel_counts": [
+      563
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000560_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 561,
+    "prediction_count": 1,
+    "scores": [
+      0.09765625
+    ],
+    "rendered_pixel_counts": [
+      622
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000561_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 562,
+    "prediction_count": 1,
+    "scores": [
+      0.0703125
+    ],
+    "rendered_pixel_counts": [
+      328
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000562_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 563,
+    "prediction_count": 1,
+    "scores": [
+      0.125
+    ],
+    "rendered_pixel_counts": [
+      516
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000563_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 564,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      625
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000564_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 565,
+    "prediction_count": 1,
+    "scores": [
+      0.1015625
+    ],
+    "rendered_pixel_counts": [
+      392
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000565_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 566,
+    "prediction_count": 1,
+    "scores": [
+      0.08984375
+    ],
+    "rendered_pixel_counts": [
+      314
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000566_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 567,
+    "prediction_count": 1,
+    "scores": [
+      0.12890625
+    ],
+    "rendered_pixel_counts": [
+      376
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000567_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 568,
+    "prediction_count": 1,
+    "scores": [
+      0.046875
+    ],
+    "rendered_pixel_counts": [
+      420
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000568_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 569,
+    "prediction_count": 1,
+    "scores": [
+      0.0625
+    ],
+    "rendered_pixel_counts": [
+      640
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000569_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 570,
+    "prediction_count": 1,
+    "scores": [
+      0.0859375
+    ],
+    "rendered_pixel_counts": [
+      404
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000570_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 571,
+    "prediction_count": 1,
+    "scores": [
+      0.0625
+    ],
+    "rendered_pixel_counts": [
+      522
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000571_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 572,
+    "prediction_count": 1,
+    "scores": [
+      0.0625
+    ],
+    "rendered_pixel_counts": [
+      461
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000572_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 573,
+    "prediction_count": 1,
+    "scores": [
+      0.0703125
+    ],
+    "rendered_pixel_counts": [
+      744
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000573_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 574,
+    "prediction_count": 1,
+    "scores": [
+      0.08203125
+    ],
+    "rendered_pixel_counts": [
+      456
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000574_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 575,
+    "prediction_count": 1,
+    "scores": [
+      0.0234375
+    ],
+    "rendered_pixel_counts": [
+      558
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000575_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 576,
+    "prediction_count": 1,
+    "scores": [
+      0.0078125
+    ],
+    "rendered_pixel_counts": [
+      405
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000576_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 577,
+    "prediction_count": 1,
+    "scores": [
+      0.0234375
+    ],
+    "rendered_pixel_counts": [
+      371
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000577_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 578,
+    "prediction_count": 1,
+    "scores": [
+      0.04296875
+    ],
+    "rendered_pixel_counts": [
+      374
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000578_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 579,
+    "prediction_count": 1,
+    "scores": [
+      0.06640625
+    ],
+    "rendered_pixel_counts": [
+      509
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000579_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 580,
+    "prediction_count": 1,
+    "scores": [
+      0.0703125
+    ],
+    "rendered_pixel_counts": [
+      350
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000580_overlay.jpg"
+  },
+  {
+    "scene_id": 1,
+    "im_id": 581,
+    "prediction_count": 1,
+    "scores": [
+      0.0859375
+    ],
+    "rendered_pixel_counts": [
+      283
+    ],
+    "visible_prediction_count": 1,
+    "output": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/overlays/gigapose/000001_000581_overlay.jpg"
+  }
+]

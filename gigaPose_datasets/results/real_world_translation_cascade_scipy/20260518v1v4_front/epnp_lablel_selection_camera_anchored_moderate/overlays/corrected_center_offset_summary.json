@@ -1,0 +1,109 @@
+{
+  "candidate_csv": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/epnp_selection_camera_anchored_moderate/selected_samples.csv",
+  "projection_model": "metadata",
+  "object_center_mode": "epnp_raw",
+  "pose_center_in_raw_cad_mm": [
+    -241.1941141,
+    0.9010172,
+    332.92195200000003
+  ],
+  "mesh_aabb_center_mm": [
+    6.891012191772461,
+    0.003337860107421875,
+    498.76601225696504
+  ],
+  "sign_convention": "delta = corrected_pose_center - detection_bbox_center; positive delta_v means the corrected pose is lower in the image",
+  "input_rows": 94,
+  "rows_after_filters_and_sampling": 94,
+  "overlays_written": 94,
+  "valid_center_offsets": 94,
+  "distortion_model_counts": {
+    "equidistant": 94
+  },
+  "diagnostic_status_counts": {
+    "ok": 94
+  },
+  "active_delta_u_px": {
+    "count": 94,
+    "mean": -12.478762937248701,
+    "median": -2.1691318968177598,
+    "std": 52.60166543621043,
+    "p10": -34.421960731796744,
+    "p90": 1.4358731683682213
+  },
+  "active_delta_v_px": {
+    "count": 94,
+    "mean": 11.657216159195347,
+    "median": 10.25393148005142,
+    "std": 6.2037018782649085,
+    "p10": 6.441124854557782,
+    "p90": 15.81606072553534
+  },
+  "metadata_distorted_delta_u_px": {
+    "count": 94,
+    "mean": -12.478762937248701,
+    "median": -2.1691318968177598,
+    "std": 52.60166543621043,
+    "p10": -34.421960731796744,
+    "p90": 1.4358731683682213
+  },
+  "metadata_distorted_delta_v_px": {
+    "count": 94,
+    "mean": 11.657216159195347,
+    "median": 10.25393148005142,
+    "std": 6.2037018782649085,
+    "p10": 6.441124854557782,
+    "p90": 15.81606072553534
+  },
+  "pinhole_delta_u_px": {
+    "count": 94,
+    "mean": -29.63414926145954,
+    "median": -5.008216487314883,
+    "std": 94.00813720291737,
+    "p10": -100.8322123182964,
+    "p90": 0.8645988758232648
+  },
+  "pinhole_delta_v_px": {
+    "count": 94,
+    "mean": 13.74939108738791,
+    "median": 10.640437615819806,
+    "std": 11.13148223811821,
+    "p10": 6.5532605686789225,
+    "p90": 22.068929166902024
+  },
+  "metadata_minus_pinhole_center_u_px": {
+    "count": 94,
+    "mean": 17.15538632421085,
+    "median": 2.832510152757436,
+    "std": 43.69063588335583,
+    "p10": 0.4687402187697103,
+    "p90": 66.41025158649978
+  },
+  "metadata_minus_pinhole_center_v_px": {
+    "count": 94,
+    "mean": -2.092174928192564,
+    "median": -0.3151590629936436,
+    "std": 5.430544377600387,
+    "p10": -8.0663991514418,
+    "p90": -0.048097282028817266
+  },
+  "native_gigapose_delta_u_px": {
+    "count": 94,
+    "mean": 22.108857145051292,
+    "median": 9.555275073292535,
+    "std": 31.893105694921058,
+    "p10": 3.6104867793830637,
+    "p90": 53.77039154140303
+  },
+  "native_gigapose_delta_v_px": {
+    "count": 94,
+    "mean": 6.962859317881189,
+    "median": 6.872323988387251,
+    "std": 5.899481161522363,
+    "p10": 1.6982999130426009,
+    "p90": 12.292668798194985
+  },
+  "fraction_corrected_center_below_detection": 1.0,
+  "median_downward_shift_remains": true,
+  "median_downward_shift_px": 10.25393148005142
+}

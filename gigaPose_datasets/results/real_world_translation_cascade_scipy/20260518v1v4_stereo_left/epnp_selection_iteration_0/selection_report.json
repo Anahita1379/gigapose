@@ -1,0 +1,54 @@
+{
+  "source_root": "/media/hdd2/ARCL_multicar_bags/camera_dataset",
+  "dates": [
+    "2026-05-05",
+    "2026-05-18",
+    "2026-05-26"
+  ],
+  "epnp_roots": [
+    "/home/anahita/gigapose/gigaPose_datasets/datasets/2026-05-18-v1-v4/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels"
+  ],
+  "gigapose_predictions": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_stereo_left/with_camera_anchor/scipy_graph/tracked_predictions.csv",
+  "frame_transform_side": "right",
+  "frame_transform_estimated_from_one_to_one_pairs": 272,
+  "frame_transform_refine_iterations": 5,
+  "frame_transform_refinement_history": [
+    {
+      "iteration": 0,
+      "input_pairs": 272,
+      "inlier_pairs": 116,
+      "inlier_translation_threshold_mm": 5000.0,
+      "inlier_rotation_threshold_deg": 60.0
+    },
+    {
+      "iteration": 1,
+      "input_pairs": 272,
+      "inlier_pairs": 117,
+      "inlier_translation_threshold_mm": 5000.0,
+      "inlier_rotation_threshold_deg": 60.0
+    },
+    {
+      "iteration": 2,
+      "input_pairs": 272,
+      "inlier_pairs": 117,
+      "inlier_translation_threshold_mm": 5000.0,
+      "inlier_rotation_threshold_deg": 60.0
+    }
+  ],
+  "min_score": 0.05,
+  "max_translation_error_mm": 5000.0,
+  "max_rotation_error_deg": 30.0,
+  "max_roll_error_deg": 7.5,
+  "max_pitch_error_deg": 7.5,
+  "max_yaw_error_deg": 20.0,
+  "loaded_predictions_after_score_filter": 278,
+  "loaded_epnp_labels": 277,
+  "candidate_pairs": 272,
+  "selected_samples": 110,
+  "translation_error_mm_mean": 1385.0956380231073,
+  "translation_error_mm_median": 1058.3864816777677,
+  "translation_error_mm_p90": 3023.591601546701,
+  "rotation_error_deg_mean": 4.394539724194798,
+  "rotation_error_deg_median": 3.8439600281627078,
+  "rotation_error_deg_p90": 7.260174945287105
+}

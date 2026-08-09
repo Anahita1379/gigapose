@@ -1,0 +1,37 @@
+{
+  "format": "rgb_self_recovery_gru_kalman_measurements_v2",
+  "dataset_dir": "/home/anahita/gigapose/gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4",
+  "ground_truth_dataset_dir": null,
+  "split": "test",
+  "predictions": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/selector_epnp_map_anchored/tracked_predictions.csv",
+  "fallback_baseline_predictions": null,
+  "evaluation_available": false,
+  "frame_count": 214,
+  "run_count": 1,
+  "sequence_count": 1,
+  "segment_count": 2,
+  "context_feature_names": [
+    "measurement_score",
+    "bbox_center_x_fraction",
+    "bbox_center_y_fraction",
+    "bbox_width_fraction",
+    "bbox_height_fraction",
+    "bbox_area_fraction",
+    "measurement_depth_m"
+  ],
+  "skipped_count": 0,
+  "skipped": [],
+  "arguments": {
+    "dataset_dir": "/home/anahita/gigapose/gigaPose_datasets/datasets/real_20260518v1v4_front_gsam_v4",
+    "ground_truth_dataset_dir": null,
+    "split": "test",
+    "predictions": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/selector_epnp_map_anchored/tracked_predictions.csv",
+    "fallback_baseline_predictions": null,
+    "output_dir": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/selector_epnp_map_anchored_measurements",
+    "prediction_translation_unit": "mm",
+    "sequence_max_frame_gap": 1,
+    "sequence_max_time_gap_s": 0.5,
+    "max_frames": null,
+    "overwrite": true
+  }
+}

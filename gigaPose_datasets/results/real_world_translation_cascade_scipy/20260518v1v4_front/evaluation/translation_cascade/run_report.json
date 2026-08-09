@@ -1,0 +1,77 @@
+{
+  "format": "rgb_self_recovery_gru_kalman_inference_v1",
+  "frame_count": 214,
+  "segment_count": 2,
+  "fallback_count": 0,
+  "fallback_fraction": 0.0,
+  "translation_fallback_count": 0,
+  "translation_fallback_fraction": 0.0,
+  "rotation_fallback_count": 0,
+  "rotation_fallback_fraction": 0.0,
+  "use_fallback_heads": false,
+  "preserve_measurement_rotation": true,
+  "evaluation_available": false,
+  "raw_translation_error_m": {
+    "count": 0,
+    "mean": null,
+    "median": null,
+    "p90": null
+  },
+  "filtered_translation_error_m": {
+    "count": 0,
+    "mean": null,
+    "median": null,
+    "p90": null
+  },
+  "raw_rotation_error_deg": {
+    "count": 0,
+    "mean": null,
+    "median": null,
+    "p90": null
+  },
+  "filtered_rotation_error_deg": {
+    "count": 0,
+    "mean": null,
+    "median": null,
+    "p90": null
+  },
+  "by_camera": {
+    "front": {
+      "raw_translation_error_m": {
+        "count": 0,
+        "mean": null,
+        "median": null,
+        "p90": null
+      },
+      "filtered_translation_error_m": {
+        "count": 0,
+        "mean": null,
+        "median": null,
+        "p90": null
+      },
+      "raw_rotation_error_deg": {
+        "count": 0,
+        "mean": null,
+        "median": null,
+        "p90": null
+      },
+      "filtered_rotation_error_deg": {
+        "count": 0,
+        "mean": null,
+        "median": null,
+        "p90": null
+      }
+    }
+  },
+  "arguments": {
+    "data": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/selector_measurements",
+    "checkpoint": "/home/anahita/gigapose/gigaPose_datasets/results/rgb_self_recovery_fixed_lag_kalman/model_translation_only/best.ckpt",
+    "output_dir": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_front/translation_cascade",
+    "device": "cuda",
+    "max_correction_translation_m": 100.0,
+    "max_correction_rotation_deg": 180.0,
+    "minimum_translation_trust": 0.5,
+    "minimum_rotation_trust": 0.5,
+    "overwrite": true
+  }
+}

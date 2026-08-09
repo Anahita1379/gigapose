@@ -1,0 +1,36 @@
+{
+  "format": "orientation_anchor_evaluation_v1",
+  "predictions": "/home/anahita/gigapose/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_rear/with_camera_anchor/translation_cascade/tracked_predictions.csv",
+  "all": {
+    "translation_error_m": {
+      "count": 2523,
+      "mean": 8.35792523641866,
+      "median": 3.665206354930488,
+      "p90": 16.643537763398502
+    },
+    "rotation_error_deg": {
+      "count": 2523,
+      "mean": 30.834256787233468,
+      "median": 23.23404060923754,
+      "p90": 64.82893642695629
+    },
+    "front_rear_flip_like_count": 1,
+    "front_rear_flip_like_fraction": 0.00039635354736424893
+  },
+  "quality_approved": {
+    "translation_error_m": {
+      "count": 2483,
+      "mean": 8.241785579890443,
+      "median": 3.619523257502158,
+      "p90": 16.23547124719279
+    },
+    "rotation_error_deg": {
+      "count": 2483,
+      "mean": 30.727150507258667,
+      "median": 23.126408158217792,
+      "p90": 64.82893642695629
+    },
+    "front_rear_flip_like_count": 1,
+    "front_rear_flip_like_fraction": 0.0004027386226339106
+  }
+}
