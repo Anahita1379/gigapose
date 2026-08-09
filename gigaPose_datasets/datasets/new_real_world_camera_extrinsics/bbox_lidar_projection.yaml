@@ -1,0 +1,10 @@
+/**:
+  ros__parameters:
+    bbox_covariance_base_longitudinal: 1.0 # 2.0
+    bbox_covariance_base_lateral: 0.5 # 75
+    bbox_covariance_range_scale_longitudinal_per_meter: 0.04
+    bbox_covariance_range_scale_lateral_per_meter: 0.02
+    # bbox_covariance_trajectory_file: "trajectories/lvmsorc_real_iqp_traj_long_main_margin_1.00.csv"
+    # bbox_covariance_trajectory_lla0: [36.268080, -115.018186, 557.618]
+    bbox_covariance_trajectory_lla0: [39.583648, -86.744426, 259.652]
+    bbox_covariance_trajectory_file: ""
