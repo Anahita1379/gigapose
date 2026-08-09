@@ -216,6 +216,37 @@ do
 done
 ```
 
+for the camera 
+```bash
+cd /home/anahita/gigapose
+
+export CAMERA="stereo_left"
+
+export DATASET="$PWD/gigaPose_datasets/datasets/real_20260518v1v4_${CAMERA}_gsam_v4"
+export EPNP_ROOT="$PWD/gigaPose_datasets/datasets/2026-05-18-v1-v4/${CAMERA}/EPnPv2_gt_mesh_z_hybrid_labels"
+
+export RUN="$PWD/gigaPose_datasets/results/real_world_translation_cascade_scipy/20260518v1v4_${CAMERA}"
+export BRANCH_RUN="$RUN/with_camera_anchor"
+
+export OPTIMIZED_POSES="$BRANCH_RUN/scipy_graph/tracked_predictions.csv"
+export EPNP_SELECTION="$BRANCH_RUN/epnp_selection_iteration_0"
+```
+
+Check the input before continuing:
+```bash
+test -f "$OPTIMIZED_POSES" || {
+  echo "Missing optimized poses: $OPTIMIZED_POSES"
+  exit 1
+}
+
+echo "Using predictions: $OPTIMIZED_POSES"
+```
+
+
+
+
+
+
 ## 6. Iteration-0 EPnP candidate selection
 
 Only now is EPnP used to select calibration correspondences.
