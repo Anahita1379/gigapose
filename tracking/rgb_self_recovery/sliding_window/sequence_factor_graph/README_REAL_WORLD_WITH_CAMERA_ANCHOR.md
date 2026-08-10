@@ -76,8 +76,8 @@ python3 -m tracking.rgb_self_recovery.sliding_window.gru_kalman_filter.export_me
 python3 -m tracking.rgb_self_recovery.sliding_window.gru_kalman_filter.filter \
   --data "$BRANCH_RUN/measurements" \
   --checkpoint "$TRANSLATION_KF_CKPT" \
-  --max-correction-translation-m 100 \
-  --max-correction-rotation-deg 180 \
+  --max-correction-translation-m 5 \
+  --max-correction-rotation-deg 60 \
   --output-dir "$BRANCH_RUN/translation_cascade" \
   --device cuda \
   --overwrite
@@ -86,6 +86,9 @@ python3 -m json.tool "$BRANCH_RUN/translation_cascade/run_report.json"
 ```
 
 The translation-only checkpoint preserves the selector's anchored rotation.
+The 5 m correction guard returns an implausible filter translation to the
+selector measurement; do not raise it for real-world inference without an
+independent accuracy reference.
 
 ## 2a. Required pre-SciPy orientation audit
 

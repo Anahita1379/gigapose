@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from tracking.rgb_self_recovery.sliding_window.sequence import (
     SequenceStamp,
     discontinuity_reason,
+    metadata_time_s,
     order_sequence_rows,
 )
 
@@ -38,6 +39,19 @@ def test_sequence_detects_frame_and_timestamp_gaps():
     assert _reason(_frame(), _frame(source_frame=3, timestamp_ms=200)) == "source_frame_gap"
     assert _reason(_frame(), _frame(source_frame=2, timestamp_ms=900)) == "timestamp_gap"
     assert _reason(_frame(), _frame(source_frame=2, timestamp_ms=200)) is None
+
+
+def test_sequence_recovers_arcl_nanosecond_timestamp_from_frame_file():
+    metadata = {"frame_file": "image_3600197802821.jpg"}
+    assert metadata_time_s(metadata) == 3600.197802821
+
+
+def test_explicit_timestamp_takes_precedence_over_arcl_filename():
+    metadata = {
+        "timestamp_ms": 1250,
+        "frame_file": "image_3600197802821.jpg",
+    }
+    assert metadata_time_s(metadata) == 1.25
 
 
 def test_sequence_rows_sort_by_run_camera_and_source_frame():

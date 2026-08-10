@@ -76,6 +76,26 @@ def parse_args() -> argparse.Namespace:
             "metadata is missing."
         ),
     )
+    parser.add_argument(
+        "--camera-calibration-yaml",
+        type=Path,
+        default=None,
+        help=(
+            "Force one ROS camera-calibration YAML for every prepared frame. "
+            "Supports camera_matrix.data (for example rear_calib.yaml) and "
+            "takes precedence over per-frame metadata and --camera-k."
+        ),
+    )
+    parser.add_argument(
+        "--undistort-camera-calibration",
+        action="store_true",
+        help=(
+            "Rectify every RGB image and selected mask with the distortion "
+            "model from --camera-calibration-yaml before writing the pinhole "
+            "WebDataset. Required when a nonzero fisheye/plumb-bob D is used "
+            "with GigaPose's pinhole camera input."
+        ),
+    )
     parser.add_argument("--frame-stride", type=int, default=1)
     parser.add_argument("--max-frames-per-session", type=int, default=None)
     parser.add_argument("--min-mask-pixels", type=int, default=25)
@@ -108,6 +128,17 @@ def parse_args() -> argparse.Namespace:
             "Which EPnP detector boxes may identify the target. Quality "
             "approval requires label_weight>=0.5, center_error_px<=25, and "
             "projected_bbox_iou>=0.25. The unique mode skips ambiguous frames."
+        ),
+    )
+    parser.add_argument(
+        "--reference-valid-target-policy",
+        choices=("auto", "require", "ignore"),
+        default="auto",
+        help=(
+            "How is_valid_target affects reference frames. auto rejects "
+            "explicit false values while accepting legacy labels without the "
+            "field; require accepts only explicit true; ignore is a diagnostic "
+            "fallback that includes invalid targets."
         ),
     )
     parser.add_argument(
@@ -153,10 +184,33 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 def camera_k_from_yaml(path: Path) -> np.ndarray:
     data = load_yaml(path)
+    camera_matrix = data.get("camera_matrix", {})
+    if isinstance(camera_matrix, dict) and "data" in camera_matrix:
+        return np.asarray(camera_matrix["data"], dtype=float).reshape(3, 3)
     intr = data.get("camera_intrinsics", {})
     if "k" not in intr:
         raise ValueError(f"{path} does not contain camera_intrinsics.k")
     return np.asarray(intr["k"], dtype=float).reshape(3, 3)
+
+
+def camera_calibration_from_yaml(
+    path: Path,
+) -> tuple[np.ndarray, np.ndarray, str]:
+    data = load_yaml(path)
+    K = camera_k_from_yaml(path)
+    distortion = data.get("distortion_coefficients", {})
+    if isinstance(distortion, dict):
+        D = np.asarray(distortion.get("data", []), dtype=float).reshape(-1)
+    else:
+        D = np.asarray(
+            data.get("camera_intrinsics", {}).get("d", []), dtype=float
+        ).reshape(-1)
+    model = str(
+        data.get("distortion_model")
+        or data.get("camera_intrinsics", {}).get("distortion_model")
+        or "pinhole"
+    )
+    return K, D, model
 
 
 def timestamp_from_frame_file(frame_file: str) -> str | None:
@@ -213,7 +267,7 @@ def bbox_center_distance_sq(a: list[Any], b: list[Any]) -> float:
 
 
 def load_reference_bboxes(
-    root: Path, policy: str = "all"
+    root: Path, policy: str = "all", valid_target_policy: str = "auto"
 ) -> dict[str, list[list[float]]]:
     """Index detector boxes by source-image timestamp without using pose values."""
 
@@ -228,6 +282,16 @@ def load_reference_bboxes(
         records = data if isinstance(data, list) else [data]
         for record in records:
             if not isinstance(record, dict) or record.get("detector_bbox_xywh") is None:
+                continue
+            direct_valid = record.get("is_valid_target")
+            nested = record.get("target_validity")
+            target_valid = direct_valid if isinstance(direct_valid, bool) else None
+            if target_valid is None and isinstance(nested, dict):
+                nested_valid = nested.get("is_valid")
+                target_valid = nested_valid if isinstance(nested_valid, bool) else None
+            if valid_target_policy == "auto" and target_valid is False:
+                continue
+            if valid_target_policy == "require" and target_valid is not True:
                 continue
             if policy != "all" and not (
                 float(record.get("label_weight", 1.0)) >= 0.5
@@ -294,6 +358,43 @@ def image_bytes(path: Path) -> bytes:
         return buffer.getvalue()
 
 
+def rgb_image_bytes(image_rgb: np.ndarray) -> bytes:
+    buffer = io.BytesIO()
+    Image.fromarray(np.asarray(image_rgb, dtype=np.uint8)).save(
+        buffer, format="JPEG", quality=95
+    )
+    return buffer.getvalue()
+
+
+def undistort_maps(
+    K: np.ndarray,
+    D: np.ndarray,
+    model: str,
+    width: int,
+    height: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    import cv2
+
+    size = (int(width), int(height))
+    if model == "equidistant":
+        if D.size < 4:
+            raise ValueError("equidistant calibration requires four D coefficients")
+        return cv2.fisheye.initUndistortRectifyMap(
+            K, D[:4].reshape(4, 1), np.eye(3), K, size, cv2.CV_32FC1
+        )
+    if model == "plumb_bob":
+        return cv2.initUndistortRectifyMap(
+            K, D, np.eye(3), K, size, cv2.CV_32FC1
+        )
+    if model in ("pinhole", "", "none") or D.size == 0 or np.allclose(D, 0.0):
+        grid_x, grid_y = np.meshgrid(
+            np.arange(width, dtype=np.float32),
+            np.arange(height, dtype=np.float32),
+        )
+        return grid_x, grid_y
+    raise ValueError(f"Unsupported distortion model for rectification: {model!r}")
+
+
 def load_mask(path: Path, expected_size: tuple[int, int]) -> np.ndarray:
     if not path.is_file():
         raise FileNotFoundError(path)
@@ -351,13 +452,25 @@ def main() -> None:
         raise ValueError("--min-mask-pixels must be non-negative")
 
     image_dirs = [item.strip() for item in args.image_dirs.split(",") if item.strip()]
-    fallback_K = parse_camera_k(args.camera_k)
-    detection_file_name = args.detection_file_name or f"cnos-fastsam_{args.dataset_name}-test.json"
-
     dataset_dir = args.output_root / args.dataset_name
     test_dir = dataset_dir / "test"
     detection_dir = args.output_root / "cnos-fastsam"
+    detection_file_name = args.detection_file_name or f"cnos-fastsam_{args.dataset_name}-test.json"
     detection_path = detection_dir / detection_file_name
+
+    fallback_K = parse_camera_k(args.camera_k)
+    forced_calibration = (
+        camera_calibration_from_yaml(args.camera_calibration_yaml)
+        if args.camera_calibration_yaml is not None
+        else None
+    )
+    forced_K = forced_calibration[0] if forced_calibration is not None else None
+    if args.undistort_camera_calibration and forced_calibration is None:
+        raise ValueError(
+            "--undistort-camera-calibration requires --camera-calibration-yaml"
+        )
+    rectification_maps: dict[tuple[int, int], tuple[np.ndarray, np.ndarray]] = {}
+    prepared_masks_dir = dataset_dir / "prepared_masks"
 
     existing = [path for path in (test_dir, detection_path) if path.exists()]
     if existing and not args.overwrite:
@@ -366,11 +479,15 @@ def main() -> None:
         if test_dir.exists():
             shutil.rmtree(test_dir)
         detection_path.unlink(missing_ok=True)
+        if prepared_masks_dir.exists():
+            shutil.rmtree(prepared_masks_dir)
         for name in ("test_targets_bop19.json", "frame_map.json", "inference_metadata.json"):
             (dataset_dir / name).unlink(missing_ok=True)
 
     test_dir.mkdir(parents=True, exist_ok=True)
     detection_dir.mkdir(parents=True, exist_ok=True)
+    if args.undistort_camera_calibration:
+        prepared_masks_dir.mkdir(parents=True, exist_ok=True)
     write_models_from_cad(args.cad_path, dataset_dir, args.object_id)
 
     detections: list[dict[str, Any]] = []
@@ -399,6 +516,7 @@ def main() -> None:
                 load_reference_bboxes(
                     source_root / args.reference_label_dir,
                     args.reference_label_policy,
+                    args.reference_valid_target_policy,
                 )
                 if args.single_instance_policy == "epnp_bbox"
                 else {}
@@ -421,11 +539,14 @@ def main() -> None:
                     continue
                 mask_path = source_root / args.grounded_sam_dir / str(row["mask_png"])
                 with Image.open(image_path) as image:
+                    source_image_rgb = np.asarray(image.convert("RGB"))
                     width, height = image.size
                 mask_values = load_mask(mask_path, (width, height))
 
                 yaml_path = find_sample_yaml(source_root, args.sample_metadata_dir, frame_file)
-                if yaml_path is not None:
+                if forced_K is not None:
+                    K = forced_K
+                elif yaml_path is not None:
                     K = camera_k_from_yaml(yaml_path)
                 elif fallback_K is not None:
                     K = fallback_K
@@ -455,6 +576,7 @@ def main() -> None:
                             "class_name": obj.get("class_name", ""),
                             "score": float(obj.get("score", args.score)),
                             "segmentation": rle,
+                            "_object_mask": object_mask,
                         }
                     )
 
@@ -481,6 +603,57 @@ def main() -> None:
                     K,
                     frame_references,
                 )
+                output_image_rgb = source_image_rgb
+                output_mask_path = mask_path
+                if args.undistort_camera_calibration:
+                    import cv2
+
+                    map_key = (width, height)
+                    if map_key not in rectification_maps:
+                        assert forced_calibration is not None
+                        rectification_maps[map_key] = undistort_maps(
+                            forced_calibration[0],
+                            forced_calibration[1],
+                            forced_calibration[2],
+                            width,
+                            height,
+                        )
+                    map_x, map_y = rectification_maps[map_key]
+                    output_image_rgb = cv2.remap(
+                        source_image_rgb,
+                        map_x,
+                        map_y,
+                        interpolation=cv2.INTER_LINEAR,
+                        borderMode=cv2.BORDER_CONSTANT,
+                    )
+                    rectified_candidates = []
+                    prepared_mask = np.zeros((height, width), dtype=np.uint16)
+                    for candidate in selected_candidates:
+                        rectified_mask = cv2.remap(
+                            candidate["_object_mask"].astype(np.uint8),
+                            map_x,
+                            map_y,
+                            interpolation=cv2.INTER_NEAREST,
+                            borderMode=cv2.BORDER_CONSTANT,
+                        ).astype(bool)
+                        if int(rectified_mask.sum()) < args.min_mask_pixels:
+                            continue
+                        rectified = dict(candidate)
+                        rectified["bbox"] = bbox_from_mask(rectified_mask)
+                        x, y, w, h = rectified["bbox"]
+                        rectified["bbox_xyxy"] = [x, y, x + w - 1, y + h - 1]
+                        rectified["segmentation"] = pycoco_utils.binary_mask_to_rle(
+                            rectified_mask.astype(np.uint8)
+                        )
+                        rectified["_object_mask"] = rectified_mask
+                        prepared_mask[rectified_mask] = int(rectified["sam_object_id"])
+                        rectified_candidates.append(rectified)
+                    selected_candidates = rectified_candidates
+                    timestamp_for_mask = timestamp or str(
+                        row.get("frame_index", len(frame_map))
+                    )
+                    output_mask_path = prepared_masks_dir / f"mask_image_{timestamp_for_mask}.png"
+                    Image.fromarray(prepared_mask).save(output_mask_path)
                 record_selection(selection_reason)
                 instance_count = len(selected_candidates)
                 instances = []
@@ -519,7 +692,11 @@ def main() -> None:
                 writer.write(
                     {
                         "__key__": key,
-                        "rgb.jpg": image_bytes(image_path),
+                        "rgb.jpg": (
+                            rgb_image_bytes(output_image_rgb)
+                            if args.undistort_camera_calibration
+                            else image_bytes(image_path)
+                        ),
                         "depth.png": png_bytes(np.zeros((height, width), dtype=np.uint16)),
                         "camera.json": json.dumps(camera).encode(),
                     }
@@ -541,8 +718,12 @@ def main() -> None:
                         "camera_id": source_root.name,
                         "frame_index": int(row.get("frame_index", im_id)),
                         "frame_file": frame_file,
+                        # ARCL image names encode a monotonic nanosecond clock.
+                        # Preserve it explicitly so temporal tracking, Kalman,
+                        # and factor-graph stages use the true frame spacing.
+                        "timestamp_ns": int(timestamp) if timestamp is not None else None,
                         "image_path": str(image_path),
-                        "mask_path": str(mask_path),
+                        "mask_path": str(output_mask_path),
                         "sample_metadata_path": str(yaml_path) if yaml_path else None,
                         "instances": instances,
                         "available_grounded_sam_instances": len(instance_candidates),
@@ -575,7 +756,22 @@ def main() -> None:
                 "single_instance_policy": args.single_instance_policy,
                 "reference_label_dir": args.reference_label_dir,
                 "reference_label_policy": args.reference_label_policy,
+                "reference_valid_target_policy": args.reference_valid_target_policy,
                 "missing_reference_policy": args.missing_reference_policy,
+                "camera_calibration_yaml_override": (
+                    str(args.camera_calibration_yaml)
+                    if args.camera_calibration_yaml is not None
+                    else None
+                ),
+                "camera_images_undistorted": args.undistort_camera_calibration,
+                "camera_distortion_model_source": (
+                    forced_calibration[2] if forced_calibration is not None else None
+                ),
+                "camera_distortion_coefficients_source": (
+                    forced_calibration[1].tolist()
+                    if forced_calibration is not None
+                    else None
+                ),
                 "instance_selection_counts": instance_selection_counts,
                 "skipped": skipped,
             },

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import re
 from typing import Any, Mapping, Sequence
 
 
@@ -27,6 +28,16 @@ def metadata_time_s(metadata: Mapping[str, Any]) -> float | None:
         value = _optional_float(metadata.get(key))
         if value is not None:
             return value * scale
+
+    # Real-world ARCL frames encode their monotonic nanosecond timestamp in
+    # names such as ``image_3600197802821.jpg``. Older prepared datasets kept
+    # the filename in frame_map.json but accidentally omitted timestamp_ns.
+    # Recovering it here keeps those datasets usable without rebuilding their
+    # WebDataset shards.
+    for key in ("frame_file", "image_path"):
+        match = re.search(r"(?:^|[/\\])image_(\d+)(?:_|\.)", str(metadata.get(key, "")))
+        if match is not None:
+            return int(match.group(1)) * 1e-9
     return None
 
 

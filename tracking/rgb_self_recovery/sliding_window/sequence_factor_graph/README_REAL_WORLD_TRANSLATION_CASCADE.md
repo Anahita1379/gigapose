@@ -102,6 +102,12 @@ conda activate gigapose
 # front:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/front/EPnPv2_gt_mesh_z_hybrid_labels
 # stereo_left:/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1/stereo_left/EPnPv2_gt_mesh_z_hybrid_labels
 
+------------------------------------------------------
+# 20260718 front, rear
+# front: /media/hdd2/ARCL_multicar_bags/camera_dataset/2026-07-18/front/EPnPv2_gt_mesh_z_hybrid_labels
+
+
+
 # export RECORDING_ID="20260518v1v4"
 # export RECORDING_ID="20260518v0"
 # export RECORDING_ID="20260505v2"
@@ -119,6 +125,21 @@ export CAMERA="stereo_left"
 # export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4"
 export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1"
 # export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
+
+# export RECORDING_ID="20260505v1"
+export RECORDING_ID="20260718"
+
+export CAMERA="front"
+# export CAMERA="rear"
+# export CAMERA="stereo_left"
+
+
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v1-v4"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v0"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v2"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-18-v2-v4"
+# export RAW_RECORDING="/media/hdd2/ARCL_multicar_bags/camera_dataset/2026-05-05-12-28-13-v1"
+export RAW_RECORDING="/home/anahita/gigapose/gigaPose_datasets/datasets/2026-07-18"
 
 export RAW_CAMERA="$RAW_RECORDING/$CAMERA"
 export EPNP_ROOT="$RAW_CAMERA/EPnPv2_gt_mesh_z_hybrid_labels"
@@ -178,7 +199,8 @@ python3 -m Assetto_data_prep.prepare_grounded_sam_inference \
   --dataset-name "$DATASET_NAME" \
   --single-instance-policy epnp_bbox \
   --reference-label-dir EPnPv2_gt_mesh_z_hybrid_labels \
-  --reference-label-policy quality_approved_unique \
+  --reference-label-policy all \
+  --reference-valid-target-policy auto \
   --missing-reference-policy skip \
   --overwrite
 ```
